@@ -1,0 +1,13 @@
+version: '3.8'
+
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./data:/app/data
+      - .:/app/workspace:ro  # Excel в корне проекта тоже подхватываются
+    environment:
+      - EXTRA_DATA_DIR=/app/workspace  # Сканировать Excel в корне проекта
+    restart: unless-stopped

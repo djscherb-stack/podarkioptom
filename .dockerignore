@@ -1,0 +1,11 @@
+venv/
+node_modules/
+__pycache__/
+*.pyc
+.git/
+.gitignore
+.cursor/
+*.md
+!README.md
+frontend/node_modules/
+.DS_Store

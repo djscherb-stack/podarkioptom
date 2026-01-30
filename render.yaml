@@ -1,0 +1,7 @@
+# Развёртывание на Render.com (бесплатно)
+# https://render.com
+services:
+  - type: web
+    name: proanalitik
+    runtime: docker
+    plan: free
