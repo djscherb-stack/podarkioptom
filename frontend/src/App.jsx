@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
 import MonthPage from './pages/MonthPage'
 import DayPage from './pages/DayPage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
+import UploadButton from './components/UploadButton'
 import './App.css'
 
 function DayNavLink(props) {
@@ -21,6 +22,9 @@ function App() {
           <DayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             По дню
           </DayNavLink>
+          <div className="nav-upload">
+            <UploadButton />
+          </div>
         </nav>
         <main className="main">
           <Routes>

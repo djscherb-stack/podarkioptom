@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI
+from fastapi import FastAPI, UploadFile, File
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse
@@ -41,6 +41,23 @@ def refresh():
     """Принудительная перезагрузка данных из папки."""
     db.refresh_data()
     return {"status": "ok"}
+
+
+@app.post("/api/upload")
+async def upload_excel(file: UploadFile = File(...)):
+    """Загрузка Excel-файла. Дубликаты при загрузке отфильтровываются."""
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        return {"error": "Нужен файл Excel (.xlsx или .xls)"}
+    from datetime import datetime
+    data_dir = db.get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    ext = ".xlsx" if file.filename.lower().endswith(".xlsx") else ".xls"
+    safe_name = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+    dest = data_dir / safe_name
+    content = await file.read()
+    dest.write_bytes(content)
+    db.refresh_data()
+    return {"status": "ok", "file": safe_name}
 
 
 @app.get("/api/months")

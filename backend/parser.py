@@ -135,4 +135,12 @@ def load_all_data(data_dir: str) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame(columns=["article", "nomenclature_type", "product_name", "quantity", "date", "department"])
     
-    return pd.concat(frames, ignore_index=True)
+    combined = pd.concat(frames, ignore_index=True)
+    # Убираем дубликаты: одна запись = дата (день) + подразделение + вид + наименование + кол-во
+    combined["_dup_date"] = combined["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+    dup_cols = ["_dup_date", "department", "nomenclature_type", "product_name", "quantity"]
+    dup_cols = [c for c in dup_cols if c in combined.columns]
+    if dup_cols:
+        combined = combined.drop_duplicates(subset=dup_cols, keep="first")
+    combined = combined.drop(columns=["_dup_date"], errors="ignore")
+    return combined
