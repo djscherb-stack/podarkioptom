@@ -1,7 +1,6 @@
 import { useState, useEffect } from 'react'
 import ProductionBlock from '../components/ProductionBlock'
-
-const API = '/api'
+import { API, apiFetch } from '../api'
 
 // Конвертация старого формата API (departments) в productions
 function normalizeMonthData(raw) {
@@ -36,8 +35,7 @@ export default function MonthPage() {
   const monthNames = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
   useEffect(() => {
-    fetch(`${API}/months`)
-      .then(r => r.json())
+    apiFetch(`${API}/months`)
       .then(m => {
         setMonths(m)
         if (m.length > 0) {
@@ -61,11 +59,7 @@ export default function MonthPage() {
     }
     setLoading(true)
     setError(null)
-    fetch(`${API}/month/${selectedYear}/${selectedMonth}`)
-      .then(r => {
-        if (!r.ok) throw new Error(`Ошибка сервера: ${r.status}`)
-        return r.json()
-      })
+    apiFetch(`${API}/month/${selectedYear}/${selectedMonth}`)
       .then(raw => setData(normalizeMonthData(raw)))
       .catch(e => {
         setError(e.message)
@@ -75,8 +69,8 @@ export default function MonthPage() {
   }, [selectedYear, selectedMonth])
 
   const handleRefresh = () => {
-    fetch(`${API}/refresh`).then(() => {
-      fetch(`${API}/months`).then(r => r.json()).then(m => {
+    apiFetch(`${API}/refresh`).then(() => {
+      apiFetch(`${API}/months`).then(m => {
         setMonths(m)
         if (m.length > 0) {
           setSelectedYear(m[0].year)
@@ -84,11 +78,10 @@ export default function MonthPage() {
         }
       })
       if (selectedYear && selectedMonth) {
-        fetch(`${API}/month/${selectedYear}/${selectedMonth}`)
-          .then(r => r.json())
+        apiFetch(`${API}/month/${selectedYear}/${selectedMonth}`)
           .then(raw => setData(normalizeMonthData(raw)))
       }
-    })
+    }).catch(e => setError(e.message))
   }
 
   if (error) return <div className="error">Ошибка: {error}</div>
@@ -127,7 +120,16 @@ export default function MonthPage() {
       {!loading && (
         <>
           {Object.entries(productions).map(([name, prodData]) => (
-            <ProductionBlock key={name} prodName={name} prodData={prodData} expandedKey={expandedKey} onToggle={setExpandedKey} year={selectedYear} month={selectedMonth} />
+            <ProductionBlock
+              key={name}
+              prodName={name}
+              prodData={prodData}
+              expandedKey={expandedKey}
+              onToggle={setExpandedKey}
+              year={selectedYear}
+              month={selectedMonth}
+              comparisonLabels={{ current: 'этот месяц', previous: 'предыдущий' }}
+            />
           ))}
           {!hasData && <div className="empty">Нет данных за выбранный месяц</div>}
         </>

@@ -1,5 +1,6 @@
 """Конфигурация производств и логика группировки."""
 
+import re
 from typing import Any, Optional, Tuple
 import pandas as pd
 
@@ -72,6 +73,19 @@ def _split_faskovka(df: pd.DataFrame) -> list[dict]:
     return result
 
 
+def _calc_sbor_units(combined_df: pd.DataFrame) -> int:
+    """Сборочный цех Елино: «Комплект N шт» — каждая единица считается как N штук продукции."""
+    nom = combined_df["nomenclature_type"].fillna("").astype(str)
+    qty = combined_df["quantity"]
+    pattern = re.compile(r"(\d+)\s*шт", re.IGNORECASE)
+    total = 0
+    for i, (n, q) in enumerate(zip(nom, qty)):
+        m = pattern.search(n)
+        mult = int(m.group(1)) if m else 1
+        total += q * mult
+    return int(total)
+
+
 def _split_grav_karton(df: pd.DataFrame) -> list[dict]:
     """Картон/Дерево Гравировка: МДФ-вырезанная→РЕЗКА, МДФ→сборка, остальное→пресс.
     Проверяем product_name (наименование), т.к. «МДФ - вырезанная» там."""
@@ -128,6 +142,10 @@ def _process_production_data(df: pd.DataFrame) -> dict[str, Any]:
             "unit": unit,
             "main": cfg.get("main", False),
         }
+
+        # Сборочный цех Елино: вторая цифра — «Комплект N шт» считается как N единиц
+        if block_name == "Сборочный цех Елино" and not split_type:
+            block["total_units"] = _calc_sbor_units(combined_df)
 
         if split_type == "faskovka":
             subs = _split_faskovka(combined_df)

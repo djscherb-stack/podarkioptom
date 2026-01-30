@@ -475,6 +475,13 @@
   margin-bottom: 0.75rem;
 }
 
+.dept-total-units {
+  font-size: 0.9rem;
+  color: #4a5568;
+  margin: -0.4rem 0 0.5rem;
+  font-weight: 500;
+}
+
 .btn-expand {
   padding: 0.4rem 0.8rem;
   font-size: 0.85rem;

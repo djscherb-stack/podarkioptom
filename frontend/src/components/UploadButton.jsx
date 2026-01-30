@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
-
-const API = '/api'
+import { API } from '../api'
 
 export default function UploadButton({ onSuccess }) {
   const inputRef = useRef(null)
@@ -21,7 +20,19 @@ export default function UploadButton({ onSuccess }) {
         method: 'POST',
         body: formData,
       })
-      const data = await r.json()
+      const ct = r.headers.get('content-type') || ''
+      let data
+      if (ct.includes('application/json')) {
+        data = await r.json()
+      } else {
+        const text = await r.text()
+        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+          setMessage('Сервер не отвечает. Подождите минуту и попробуйте снова.')
+          return
+        }
+        setMessage('Ошибка сервера. Проверьте размер файла (до 10 МБ).')
+        return
+      }
       if (r.ok) {
         setMessage('Загружено. Обновляю...')
         onSuccess?.()
@@ -30,7 +41,7 @@ export default function UploadButton({ onSuccess }) {
         setMessage(data.error || 'Ошибка загрузки')
       }
     } catch (err) {
-      setMessage('Ошибка: ' + err.message)
+      setMessage('Ошибка: ' + err.message + '. Возможно, сервер ещё загружается.')
     } finally {
       setUploading(false)
       e.target.value = ''

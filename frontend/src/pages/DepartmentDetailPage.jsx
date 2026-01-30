@@ -1,8 +1,7 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams, Link } from 'react-router-dom'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts'
-
-const API = '/api'
+import { API, apiFetch } from '../api'
 
 const monthNames = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
@@ -26,11 +25,7 @@ export default function DepartmentDetailPage() {
     setLoading(true)
     setError(null)
     const url = `${API}/department-daily/${year}/${month}?production=${encodeURIComponent(production)}&department=${encodeURIComponent(department)}`
-    fetch(url)
-      .then(r => {
-        if (!r.ok) throw new Error(`Ошибка: ${r.status}`)
-        return r.json()
-      })
+    apiFetch(url)
       .then(setData)
       .catch(e => setError(e.message))
       .finally(() => setLoading(false))

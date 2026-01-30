@@ -6,21 +6,21 @@ function formatQty(val) {
     : Number(val).toLocaleString('ru-RU')
 }
 
-function DeptComparison({ today, comparison, unitLabel, formatQty }) {
-  const { yesterday, delta, delta_pct, types_today, types_yesterday, types_delta, subs } = comparison
+function DeptComparison({ today, comparison, unitLabel, formatQty, labels = { current: 'сегодня', previous: 'вчера' }, unitsLabel }) {
+  const { yesterday, delta, delta_pct, types_today, types_yesterday, types_delta, subs, units_today, units_yesterday, units_delta } = comparison
   const maxVal = Math.max(today ?? 0, yesterday ?? 0, 1)
   return (
     <div className="dept-comparison">
       <div className="comp-chart">
         <div className="comp-bar-row">
-          <span className="comp-bar-label">сегодня</span>
+          <span className="comp-bar-label">{labels.current}</span>
           <div className="comp-bar-wrap">
             <div className="comp-bar today" style={{ width: `${(today / maxVal) * 100}%` }} />
           </div>
           <span className="comp-bar-val">{formatQty(today ?? 0)}</span>
         </div>
         <div className="comp-bar-row">
-          <span className="comp-bar-label">вчера</span>
+          <span className="comp-bar-label">{labels.previous}</span>
           <div className="comp-bar-wrap">
             <div className="comp-bar yesterday" style={{ width: `${(yesterday / maxVal) * 100}%` }} />
           </div>
@@ -39,6 +39,12 @@ function DeptComparison({ today, comparison, unitLabel, formatQty }) {
           <div className={`comp-metric ${(types_delta ?? 0) >= 0 ? 'up' : 'down'}`}>
             <span className="comp-metric-label">видов</span>
             <span>{types_today} / {types_yesterday ?? 0}{(types_delta ?? 0) !== 0 && ` (Δ ${(types_delta ?? 0) >= 0 ? '+' : ''}${types_delta})`}</span>
+          </div>
+        )}
+        {units_today != null && unitsLabel && (
+          <div className={`comp-metric ${(units_delta ?? 0) >= 0 ? 'up' : 'down'}`}>
+            <span className="comp-metric-label">{unitsLabel}</span>
+            <span>{formatQty(units_today)} / {formatQty(units_yesterday ?? 0)}{(units_delta ?? 0) !== 0 && ` (Δ ${(units_delta ?? 0) >= 0 ? '+' : ''}${formatQty(units_delta)})`}</span>
           </div>
         )}
       </div>
@@ -93,8 +99,18 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
               <div className="dept-total">
                 {formatQty(dept.total)} {unitLabel}
               </div>
+              {dept.total_units != null && (
+                <div className="dept-total-units">в ед. продукции: {formatQty(dept.total_units)} шт.</div>
+              )}
               {dept.comparison != null && (
-                <DeptComparison today={dept.total} comparison={dept.comparison} unitLabel={unitLabel} formatQty={formatQty} />
+                <DeptComparison
+                  today={dept.total}
+                  comparison={dept.comparison}
+                  unitLabel={unitLabel}
+                  formatQty={formatQty}
+                  labels={comparisonLabels}
+                  unitsLabel={dept.total_units != null ? 'ед. продукции' : null}
+                />
               )}
               {dept.subs?.length > 0 && (
                 <div className="dept-subs">

@@ -48,16 +48,21 @@ async def upload_excel(file: UploadFile = File(...)):
     """Загрузка Excel-файла. Дубликаты при загрузке отфильтровываются."""
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
         return {"error": "Нужен файл Excel (.xlsx или .xls)"}
-    from datetime import datetime
-    data_dir = db.get_data_dir()
-    data_dir.mkdir(parents=True, exist_ok=True)
-    ext = ".xlsx" if file.filename.lower().endswith(".xlsx") else ".xls"
-    safe_name = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
-    dest = data_dir / safe_name
-    content = await file.read()
-    dest.write_bytes(content)
-    db.refresh_data()
-    return {"status": "ok", "file": safe_name}
+    try:
+        from datetime import datetime
+        content = await file.read()
+        if len(content) > 15 * 1024 * 1024:  # 15 MB
+            return {"error": "Файл слишком большой (макс. 15 МБ)"}
+        data_dir = db.get_data_dir()
+        data_dir.mkdir(parents=True, exist_ok=True)
+        ext = ".xlsx" if file.filename.lower().endswith(".xlsx") else ".xls"
+        safe_name = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+        dest = data_dir / safe_name
+        dest.write_bytes(content)
+        db.refresh_data()
+        return {"status": "ok", "file": safe_name}
+    except Exception as e:
+        return {"error": f"Ошибка: {str(e)}"}
 
 
 @app.get("/api/months")

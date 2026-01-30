@@ -2,8 +2,7 @@ import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import ProductionBlock from '../components/ProductionBlock'
 import Calendar from '../components/Calendar'
-
-const API = '/api'
+import { API, apiFetch } from '../api'
 const STORAGE_KEY = 'analytics-day-date'
 const MONTH_NAMES = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 
@@ -47,8 +46,8 @@ export default function DayPage() {
   useEffect(() => {
     if (selectedDate) {
       setLoading(true)
-      fetch(`${API}/day/${selectedDate}`)
-        .then(r => r.json())
+      setError(null)
+      apiFetch(`${API}/day/${selectedDate}`)
         .then(setData)
         .catch(e => setError(e.message))
         .finally(() => setLoading(false))
@@ -56,9 +55,9 @@ export default function DayPage() {
   }, [selectedDate])
 
   const handleRefresh = () => {
-    fetch(`${API}/refresh`).then(() => {
-      fetch(`${API}/day/${selectedDate}`).then(r => r.json()).then(setData)
-    })
+    apiFetch(`${API}/refresh`, { method: 'GET' }).then(() => {
+      apiFetch(`${API}/day/${selectedDate}`).then(setData)
+    }).catch(e => setError(e.message))
   }
 
   if (error) return <div className="error">Ошибка: {error}</div>

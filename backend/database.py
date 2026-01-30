@@ -43,8 +43,15 @@ def get_df() -> pd.DataFrame:
     return _df
 
 
+def _prev_month(year: int, month: int) -> tuple[int, int]:
+    """Предыдущий месяц."""
+    if month == 1:
+        return year - 1, 12
+    return year, month - 1
+
+
 def get_monthly_stats(year: int, month: int) -> dict[str, Any]:
-    """Аналитика за месяц по производствам."""
+    """Аналитика за месяц по производствам + сравнение с предыдущим месяцем."""
     df = get_df()
     if df.empty:
         return {"productions": {}}
@@ -54,7 +61,49 @@ def get_monthly_stats(year: int, month: int) -> dict[str, Any]:
     if m.empty:
         return {"productions": {}}
     
-    return {"productions": build_productions_stats(m)}
+    productions = build_productions_stats(m)
+    
+    # Сравнение с предыдущим месяцем
+    py, pm = _prev_month(year, month)
+    period_prev = pd.Period(year=py, month=pm, freq="M")
+    m_prev = df[df["year_month"] == period_prev]
+    productions_prev = build_productions_stats(m_prev) if not m_prev.empty else {}
+    
+    for prod_name, prod_data in productions.items():
+        prod_prev = productions_prev.get(prod_name, {})
+        depts_prev = {d["name"]: d for d in prod_prev.get("departments", [])}
+        for dept in prod_data.get("departments", []):
+            prev_dept = depts_prev.get(dept["name"], {})
+            y = prev_dept.get("total", 0)
+            t = dept.get("total", 0)
+            use_float = dept.get("unit") == "кг"
+            y = round(float(y), 2) if use_float else int(y)
+            t = round(float(t), 2) if use_float else int(t)
+            delta = round(t - y, 2) if use_float else t - y
+            delta_pct = round((delta / y * 100) if y else 0, 1)
+            types_t = len(dept.get("nomenclature", [])) or sum(len(v) for v in (dept.get("nomenclature_by_op") or {}).values())
+            types_y = len(prev_dept.get("nomenclature", [])) or sum(len(v) for v in (prev_dept.get("nomenclature_by_op") or {}).values())
+            subs_comp = None
+            if dept.get("subs"):
+                subs_comp = []
+                prev_subs = {s["sub_name"]: s.get("total", 0) for s in prev_dept.get("subs", [])}
+                for s in dept["subs"]:
+                    py_val = prev_subs.get(s["sub_name"], 0)
+                    pt = s.get("total", 0)
+                    subs_comp.append({"name": s["sub_name"], "today": pt, "yesterday": py_val, "delta": pt - py_val})
+            comp = {
+                "yesterday": y, "delta": delta, "delta_pct": delta_pct,
+                "types_today": types_t, "types_yesterday": types_y, "types_delta": types_t - types_y,
+                "subs": subs_comp,
+            }
+            if dept.get("total_units") is not None:
+                u_prev = prev_dept.get("total_units", 0) or 0
+                comp["units_today"] = dept["total_units"]
+                comp["units_yesterday"] = u_prev
+                comp["units_delta"] = dept["total_units"] - u_prev
+            dept["comparison"] = comp
+    
+    return {"productions": productions}
 
 
 def get_daily_stats(target_date: date) -> dict[str, Any]:
@@ -96,11 +145,17 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
                     py = prev_subs.get(s["sub_name"], 0)
                     pt = s.get("total", 0)
                     subs_comp.append({"name": s["sub_name"], "today": pt, "yesterday": py, "delta": pt - py})
-            dept["comparison"] = {
+            comp = {
                 "yesterday": y, "delta": delta, "delta_pct": delta_pct,
                 "types_today": types_t, "types_yesterday": types_y, "types_delta": types_t - types_y,
                 "subs": subs_comp,
             }
+            if dept.get("total_units") is not None:
+                u_prev = prev_dept.get("total_units", 0) or 0
+                comp["units_today"] = dept["total_units"]
+                comp["units_yesterday"] = u_prev
+                comp["units_delta"] = dept["total_units"] - u_prev
+            dept["comparison"] = comp
     
     return {
         "date": target_date.isoformat(),
