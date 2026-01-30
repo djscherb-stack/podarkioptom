@@ -65,7 +65,7 @@ function DeptComparison({ today, comparison, unitLabel, formatQty, labels = { cu
   )
 }
 
-export default function ProductionBlock({ prodName, prodData, expandedKey, onToggle, year, month }) {
+export default function ProductionBlock({ prodName, prodData, expandedKey, onToggle, year, month, comparisonLabels }) {
   const navigate = useNavigate()
   const departments = prodData?.departments || []
   if (departments.length === 0) return null

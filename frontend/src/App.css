@@ -2,6 +2,43 @@
   min-height: 100vh;
 }
 
+.site-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem 0 1.5rem;
+  border-bottom: 1px solid #e2e8f0;
+  margin-bottom: 1rem;
+}
+
+.site-logo {
+  height: 48px;
+  width: auto;
+  object-fit: contain;
+}
+
+.site-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #553c9a;
+  letter-spacing: -0.02em;
+}
+
+.site-header-login {
+  position: absolute;
+  top: 1.5rem;
+  left: 50%;
+  transform: translateX(-50%);
+  border: none;
+  margin: 0;
+  padding: 0 1rem;
+}
+
+.site-header-login .site-title {
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
+}
+
 .nav {
   display: flex;
   gap: 0.5rem;
@@ -60,6 +97,152 @@
 .upload-msg {
   font-size: 0.8rem;
   color: #4a5568;
+}
+
+.btn-logout {
+  padding: 0.5rem 1rem;
+  background: transparent;
+  color: #718096;
+  border: 1px solid #cbd5e0;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  margin-left: 0.5rem;
+}
+
+.btn-logout:hover {
+  background: #edf2f7;
+  color: #2d3748;
+}
+
+/* Страница входа */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, #2d3748 0%, #1a202c 100%);
+  padding: 1rem;
+}
+
+.login-box {
+  background: white;
+  padding: 2.5rem;
+  border-radius: 16px;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  width: 100%;
+  max-width: 360px;
+}
+
+.login-box h1 {
+  margin: 0 0 0.5rem;
+  font-size: 1.5rem;
+  color: #2d3748;
+}
+
+.login-subtitle {
+  margin: 0 0 1.5rem;
+  color: #718096;
+  font-size: 0.95rem;
+}
+
+.login-form input {
+  display: block;
+  width: 100%;
+  padding: 0.75rem 1rem;
+  margin-bottom: 1rem;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  font-size: 1rem;
+  box-sizing: border-box;
+}
+
+.login-form input:focus {
+  outline: none;
+  border-color: #2b6cb0;
+}
+
+.login-error {
+  color: #c53030;
+  font-size: 0.9rem;
+  margin-bottom: 1rem;
+}
+
+.login-btn {
+  width: 100%;
+  padding: 0.75rem 1rem;
+  background: #2b6cb0;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  font-size: 1rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.login-btn:hover:not(:disabled) {
+  background: #2c5282;
+}
+
+.login-btn:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+/* Аналитика по месяцам */
+.months-compare-page .page-header {
+  margin-bottom: 1.5rem;
+}
+
+.months-compare-subtitle {
+  margin: 0.25rem 0 0;
+  color: #718096;
+  font-size: 0.95rem;
+}
+
+.months-compare-block {
+  background: white;
+  border-radius: 12px;
+  padding: 1.5rem;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+  overflow-x: auto;
+}
+
+.months-compare-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.95rem;
+}
+
+.months-compare-table th,
+.months-compare-table td {
+  padding: 0.75rem 1rem;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.months-compare-table th {
+  font-weight: 600;
+  color: #2d3748;
+  background: #f7fafc;
+}
+
+.months-compare-table td {
+  color: #4a5568;
+}
+
+.months-compare-prod {
+  min-width: 160px;
+  font-weight: 500;
+}
+
+.months-compare-month {
+  min-width: 100px;
+  text-align: center;
+}
+
+.months-compare-val {
+  text-align: right;
 }
 
 .main {

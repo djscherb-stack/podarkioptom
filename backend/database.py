@@ -226,3 +226,43 @@ def get_available_months() -> list[dict[str, int]]:
     periods = df["year_month"].dropna().unique()
     result = [{"year": int(p.year), "month": int(p.month)} for p in sorted(periods, reverse=True)]
     return result
+
+
+def get_months_comparison() -> dict[str, Any]:
+    """Сравнение выпуска по трём производствам по месяцам (только главные показатели)."""
+    months = get_available_months()
+    if not months:
+        return {"months": [], "productions": {}}
+
+    prod_names = ["ЧАЙ", "ГРАВИРОВКА", "ЛЮМИНАРК"]
+    result = {
+        "months": [{"year": m["year"], "month": m["month"], "label": f"{_month_name(m['month'])} {m['year']}"} for m in months],
+        "productions": {p: [] for p in prod_names},
+    }
+
+    main_depts = {
+        "ЧАЙ": "Сборочный цех Елино",
+        "ГРАВИРОВКА": "Сборочный цех Елино Гравировка",
+        "ЛЮМИНАРК": "Сборочный цех Люминарк",
+    }
+
+    for m in months:
+        stats = get_monthly_stats(m["year"], m["month"])
+        prods = stats.get("productions", {})
+        for p in prod_names:
+            dept_name = main_depts[p]
+            val = 0
+            unit = "шт"
+            for d in prods.get(p, {}).get("departments", []):
+                if d.get("name") == dept_name:
+                    val = d.get("total_units") if d.get("total_units") is not None else d.get("total", 0)
+                    unit = d.get("unit", "шт")
+                    break
+            result["productions"][p].append({"value": val, "unit": unit})
+
+    return result
+
+
+def _month_name(month: int) -> str:
+    names = ["", "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
+    return names[month] if 1 <= month <= 12 else str(month)

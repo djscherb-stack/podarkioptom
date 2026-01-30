@@ -3,12 +3,22 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, JSONResponse
 
 import database as db
+import auth
+
+
+def require_auth(request: Request) -> str:
+    """Проверка авторизации по cookie. Вызывает 401 при отсутствии."""
+    token = request.cookies.get("analytics_session")
+    username = auth.get_username(token)
+    if not username:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    return username
 
 
 @asynccontextmanager
@@ -21,29 +31,74 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="Аналитика выпуска продукции", lifespan=lifespan)
 
+# CORS: с credentials нельзя использовать "*", указываем явные origins
+import os
+_cors_origins = [
+    "http://localhost:5173", "http://localhost:8000",
+    "http://127.0.0.1:5173", "http://127.0.0.1:8000",
+    "https://podarkioptom.onrender.com", "https://www.podarkioptom.onrender.com",
+]
+_extra = os.environ.get("CORS_ORIGINS", "")
+if _extra:
+    _cors_origins.extend(x.strip() for x in _extra.split(",") if x.strip())
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=_cors_origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 
-@app.get("/api/version")
+@app.post("/api/login")
+async def login_post(request: Request):
+    """Вход по логину и паролю."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Ожидается JSON"}, status_code=400)
+    username = body.get("username", "")
+    password = body.get("password", "")
+    if not auth.check_password(username, password):
+        return JSONResponse({"error": "Неверный логин или пароль"}, status_code=401)
+    token = auth.create_session(username)
+    response = JSONResponse({"ok": True})
+    response.set_cookie("analytics_session", token, httponly=True, samesite="lax", max_age=7 * 24 * 3600, path="/")
+    return response
+
+
+@app.post("/api/logout")
+def logout(request: Request):
+    """Выход из системы."""
+    token = request.cookies.get("analytics_session")
+    auth.logout(token)
+    response = JSONResponse({"ok": True})
+    # Удаляем cookie — те же path/samesite, что при установке
+    response.set_cookie("analytics_session", "", httponly=True, samesite="lax", max_age=0, path="/")
+    return response
+
+
+@app.get("/api/me")
+def get_me(_: str = Depends(require_auth)):
+    """Проверка авторизации."""
+    return {"ok": True}
+
+
+@app.get("/api/version", dependencies=[Depends(require_auth)])
 def version():
     """Версия API (productions = новый формат)."""
     return {"format": "productions", "version": 2}
 
 
-@app.get("/api/refresh")
+@app.get("/api/refresh", dependencies=[Depends(require_auth)])
 def refresh():
     """Принудительная перезагрузка данных из папки."""
     db.refresh_data()
     return {"status": "ok"}
 
 
-@app.post("/api/upload")
+@app.post("/api/upload", dependencies=[Depends(require_auth)])
 async def upload_excel(file: UploadFile = File(...)):
     """Загрузка Excel-файла. Дубликаты при загрузке отфильтровываются."""
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
@@ -65,26 +120,32 @@ async def upload_excel(file: UploadFile = File(...)):
         return {"error": f"Ошибка: {str(e)}"}
 
 
-@app.get("/api/months")
+@app.get("/api/months", dependencies=[Depends(require_auth)])
 def get_months():
     """Список доступных месяцев."""
     return db.get_available_months()
 
 
-@app.get("/api/month/{year}/{month}")
+@app.get("/api/months-comparison", dependencies=[Depends(require_auth)])
+def get_months_comparison():
+    """Сравнение выпуска по трём производствам по месяцам."""
+    return db.get_months_comparison()
+
+
+@app.get("/api/month/{year}/{month}", dependencies=[Depends(require_auth)])
 def get_month_stats(year: int, month: int):
     """Аналитика за месяц."""
     return db.get_monthly_stats(year, month)
 
 
-@app.get("/api/department-daily/{year}/{month}")
+@app.get("/api/department-daily/{year}/{month}", dependencies=[Depends(require_auth)])
 def get_department_daily(production: str, department: str, year: int, month: int):
     """Выпуск по дням для подразделения за месяц (query: production, department)."""
     from urllib.parse import unquote
     return db.get_department_daily_stats(unquote(production), unquote(department), year, month)
 
 
-@app.get("/api/day/{date_str}")
+@app.get("/api/day/{date_str}", dependencies=[Depends(require_auth)])
 def get_day_stats(date_str: str):
     """Аналитика за день (date_str: YYYY-MM-DD)."""
     from datetime import datetime
