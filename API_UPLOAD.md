@@ -2,6 +2,8 @@
 
 Для автоматической выгрузки аналитики без входа в систему используйте endpoint с токеном.
 
+**Для приёма из Mailparser** (при пересылке вложений письмом): см. [MAILPARSER_UPLOAD.md](MAILPARSER_UPLOAD.md) — endpoint `/api/upload-from-mailparser` принимает JSON.
+
 ## 1. Настройка токена
 
 Задайте переменную окружения `UPLOAD_TOKEN` (например, на Render: Environment → Add Environment Variable):

@@ -2,6 +2,7 @@
 
 from contextlib import asynccontextmanager
 from pathlib import Path
+from typing import Optional
 
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -18,6 +19,13 @@ def require_auth(request: Request) -> str:
     username = auth.get_username(token)
     if not username:
         raise HTTPException(status_code=401, detail="Требуется авторизация")
+    return username
+
+
+def require_admin(username: str = Depends(require_auth)) -> str:
+    """Только admin. PR и др. — 403."""
+    if not auth.is_admin(username):
+        raise HTTPException(status_code=403, detail="Доступ запрещён")
     return username
 
 
@@ -62,6 +70,7 @@ async def login_post(request: Request):
     password = body.get("password", "")
     if not auth.check_password(username, password):
         return JSONResponse({"error": "Неверный логин или пароль"}, status_code=401)
+    auth.log_login(username)
     token = auth.create_session(username)
     response = JSONResponse({"ok": True})
     response.set_cookie("analytics_session", token, httponly=True, samesite="lax", max_age=7 * 24 * 3600, path="/")
@@ -80,9 +89,9 @@ def logout(request: Request):
 
 
 @app.get("/api/me")
-def get_me(_: str = Depends(require_auth)):
-    """Проверка авторизации."""
-    return {"ok": True}
+def get_me(username: str = Depends(require_auth)):
+    """Проверка авторизации. Возвращает username и is_admin."""
+    return {"ok": True, "username": username, "is_admin": auth.is_admin(username)}
 
 
 @app.get("/api/version", dependencies=[Depends(require_auth)])
@@ -123,6 +132,127 @@ async def upload_excel(file: UploadFile = File(...)):
         return _do_upload(content, file.filename)
     except Exception as e:
         return {"error": f"Ошибка: {str(e)}"}
+
+
+def _mailparser_to_excel(body: dict) -> Optional[bytes]:
+    """Преобразует данные из Mailparser webhook в Excel. Возвращает bytes или None."""
+    import io
+    import pandas as pd
+    from parser import parse_date
+
+    data = body.get("parsed_data") or body.get("data") or body
+    if not isinstance(data, dict):
+        return None
+
+    # Поддержка разных форматов Mailparser
+    # 1) Колонки как массивы: { "Артикул": [...], "Вид номенклатуры": [...], ... }
+    # 2) Строки: { "rows": [ {col: val, ...}, ... ] } или data: [...]
+    rows = []
+    col_map = {
+        "article": ["article", "articul", "артикул"],
+        "nomenclature_type": ["nomenclature_type", "nomenclature", "вид номенклатуры", "вид_номенклатуры"],
+        "product_name": ["product_name", "product", "наименование", "наименование продукции"],
+        "quantity": ["quantity", "количество", "количество выпущено"],
+        "date": ["date", "дата", "дата выпуска", "дата_выпуска"],
+        "department": ["department", "подразделение", "department_name"],
+    }
+
+    def find_col(d: dict, aliases: list) -> Optional[str]:
+        aliases_lower = [a.lower() for a in aliases]
+        for dk in d:
+            if str(dk).strip().lower() in aliases_lower:
+                return dk
+        return None
+
+    # Формат: одна строка (One Request Per Row)
+    if not rows:
+        row = {}
+        for our_name, aliases in col_map.items():
+            key = find_col(data, aliases)
+            if key and key in data:
+                row[our_name] = data[key]
+        if len(row) >= 4:
+            rows.append(row)
+
+    # Формат: массивы по колонкам
+    if not rows:
+        first_arr = None
+        for v in data.values():
+            if isinstance(v, list) and len(v) > 0:
+                first_arr = v
+                break
+        if first_arr and isinstance(first_arr, list):
+            n = len(first_arr)
+            out_cols = {}
+            for our_name, aliases in col_map.items():
+                key = find_col(data, aliases)
+                if key and key in data:
+                    vals = data[key]
+                    if isinstance(vals, list) and len(vals) >= n:
+                        out_cols[our_name] = list(vals)[:n]
+                    elif not isinstance(vals, list):
+                        out_cols[our_name] = [vals] * n
+            if len(out_cols) >= 4:
+                for i in range(n):
+                    row = {k: (v[i] if i < len(v) else "") for k, v in out_cols.items()}
+                    rows.append(row)
+
+    # Формат: массив объектов-строк
+    if not rows:
+        arr = data.get("rows") or data.get("data") or data.get("items")
+        if isinstance(arr, list):
+            for item in arr:
+                if isinstance(item, dict):
+                    row = {}
+                    for our_name, aliases in col_map.items():
+                        key = find_col(item, aliases)
+                        if key and key in item:
+                            row[our_name] = item[key]
+                    if len(row) >= 4:
+                        rows.append(row)
+
+    if not rows:
+        return None
+
+    df = pd.DataFrame(rows)
+    for c in ["article", "nomenclature_type", "product_name", "department"]:
+        if c in df.columns:
+            df[c] = df[c].fillna("").astype(str).str.strip()
+    if "quantity" in df.columns:
+        df["quantity"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0).astype(int)
+    if "date" in df.columns:
+        df["date"] = df["date"].apply(lambda x: parse_date(x) or pd.NaT)
+        df = df[df["date"].notna()]
+
+    needed = ["article", "nomenclature_type", "product_name", "quantity", "date", "department"]
+    for c in needed:
+        if c not in df.columns:
+            df[c] = "" if c != "quantity" else 0
+    df = df[needed]
+    buf = io.BytesIO()
+    df.to_excel(buf, index=False)
+    return buf.getvalue()
+
+
+@app.post("/api/upload-from-mailparser")
+async def upload_from_mailparser(
+    request: Request,
+    x_upload_token: str = Header(None, alias="X-Upload-Token"),
+):
+    """Приём данных из Mailparser webhook. Заголовок: X-Upload-Token."""
+    expected = os.environ.get("UPLOAD_TOKEN", "")
+    if not expected or not x_upload_token or x_upload_token != expected:
+        raise HTTPException(status_code=403, detail="Неверный или отсутствующий токен")
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Ожидается JSON")
+    excel_bytes = _mailparser_to_excel(body)
+    if not excel_bytes:
+        raise HTTPException(status_code=400, detail="Не удалось извлечь данные. Ожидается parsed_data с колонками: Артикул, Вид номенклатуры, Наименование, Количество, Дата, Подразделение")
+    from datetime import datetime
+    filename = f"mailparser_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
+    return _do_upload(excel_bytes, filename)
 
 
 @app.post("/api/upload-by-token")
@@ -166,6 +296,12 @@ def get_department_daily(production: str, department: str, year: int, month: int
     """Выпуск по дням для подразделения за месяц (query: production, department)."""
     from urllib.parse import unquote
     return db.get_department_daily_stats(unquote(production), unquote(department), year, month)
+
+
+@app.get("/api/admin/login-history", dependencies=[Depends(require_admin)])
+def admin_login_history():
+    """История входов: кто, когда, сколько раз. Только для admin."""
+    return auth.get_login_history()
 
 
 @app.get("/api/day/{date_str}", dependencies=[Depends(require_auth)])

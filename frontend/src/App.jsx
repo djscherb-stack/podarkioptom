@@ -5,6 +5,7 @@ import DayPage from './pages/DayPage'
 import MonthsComparePage from './pages/MonthsComparePage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
 import LoginPage from './pages/LoginPage'
+import AdminPage from './pages/AdminPage'
 import UploadButton from './components/UploadButton'
 import { API, apiFetch, AuthError } from './api'
 import './App.css'
@@ -33,7 +34,8 @@ function SiteLogo() {
   )
 }
 
-function AppContent() {
+function AppContent({ userInfo }) {
+  const isAdmin = userInfo?.is_admin === true
   return (
     <div className="app">
       <SiteLogo />
@@ -47,6 +49,11 @@ function AppContent() {
         <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
           Аналитика по месяцам
         </NavLink>
+        {isAdmin && (
+          <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            Админ
+          </NavLink>
+        )}
         <div className="nav-upload">
           <UploadButton />
         </div>
@@ -70,6 +77,7 @@ function AppContent() {
           <Route path="/month" element={<MonthPage />} />
           <Route path="/day" element={<DayPage />} />
           <Route path="/months" element={<MonthsComparePage />} />
+          <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
         </Routes>
       </main>
@@ -78,13 +86,19 @@ function AppContent() {
 }
 
 function App() {
-  const [authStatus, setAuthStatus] = useState('pending') // pending | ok | fail
+  const [authStatus, setAuthStatus] = useState('pending')
+  const [userInfo, setUserInfo] = useState(null)
 
   useEffect(() => {
     fetch(`${API}/me`, { credentials: 'include' })
-      .then((r) => {
-        if (r.ok) setAuthStatus('ok')
-        else setAuthStatus('fail')
+      .then(async (r) => {
+        if (r.ok) {
+          const d = await r.json()
+          setUserInfo({ username: d.username, is_admin: d.is_admin })
+          setAuthStatus('ok')
+        } else {
+          setAuthStatus('fail')
+        }
       })
       .catch(() => setAuthStatus('fail'))
   }, [])
@@ -111,7 +125,7 @@ function App() {
 
   return (
     <BrowserRouter>
-      <AppContent />
+      <AppContent userInfo={userInfo} />
     </BrowserRouter>
   )
 }

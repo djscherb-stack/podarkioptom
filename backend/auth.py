@@ -1,20 +1,70 @@
-"""Простая аутентификация по логину и паролю."""
+"""Аутентификация: admin и PR. Логирование входов."""
 
 import os
 import secrets
+import json
+from datetime import datetime
+from pathlib import Path
 from typing import Optional
 
-# Учётные данные из переменных окружения (для продакшена)
-AUTH_USER = os.environ.get("ANALYTICS_USER", "admin")
-AUTH_PASSWORD = os.environ.get("ANALYTICS_PASSWORD", "vuhzyf")
+# Admin — из env (ANALYTICS_USER, ANALYTICS_PASSWORD)
+# PR — фиксированный пароль Plkdf45, без доступа к админке
+ADMIN_USER = os.environ.get("ANALYTICS_USER", "admin")
+ADMIN_PASSWORD = os.environ.get("ANALYTICS_PASSWORD", "vuhzyf")
+PR_USER = "PR"
+PR_PASSWORD = "Plkdf45"
 
-# Хранилище сессий: token -> username
+# token -> username
 SESSIONS: dict[str, str] = {}
+
+# История входов: [{username, at}], сохраняется в файл
+_LOGIN_HISTORY: list[dict] = []
+_LOGIN_HISTORY_FILE: Optional[Path] = None
+
+
+def _get_history_path() -> Path:
+    global _LOGIN_HISTORY_FILE
+    if _LOGIN_HISTORY_FILE is None:
+        base = Path(os.environ.get("DATA_DIR", Path(__file__).resolve().parent.parent / "data"))
+        base.mkdir(parents=True, exist_ok=True)
+        _LOGIN_HISTORY_FILE = base / "login_history.json"
+    return _LOGIN_HISTORY_FILE
+
+
+def _load_history():
+    global _LOGIN_HISTORY
+    path = _get_history_path()
+    if path.exists():
+        try:
+            with open(path, "r", encoding="utf-8") as f:
+                _LOGIN_HISTORY = json.load(f)
+        except Exception:
+            _LOGIN_HISTORY = []
+    else:
+        _LOGIN_HISTORY = []
+
+
+def _save_history():
+    path = _get_history_path()
+    try:
+        with open(path, "w", encoding="utf-8") as f:
+            json.dump(_LOGIN_HISTORY[-5000:], f, ensure_ascii=False)  # последние 5000
+    except Exception:
+        pass
 
 
 def check_password(username: str, password: str) -> bool:
     """Проверка логина и пароля."""
-    return username == AUTH_USER and password == AUTH_PASSWORD
+    if username == ADMIN_USER and password == ADMIN_PASSWORD:
+        return True
+    if username == PR_USER and password == PR_PASSWORD:
+        return True
+    return False
+
+
+def is_admin(username: str) -> bool:
+    """Только admin имеет доступ к админ-странице."""
+    return username == ADMIN_USER
 
 
 def create_session(username: str) -> str:
@@ -35,3 +85,31 @@ def logout(token: Optional[str]) -> None:
     """Завершить сессию."""
     if token and token in SESSIONS:
         del SESSIONS[token]
+
+
+def log_login(username: str) -> None:
+    """Записать вход в историю."""
+    if not _LOGIN_HISTORY:
+        _load_history()
+    _LOGIN_HISTORY.append({
+        "username": username,
+        "at": datetime.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ"),
+    })
+    _save_history()
+
+
+def get_login_history() -> dict:
+    """История входов: список и агрегат по пользователям. Только для admin."""
+    if not _LOGIN_HISTORY:
+        _load_history()
+    by_user: dict = {}
+    for e in _LOGIN_HISTORY:
+        u = e.get("username", "?")
+        if u not in by_user:
+            by_user[u] = {"count": 0, "last": None}
+        by_user[u]["count"] += 1
+        by_user[u]["last"] = e.get("at")
+    return {
+        "logins": _LOGIN_HISTORY[-200:][::-1],
+        "by_user": by_user,
+    }
