@@ -1,5 +1,6 @@
 """Кэш данных и бизнес-логика аналитики."""
 
+import os
 from pathlib import Path
 from datetime import datetime, date, timedelta
 from typing import Any, Optional
@@ -8,8 +9,9 @@ import pandas as pd
 from parser import load_all_data
 from productions import build_productions_stats, get_block_config
 
-# Папка с данными - на уровень выше backend (ProAnalitik/data или корень)
-DATA_DIR = Path(__file__).resolve().parent.parent / "data"
+# Папка с данными. DATA_DIR из env — для persistent disk на Render (загруженные файлы сохраняются)
+_default = Path(__file__).resolve().parent.parent / "data"
+DATA_DIR = Path(os.environ.get("DATA_DIR", _default))
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 _df: Optional[pd.DataFrame] = None
