@@ -3,7 +3,7 @@
 from contextlib import asynccontextmanager
 from pathlib import Path
 
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request
+from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -98,26 +98,49 @@ def refresh():
     return {"status": "ok"}
 
 
+def _do_upload(content: bytes, filename: str) -> dict:
+    """Общая логика загрузки Excel."""
+    from datetime import datetime
+    if len(content) > 15 * 1024 * 1024:
+        return {"error": "Файл слишком большой (макс. 15 МБ)"}
+    data_dir = db.get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    ext = ".xlsx" if filename.lower().endswith(".xlsx") else ".xls"
+    safe_name = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
+    dest = data_dir / safe_name
+    dest.write_bytes(content)
+    db.refresh_data()
+    return {"status": "ok", "file": safe_name}
+
+
 @app.post("/api/upload", dependencies=[Depends(require_auth)])
 async def upload_excel(file: UploadFile = File(...)):
-    """Загрузка Excel-файла. Дубликаты при загрузке отфильтровываются."""
+    """Загрузка Excel-файла (требуется авторизация). Дубликаты отфильтровываются."""
     if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
         return {"error": "Нужен файл Excel (.xlsx или .xls)"}
     try:
-        from datetime import datetime
         content = await file.read()
-        if len(content) > 15 * 1024 * 1024:  # 15 MB
-            return {"error": "Файл слишком большой (макс. 15 МБ)"}
-        data_dir = db.get_data_dir()
-        data_dir.mkdir(parents=True, exist_ok=True)
-        ext = ".xlsx" if file.filename.lower().endswith(".xlsx") else ".xls"
-        safe_name = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}{ext}"
-        dest = data_dir / safe_name
-        dest.write_bytes(content)
-        db.refresh_data()
-        return {"status": "ok", "file": safe_name}
+        return _do_upload(content, file.filename)
     except Exception as e:
         return {"error": f"Ошибка: {str(e)}"}
+
+
+@app.post("/api/upload-by-token")
+async def upload_by_token(
+    file: UploadFile = File(...),
+    x_upload_token: str = Header(None, alias="X-Upload-Token"),
+):
+    """Загрузка Excel по токену (для автоматизации). Заголовок: X-Upload-Token."""
+    expected = os.environ.get("UPLOAD_TOKEN", "")
+    if not expected or not x_upload_token or x_upload_token != expected:
+        raise HTTPException(status_code=403, detail="Неверный или отсутствующий токен")
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        return {"error": "Нужен файл Excel (.xlsx или .xls)"}
+    try:
+        content = await file.read()
+        return _do_upload(content, file.filename)
+    except Exception as e:
+        return {"error": str(e)}
 
 
 @app.get("/api/months", dependencies=[Depends(require_auth)])

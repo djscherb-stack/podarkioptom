@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, NavLink } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
 import MonthPage from './pages/MonthPage'
 import DayPage from './pages/DayPage'
 import MonthsComparePage from './pages/MonthsComparePage'
@@ -9,9 +9,18 @@ import UploadButton from './components/UploadButton'
 import { API, apiFetch, AuthError } from './api'
 import './App.css'
 
+function getYesterdayDayPath() {
+  const d = new Date()
+  d.setDate(d.getDate() - 1)
+  const y = d.getFullYear()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const day = String(d.getDate()).padStart(2, '0')
+  return `/day?date=${y}-${m}-${day}`
+}
+
 function DayNavLink(props) {
   const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('analytics-day-date') : null
-  const to = stored && /^\d{4}-\d{2}-\d{2}$/.test(stored) ? `/day?date=${stored}` : '/day'
+  const to = stored && /^\d{4}-\d{2}-\d{2}$/.test(stored) ? `/day?date=${stored}` : getYesterdayDayPath()
   return <NavLink to={to} {...props} />
 }
 
@@ -29,7 +38,7 @@ function AppContent() {
     <div className="app">
       <SiteLogo />
       <nav className="nav">
-        <NavLink to="/" end className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+        <NavLink to="/month" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
           По месяцу
         </NavLink>
         <DayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
@@ -48,7 +57,7 @@ function AppContent() {
             try {
               await fetch(`${API}/logout`, { method: 'POST', credentials: 'include' })
             } finally {
-              window.location.href = '/'
+              window.location.href = getYesterdayDayPath()
             }
           }}
         >
@@ -57,7 +66,8 @@ function AppContent() {
       </nav>
       <main className="main">
         <Routes>
-          <Route path="/" element={<MonthPage />} />
+          <Route path="/" element={<Navigate to={getYesterdayDayPath()} replace />} />
+          <Route path="/month" element={<MonthPage />} />
           <Route path="/day" element={<DayPage />} />
           <Route path="/months" element={<MonthsComparePage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />

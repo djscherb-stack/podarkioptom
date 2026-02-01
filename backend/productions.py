@@ -74,14 +74,12 @@ def _split_faskovka(df: pd.DataFrame) -> list[dict]:
 
 
 def _calc_sbor_units(combined_df: pd.DataFrame) -> int:
-    """Сборочный цех Елино: «Комплект N шт» — каждая единица считается как N штук продукции."""
+    """Сборочный цех Елино: только «Комплект 4 шт» — каждая единица считается как 4 штуки. Остальная номенклатура — mult=1."""
     nom = combined_df["nomenclature_type"].fillna("").astype(str)
     qty = combined_df["quantity"]
-    pattern = re.compile(r"(\d+)\s*шт", re.IGNORECASE)
     total = 0
-    for i, (n, q) in enumerate(zip(nom, qty)):
-        m = pattern.search(n)
-        mult = int(m.group(1)) if m else 1
+    for n, q in zip(nom, qty):
+        mult = 4 if "комплект 4 шт" in n.lower() else 1
         total += q * mult
     return int(total)
 
