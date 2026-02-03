@@ -6,8 +6,6 @@ import MonthsComparePage from './pages/MonthsComparePage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
-import EmployeeDayPage from './pages/EmployeeDayPage'
-import ComparePage from './pages/ComparePage'
 import UploadButton from './components/UploadButton'
 import { API, apiFetch, AuthError } from './api'
 import './App.css'
@@ -25,88 +23,74 @@ function getYesterdayDayPath() {
   return `/day?date=${getYesterdayDateStr()}`
 }
 
-function getDayPath(suffix) {
+function getDayPath() {
   const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('analytics-day-date') : null
   const dateStr = (stored && /^\d{4}-\d{2}-\d{2}$/.test(stored)) ? stored : getYesterdayDateStr()
-  return `/${suffix}?date=${dateStr}`
+  return `/day?date=${dateStr}`
 }
 
 function DayNavLink(props) {
-  return <NavLink to={getDayPath('day')} {...props} />
-}
-
-function EmployeeDayNavLink(props) {
-  return <NavLink to={getDayPath('employee-day')} {...props} />
-}
-
-function CompareNavLink(props) {
-  return <NavLink to={getDayPath('compare')} {...props} />
-}
-
-function SiteLogo() {
-  return (
-    <header className="site-header">
-      <img src="/happy-brands-logo.png" alt="Happy Brands" className="site-logo" />
-      <span className="site-title">Happy Brands production analytics</span>
-    </header>
-  )
+  return <NavLink to={getDayPath()} {...props} />
 }
 
 function AppContent({ userInfo }) {
   const isAdmin = userInfo?.is_admin === true
   return (
     <div className="app">
-      <SiteLogo />
-      <nav className="nav">
-        <NavLink to="/month" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-          По месяцу
-        </NavLink>
-        <DayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-          По дню
-        </DayNavLink>
-        <EmployeeDayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-          Выработка сотрудников
-        </EmployeeDayNavLink>
-        <CompareNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-          Сравнение
-        </CompareNavLink>
-        <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-          Аналитика по месяцам
-        </NavLink>
-        {isAdmin && (
-          <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            Админ
+      <aside className="app-sidebar">
+        <div className="app-sidebar-nav">
+          <NavLink to="/month" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            По месяцу
           </NavLink>
-        )}
-        <div className="nav-upload">
-          <UploadButton />
+          <DayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            По дню
+          </DayNavLink>
+          <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            Аналитика по месяцам
+          </NavLink>
+          {isAdmin && (
+            <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Админ
+            </NavLink>
+          )}
         </div>
-        <button
-          type="button"
-          className="btn-logout"
-          onClick={async () => {
-            try {
-              await fetch(`${API}/logout`, { method: 'POST', credentials: 'include' })
-            } finally {
-              window.location.href = getYesterdayDayPath()
-            }
-          }}
-        >
-          Выйти
-        </button>
-      </nav>
-      <main className="main">
-        <Routes>
+      </aside>
+      <div className="app-main">
+        <header className="app-header">
+          <div style={{ display: 'flex', alignItems: 'center' }}>
+            <img src="/happy-brands-logo.png" alt="" className="site-logo" />
+            <span className="site-title">Happy Brands</span>
+          </div>
+          <div className="app-header-right">
+            <div className="nav-upload">
+              <UploadButton />
+            </div>
+            <button
+              type="button"
+              className="btn-logout"
+              onClick={async () => {
+                try {
+                  await fetch(`${API}/logout`, { method: 'POST', credentials: 'include' })
+                } finally {
+                  window.location.href = getYesterdayDayPath()
+                }
+              }}
+            >
+              Выйти
+            </button>
+          </div>
+        </header>
+        <main className="main">
+          <Routes>
           <Route path="/" element={<Navigate to={getYesterdayDayPath()} replace />} />
           <Route path="/month" element={<MonthPage />} />
           <Route path="/day" element={<DayPage />} />
-          <Route path="/employee-day" element={<EmployeeDayPage />} />
-          <Route path="/compare" element={<ComparePage />} />
           <Route path="/months" element={<MonthsComparePage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
-        </Routes>
-      </main>
+          </Routes>
+        </main>
+      </div>
     </div>
   )
 }
@@ -132,10 +116,10 @@ function App() {
   if (authStatus === 'pending') {
     return (
       <div className="login-page">
-        <header className="site-header site-header-login">
-          <img src="/happy-brands-logo.png" alt="Happy Brands" className="site-logo" />
-          <span className="site-title">Happy Brands production analytics</span>
-        </header>
+        <div style={{ position: 'absolute', top: '1.5rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+          <img src="/happy-brands-logo.png" alt="" className="site-logo" />
+          <span className="site-title site-header-login">Happy Brands</span>
+        </div>
         <div className="login-box"><p>Загрузка...</p></div>
       </div>
     )

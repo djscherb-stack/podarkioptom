@@ -7,8 +7,7 @@ from typing import Any, Optional
 import pandas as pd
 
 from parser import load_all_data
-from parser_employees import load_all_employee_data
-from productions import build_productions_stats, build_employee_productions_stats, get_block_config
+from productions import build_productions_stats, get_block_config
 
 # Папка с данными. DATA_DIR из env — для persistent disk на Render (загруженные файлы сохраняются)
 _default = Path(__file__).resolve().parent.parent / "data"
@@ -16,7 +15,6 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", _default))
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 _df: Optional[pd.DataFrame] = None
-_df_employees: Optional[pd.DataFrame] = None
 
 
 def get_data_dir() -> Path:
@@ -30,13 +28,12 @@ def ensure_data_dir():
 
 
 def refresh_data():
-    """Перезагрузить данные из файлов (продукция + выработка сотрудников)."""
-    global _df, _df_employees
+    """Перезагрузить данные из файлов."""
+    global _df
     ensure_data_dir()
     _df = load_all_data(str(DATA_DIR))
     _df["year_month"] = _df["date"].dt.to_period("M")
     _df["date_only"] = _df["date"].dt.date
-    _df_employees = load_all_employee_data(str(DATA_DIR))
 
 
 def get_df() -> pd.DataFrame:
@@ -45,14 +42,6 @@ def get_df() -> pd.DataFrame:
     if _df is None:
         refresh_data()
     return _df
-
-
-def get_employee_df() -> pd.DataFrame:
-    """Получить датафрейм выработки сотрудников."""
-    global _df_employees
-    if _df_employees is None:
-        refresh_data()
-    return _df_employees if _df_employees is not None else pd.DataFrame(columns=["department", "user", "quantity", "date_only"])
 
 
 def _prev_month(year: int, month: int) -> tuple[int, int]:
@@ -118,8 +107,42 @@ def get_monthly_stats(year: int, month: int) -> dict[str, Any]:
     return {"productions": productions}
 
 
+def _get_block_daily_trend(prod_name: str, block_name: str, end_date: date, days: int = 30) -> tuple[list[dict], float]:
+    """Тренд по дням за последние days дней и среднее за период (без end_date)."""
+    df = get_df()
+    if df.empty:
+        return [], 0.0
+    cfg = get_block_config(prod_name, block_name)
+    if not cfg:
+        return [], 0.0
+    raw_keys = cfg.get("keys", [])
+    if isinstance(raw_keys, str):
+        raw_keys = [raw_keys]
+    use_kg = cfg.get("unit") == "кг" and cfg.get("transform") == "grams_to_kg"
+    start = end_date - timedelta(days=days)
+    mask = (df["date_only"] >= start) & (df["date_only"] < end_date)
+    mask_dept = df["department"].apply(lambda d: _match_dept_for_block(str(d), raw_keys))
+    m = df[mask & mask_dept]
+    if m.empty:
+        return [], 0.0
+    daily = m.groupby("date_only", as_index=False)["quantity"].sum()
+    daily = daily.sort_values("date_only")
+    trend = []
+    total = 0.0
+    for _, row in daily.iterrows():
+        qty = row["quantity"]
+        if use_kg:
+            qty = round(qty / 1000, 2)
+        else:
+            qty = int(qty)
+        trend.append({"date": str(row["date_only"]), "quantity": qty})
+        total += qty
+    avg = round(total / len(trend), 2) if trend else 0.0
+    return trend, avg
+
+
 def get_daily_stats(target_date: date) -> dict[str, Any]:
-    """Аналитика за день по производствам + сравнение с вчера по каждому участку."""
+    """Аналитика за день + сравнение с вчера + среднее за 30 дней + тренд."""
     df = get_df()
     if df.empty:
         return {
@@ -134,7 +157,6 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
     productions_today = build_productions_stats(day_data)
     productions_yesterday = build_productions_stats(prev_data)
     
-    # Добавляем расширенное сравнение с вчера по каждому участку
     for prod_name, prod_data in productions_today.items():
         prod_prev = productions_yesterday.get(prod_name, {})
         depts_prev = {d["name"]: d for d in prod_prev.get("departments", [])}
@@ -168,6 +190,16 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
                 comp["units_yesterday"] = u_prev
                 comp["units_delta"] = dept["total_units"] - u_prev
             dept["comparison"] = comp
+            
+            # Среднее за 30 дней и тренд
+            trend_30d, avg_30d = _get_block_daily_trend(prod_name, dept["name"], target_date, 30)
+            dept["trend_30d"] = trend_30d
+            dept["avg_30d"] = avg_30d
+            t_val = t if use_float else float(t)
+            vs_avg = round(t_val - avg_30d, 2)
+            vs_avg_pct = round((vs_avg / avg_30d * 100) if avg_30d else 0, 1)
+            dept["vs_avg_delta"] = vs_avg
+            dept["vs_avg_pct"] = vs_avg_pct
     
     return {
         "date": target_date.isoformat(),
@@ -228,52 +260,6 @@ def get_department_daily_stats(production: str, department: str, year: int, mont
         result.append({"date": str(row["date_only"]), "quantity": qty})
     
     return {"department": department, "production": production, "unit": unit, "daily": result, "year": year, "month": month}
-
-
-def get_employee_daily_stats(target_date: date) -> dict[str, Any]:
-    """Выработка сотрудников за день. Структура как get_daily_stats, детализация — сотрудник, количество."""
-    emp_df = get_employee_df()
-    if emp_df.empty:
-        return {"date": target_date.isoformat(), "productions": {}}
-    day_data = emp_df[emp_df["date_only"] == target_date]
-    return {
-        "date": target_date.isoformat(),
-        "productions": build_employee_productions_stats(day_data),
-    }
-
-
-def get_day_compare(target_date: date) -> dict[str, Any]:
-    """Сравнение: выпуск продукции vs выработка сотрудников по участкам за день."""
-    prod_stats = get_daily_stats(target_date)
-    emp_stats = get_employee_daily_stats(target_date)
-    prod_prods = prod_stats.get("productions", {})
-    emp_prods = emp_stats.get("productions", {})
-
-    compare = []
-    for prod_name in ["ЧАЙ", "ГРАВИРОВКА", "ЛЮМИНАРК"]:
-        prod_deps = {d["name"]: d for d in prod_prods.get(prod_name, {}).get("departments", [])}
-        emp_deps = {d["name"]: d for d in emp_prods.get(prod_name, {}).get("departments", [])}
-        all_dept_names = set(prod_deps.keys()) | set(emp_deps.keys())
-        for dept_name in sorted(all_dept_names):
-            pd_val = prod_deps.get(dept_name, {})
-            ed_val = emp_deps.get(dept_name, {})
-            prod_total = pd_val.get("total", 0) or 0
-            emp_total = ed_val.get("total", 0) or 0
-            diff = prod_total - emp_total
-            unit = pd_val.get("unit", "шт") or ed_val.get("unit", "шт")
-            compare.append({
-                "production": prod_name,
-                "department": dept_name,
-                "product_total": prod_total,
-                "employee_total": emp_total,
-                "diff": diff,
-                "unit": unit,
-            })
-
-    return {
-        "date": target_date.isoformat(),
-        "compare": compare,
-    }
 
 
 def get_available_months() -> list[dict[str, int]]:

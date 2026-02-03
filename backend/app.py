@@ -315,28 +315,6 @@ def get_day_stats(date_str: str):
     return db.get_daily_stats(d)
 
 
-@app.get("/api/employee-day/{date_str}", dependencies=[Depends(require_auth)])
-def get_employee_day(date_str: str):
-    """Выработка сотрудников за день (date_str: YYYY-MM-DD)."""
-    from datetime import datetime
-    try:
-        d = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return {"error": "Неверный формат даты. Используйте YYYY-MM-DD"}
-    return db.get_employee_daily_stats(d)
-
-
-@app.get("/api/day-compare/{date_str}", dependencies=[Depends(require_auth)])
-def get_day_compare(date_str: str):
-    """Сравнение выпуска продукции и выработки сотрудников за день."""
-    from datetime import datetime
-    try:
-        d = datetime.strptime(date_str, "%Y-%m-%d").date()
-    except ValueError:
-        return {"error": "Неверный формат даты. Используйте YYYY-MM-DD"}
-    return db.get_day_compare(d)
-
-
 # Раздача статики React (после сборки)
 FRONTEND_BUILD = Path(__file__).resolve().parent.parent / "frontend" / "dist"
 

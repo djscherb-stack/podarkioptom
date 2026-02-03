@@ -1,4 +1,5 @@
 import { useNavigate } from 'react-router-dom'
+import { AreaChart, Area, ResponsiveContainer } from 'recharts'
 
 function formatQty(val) {
   return typeof val === 'number' && val % 1 !== 0
@@ -65,6 +66,43 @@ function DeptComparison({ today, comparison, unitLabel, formatQty, labels = { cu
   )
 }
 
+function DeptAvg30d({ avg30d, vsAvgDelta, vsAvgPct, unitLabel, formatQty }) {
+  if (avg30d == null) return null
+  const up = (vsAvgDelta ?? 0) >= 0
+  return (
+    <div className="comp-avg-block">
+      <span className="comp-avg-label">Ср. 30 дн:</span>
+      <span className="comp-avg-val">{formatQty(avg30d)} {unitLabel}</span>
+      {(vsAvgDelta != null && vsAvgDelta !== 0) && (
+        <span className={`comp-avg-delta ${up ? 'up' : 'down'}`}>
+          {up ? '+' : ''}{formatQty(vsAvgDelta)} ({vsAvgPct != null ? (vsAvgPct >= 0 ? '+' : '') + vsAvgPct + '%' : ''})
+        </span>
+      )}
+    </div>
+  )
+}
+
+function DeptTrend({ trend, id }) {
+  if (!trend?.length) return null
+  const data = trend.map(({ date, quantity }) => ({ date: date.slice(5), q: quantity }))
+  const gradId = `trendGrad-${(id || '').replace(/[^a-z0-9]/gi, '-')}`
+  return (
+    <div className="dept-trend">
+      <ResponsiveContainer width="100%" height={36}>
+        <AreaChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+          <defs>
+            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <Area type="monotone" dataKey="q" stroke="#14b8a6" strokeWidth={1} fill={`url(#${gradId})`} />
+        </AreaChart>
+      </ResponsiveContainer>
+    </div>
+  )
+}
+
 export default function ProductionBlock({ prodName, prodData, expandedKey, onToggle, year, month, comparisonLabels }) {
   const navigate = useNavigate()
   const departments = prodData?.departments || []
@@ -84,7 +122,7 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
         {departments.map((dept) => {
           const key = `${prodName}-${dept.name}`
           const isExpanded = expandedKey === key
-          const hasDetail = (dept.employees?.length > 0) || (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op
+          const hasDetail = (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op
           const unitLabel = dept.unit === 'кг' ? 'кг' : 'шт.'
 
           return (
@@ -112,6 +150,18 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                   unitsLabel={dept.total_units != null ? 'ед. продукции' : null}
                 />
               )}
+              {dept.avg_30d != null && (
+                <DeptAvg30d
+                  avg30d={dept.avg_30d}
+                  vsAvgDelta={dept.vs_avg_delta}
+                  vsAvgPct={dept.vs_avg_pct}
+                  unitLabel={unitLabel}
+                  formatQty={formatQty}
+                />
+              )}
+              {dept.trend_30d?.length > 0 && (
+                <DeptTrend trend={dept.trend_30d} id={key} />
+              )}
               {dept.subs?.length > 0 && (
                 <div className="dept-subs">
                   {dept.subs.map((s) => (
@@ -126,27 +176,7 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                   {isExpanded ? '▼ Свернуть' : '▶ Детализация'}
                 </button>
               )}
-              {isExpanded && dept.employees?.length > 0 && (
-                <div className="nom-list emp-list">
-                  <table>
-                    <thead>
-                      <tr>
-                        <th>Сотрудник</th>
-                        <th>Выработка</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {dept.employees.map(({ user, quantity }, i) => (
-                        <tr key={i}>
-                          <td>{user}</td>
-                          <td>{formatQty(quantity)} {dept.unit || 'шт.'}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-              {isExpanded && dept.nomenclature?.length > 0 && !dept.employees?.length && (
+              {isExpanded && dept.nomenclature?.length > 0 && (
                 <div className="nom-list">
                   <table>
                     <thead>

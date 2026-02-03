@@ -67,22 +67,22 @@ export default function DepartmentDetailPage() {
               <div className="chart-container">
                 <ResponsiveContainer width="100%" height={350}>
                   <BarChart data={chartData} margin={{ top: 10, right: 20, left: 10, bottom: 5 }}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" />
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.08)" />
                     <XAxis
                       dataKey="day"
-                      tick={{ fontSize: 12 }}
-                      label={{ value: 'День месяца', position: 'insideBottom', offset: -5 }}
+                      tick={{ fontSize: 12, fill: '#94a3b8' }}
+                      label={{ value: 'День месяца', position: 'insideBottom', offset: -5, fill: '#94a3b8' }}
                     />
                     <YAxis
-                      tick={{ fontSize: 12 }}
+                      tick={{ fontSize: 12, fill: '#94a3b8' }}
                       tickFormatter={v => v.toLocaleString('ru-RU')}
-                      label={{ value: unitLabel, angle: -90, position: 'insideLeft' }}
+                      label={{ value: unitLabel, angle: -90, position: 'insideLeft', fill: '#94a3b8' }}
                     />
                     <Tooltip
                       formatter={(value) => [value.toLocaleString('ru-RU') + ' ' + unitLabel, 'Выпуск']}
                       labelFormatter={(_, items) => items?.[0]?.payload?.fullDate || ''}
                     />
-                    <Bar dataKey="quantity" fill="#2b6cb0" radius={[4, 4, 0, 0]} name="Выпуск" />
+                    <Bar dataKey="quantity" fill="#14b8a6" radius={[4, 4, 0, 0]} name="Выпуск" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>

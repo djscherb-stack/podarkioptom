@@ -2,9 +2,6 @@
   font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  color: #1a1a2e;
-  background: linear-gradient(135deg, #f5f7fa 0%, #e4e8ec 100%);
-  min-height: 100vh;
 }
 
 * {
@@ -15,10 +12,10 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
+  background: #111318;
+  color: #e2e8f0;
 }
 
 #root {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 1.5rem;
+  min-height: 100vh;
 }
