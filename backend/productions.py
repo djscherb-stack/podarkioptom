@@ -249,6 +249,72 @@ def get_block_config(production: str, block_name: str) -> Optional[dict]:
     return None
 
 
+def build_employee_productions_stats(df: pd.DataFrame) -> dict[str, Any]:
+    """Статистика выработки сотрудников по производствам/подразделениям. Детализация: сотрудник, количество."""
+    result = {}
+    for prod_name, prod_cfg in PRODUCTIONS.items():
+        result[prod_name] = {"departments": [], "order": prod_cfg["order"]}
+
+    blocks_data = {}
+    for dept, dept_df in df.groupby("department"):
+        prod_name, cfg = _get_production_and_config(dept)
+        if prod_name is None:
+            continue
+        block_name = cfg.get("name", dept)
+        key = (prod_name, block_name)
+        if key not in blocks_data:
+            blocks_data[key] = {"cfg": cfg, "dfs": []}
+        blocks_data[key]["dfs"].append(dept_df)
+
+    for (prod_name, block_name), data in blocks_data.items():
+        cfg = data["cfg"]
+        combined = pd.concat(data["dfs"], ignore_index=True)
+        total = combined["quantity"].sum()
+        unit = cfg.get("unit", "шт")
+        transform = cfg.get("transform")
+        if transform == "grams_to_kg":
+            total = round(total / 1000, 2)
+        else:
+            total = int(total)
+        employees = (
+            combined.groupby("user", as_index=False)["quantity"]
+            .sum()
+            .sort_values("quantity", ascending=False)
+        )
+        if transform == "grams_to_kg":
+            emp_list = [{"user": str(r["user"]), "quantity": round(r["quantity"] / 1000, 2)} for _, r in employees.iterrows()]
+        else:
+            emp_list = [{"user": str(r["user"]), "quantity": int(r["quantity"])} for _, r in employees.iterrows()]
+        block = {
+            "name": block_name,
+            "total": total,
+            "unit": unit,
+            "main": cfg.get("main", False),
+            "employees": emp_list,
+        }
+        result[prod_name]["departments"].append(block)
+
+    for prod_name in result:
+        deps = result[prod_name]["departments"]
+        order_cfgs = result[prod_name]["order"]
+        main_deps = [d for d in deps if d.get("main")]
+        other_deps = [d for d in deps if not d.get("main")]
+        other_sorted = []
+        for cfg in order_cfgs:
+            if cfg.get("main"):
+                continue
+            for d in other_deps:
+                if d["name"] == cfg.get("name"):
+                    other_sorted.append(d)
+                    break
+        for d in other_deps:
+            if d not in other_sorted:
+                other_sorted.append(d)
+        result[prod_name]["departments"] = other_sorted + main_deps
+
+    return result
+
+
 def get_raw_department_names(production: str, block_name: str) -> list[str]:
     """Получить список raw-названий подразделений для блока."""
     cfg = get_block_config(production, block_name)

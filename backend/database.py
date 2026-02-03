@@ -7,7 +7,8 @@ from typing import Any, Optional
 import pandas as pd
 
 from parser import load_all_data
-from productions import build_productions_stats, get_block_config
+from parser_employees import load_all_employee_data
+from productions import build_productions_stats, build_employee_productions_stats, get_block_config
 
 # Папка с данными. DATA_DIR из env — для persistent disk на Render (загруженные файлы сохраняются)
 _default = Path(__file__).resolve().parent.parent / "data"
@@ -15,6 +16,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", _default))
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 _df: Optional[pd.DataFrame] = None
+_df_employees: Optional[pd.DataFrame] = None
 
 
 def get_data_dir() -> Path:
@@ -28,21 +30,29 @@ def ensure_data_dir():
 
 
 def refresh_data():
-    """Перезагрузить данные из файлов."""
-    global _df
+    """Перезагрузить данные из файлов (продукция + выработка сотрудников)."""
+    global _df, _df_employees
     ensure_data_dir()
     _df = load_all_data(str(DATA_DIR))
-    # Добавляем год-месяц и дату для фильтрации
     _df["year_month"] = _df["date"].dt.to_period("M")
     _df["date_only"] = _df["date"].dt.date
+    _df_employees = load_all_employee_data(str(DATA_DIR))
 
 
 def get_df() -> pd.DataFrame:
-    """Получить датафрейм (с перезагрузкой при необходимости)."""
+    """Получить датафрейм продукции."""
     global _df
     if _df is None:
         refresh_data()
     return _df
+
+
+def get_employee_df() -> pd.DataFrame:
+    """Получить датафрейм выработки сотрудников."""
+    global _df_employees
+    if _df_employees is None:
+        refresh_data()
+    return _df_employees if _df_employees is not None else pd.DataFrame(columns=["department", "user", "quantity", "date_only"])
 
 
 def _prev_month(year: int, month: int) -> tuple[int, int]:
@@ -218,6 +228,52 @@ def get_department_daily_stats(production: str, department: str, year: int, mont
         result.append({"date": str(row["date_only"]), "quantity": qty})
     
     return {"department": department, "production": production, "unit": unit, "daily": result, "year": year, "month": month}
+
+
+def get_employee_daily_stats(target_date: date) -> dict[str, Any]:
+    """Выработка сотрудников за день. Структура как get_daily_stats, детализация — сотрудник, количество."""
+    emp_df = get_employee_df()
+    if emp_df.empty:
+        return {"date": target_date.isoformat(), "productions": {}}
+    day_data = emp_df[emp_df["date_only"] == target_date]
+    return {
+        "date": target_date.isoformat(),
+        "productions": build_employee_productions_stats(day_data),
+    }
+
+
+def get_day_compare(target_date: date) -> dict[str, Any]:
+    """Сравнение: выпуск продукции vs выработка сотрудников по участкам за день."""
+    prod_stats = get_daily_stats(target_date)
+    emp_stats = get_employee_daily_stats(target_date)
+    prod_prods = prod_stats.get("productions", {})
+    emp_prods = emp_stats.get("productions", {})
+
+    compare = []
+    for prod_name in ["ЧАЙ", "ГРАВИРОВКА", "ЛЮМИНАРК"]:
+        prod_deps = {d["name"]: d for d in prod_prods.get(prod_name, {}).get("departments", [])}
+        emp_deps = {d["name"]: d for d in emp_prods.get(prod_name, {}).get("departments", [])}
+        all_dept_names = set(prod_deps.keys()) | set(emp_deps.keys())
+        for dept_name in sorted(all_dept_names):
+            pd_val = prod_deps.get(dept_name, {})
+            ed_val = emp_deps.get(dept_name, {})
+            prod_total = pd_val.get("total", 0) or 0
+            emp_total = ed_val.get("total", 0) or 0
+            diff = prod_total - emp_total
+            unit = pd_val.get("unit", "шт") or ed_val.get("unit", "шт")
+            compare.append({
+                "production": prod_name,
+                "department": dept_name,
+                "product_total": prod_total,
+                "employee_total": emp_total,
+                "diff": diff,
+                "unit": unit,
+            })
+
+    return {
+        "date": target_date.isoformat(),
+        "compare": compare,
+    }
 
 
 def get_available_months() -> list[dict[str, int]]:

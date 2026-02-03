@@ -97,8 +97,18 @@ def load_excel_file(filepath: Path) -> pd.DataFrame:
     )
 
 
+def _is_employee_file(filepath: Path) -> bool:
+    """Быстрая проверка: файл выработки сотрудников (пропускаем для продукции)."""
+    try:
+        df = pd.read_excel(filepath, header=0, nrows=1)
+        cols = " ".join(str(c).lower() for c in df.columns)
+        return "операция сканирования" in cols and "пользователь" in cols and "выработка" in cols
+    except Exception:
+        return False
+
+
 def load_all_data(data_dir: str) -> pd.DataFrame:
-    """Загрузка всех Excel-файлов из папки."""
+    """Загрузка всех Excel-файлов выпуска продукции (не выработка сотрудников)."""
     import os
     path = Path(data_dir)
     if not path.exists():
@@ -110,6 +120,8 @@ def load_all_data(data_dir: str) -> pd.DataFrame:
     def add_file(f):
         if f.name.startswith("~$"):
             return
+        if _is_employee_file(f):
+            return  # выработка сотрудников — отдельный парсер
         key = str(f.resolve())
         if key in seen:
             return

@@ -84,7 +84,7 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
         {departments.map((dept) => {
           const key = `${prodName}-${dept.name}`
           const isExpanded = expandedKey === key
-          const hasDetail = (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op
+          const hasDetail = (dept.employees?.length > 0) || (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op
           const unitLabel = dept.unit === 'кг' ? 'кг' : 'шт.'
 
           return (
@@ -126,7 +126,27 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                   {isExpanded ? '▼ Свернуть' : '▶ Детализация'}
                 </button>
               )}
-              {isExpanded && dept.nomenclature?.length > 0 && (
+              {isExpanded && dept.employees?.length > 0 && (
+                <div className="nom-list emp-list">
+                  <table>
+                    <thead>
+                      <tr>
+                        <th>Сотрудник</th>
+                        <th>Выработка</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {dept.employees.map(({ user, quantity }, i) => (
+                        <tr key={i}>
+                          <td>{user}</td>
+                          <td>{formatQty(quantity)} {dept.unit || 'шт.'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+              {isExpanded && dept.nomenclature?.length > 0 && !dept.employees?.length && (
                 <div className="nom-list">
                   <table>
                     <thead>

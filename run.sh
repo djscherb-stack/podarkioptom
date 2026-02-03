@@ -28,18 +28,21 @@ trap "kill $UVICORN_PID 2>/dev/null; exit" INT TERM
 # Ждём, пока сервер поднимется
 echo "Ожидание запуска..."
 for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do
-  if curl -s http://localhost:8000/api/months >/dev/null 2>&1; then
+  if curl -s -o /dev/null -w "%{http_code}" http://localhost:8000/ 2>/dev/null | grep -q 200; then
     echo "Сервер запущен."
     break
   fi
   sleep 0.5
 done
 
+URL="http://localhost:8000"
+echo ""
 echo "Открываю браузер..."
-open http://localhost:8000 2>/dev/null || xdg-open http://localhost:8000 2>/dev/null || start http://localhost:8000 2>/dev/null
+(open "$URL" 2>/dev/null || xdg-open "$URL" 2>/dev/null || start "$URL" 2>/dev/null) || true
 
 echo ""
-echo "Аналитика: http://localhost:8000"
+echo "Аналитика: $URL"
+echo "Если браузер не открылся — откройте вручную: $URL"
 echo "Остановить: Ctrl+C"
 echo ""
 wait $UVICORN_PID

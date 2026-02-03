@@ -6,23 +6,41 @@ import MonthsComparePage from './pages/MonthsComparePage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
+import EmployeeDayPage from './pages/EmployeeDayPage'
+import ComparePage from './pages/ComparePage'
 import UploadButton from './components/UploadButton'
 import { API, apiFetch, AuthError } from './api'
 import './App.css'
 
-function getYesterdayDayPath() {
+function getYesterdayDateStr() {
   const d = new Date()
   d.setDate(d.getDate() - 1)
   const y = d.getFullYear()
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
-  return `/day?date=${y}-${m}-${day}`
+  return `${y}-${m}-${day}`
+}
+
+function getYesterdayDayPath() {
+  return `/day?date=${getYesterdayDateStr()}`
+}
+
+function getDayPath(suffix) {
+  const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('analytics-day-date') : null
+  const dateStr = (stored && /^\d{4}-\d{2}-\d{2}$/.test(stored)) ? stored : getYesterdayDateStr()
+  return `/${suffix}?date=${dateStr}`
 }
 
 function DayNavLink(props) {
-  const stored = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem('analytics-day-date') : null
-  const to = stored && /^\d{4}-\d{2}-\d{2}$/.test(stored) ? `/day?date=${stored}` : getYesterdayDayPath()
-  return <NavLink to={to} {...props} />
+  return <NavLink to={getDayPath('day')} {...props} />
+}
+
+function EmployeeDayNavLink(props) {
+  return <NavLink to={getDayPath('employee-day')} {...props} />
+}
+
+function CompareNavLink(props) {
+  return <NavLink to={getDayPath('compare')} {...props} />
 }
 
 function SiteLogo() {
@@ -46,6 +64,12 @@ function AppContent({ userInfo }) {
         <DayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
           По дню
         </DayNavLink>
+        <EmployeeDayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          Выработка сотрудников
+        </EmployeeDayNavLink>
+        <CompareNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          Сравнение
+        </CompareNavLink>
         <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
           Аналитика по месяцам
         </NavLink>
@@ -76,6 +100,8 @@ function AppContent({ userInfo }) {
           <Route path="/" element={<Navigate to={getYesterdayDayPath()} replace />} />
           <Route path="/month" element={<MonthPage />} />
           <Route path="/day" element={<DayPage />} />
+          <Route path="/employee-day" element={<EmployeeDayPage />} />
+          <Route path="/compare" element={<ComparePage />} />
           <Route path="/months" element={<MonthsComparePage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
