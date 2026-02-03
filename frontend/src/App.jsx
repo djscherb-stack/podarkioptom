@@ -37,14 +37,20 @@ function DayNavLink(props) {
 function AppContent({ userInfo, onRefreshUser }) {
   const isAdmin = userInfo?.is_admin === true
   const location = useLocation()
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
   useEffect(() => {
     onRefreshUser?.()
   }, [location.pathname, onRefreshUser])
 
+  useEffect(() => {
+    setMobileMenuOpen(false)
+  }, [location.pathname])
+
   return (
     <div className="app">
-      <aside className="app-sidebar">
+      <div className={`app-sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} aria-hidden="true" />
+      <aside className={`app-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="app-sidebar-nav">
           <NavLink to="/month" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             По месяцу
@@ -65,6 +71,7 @@ function AppContent({ userInfo, onRefreshUser }) {
       <div className="app-main">
         <header className="app-header">
           <span className="site-title">Производственная аналитика</span>
+          <button type="button" className="btn-mobile-menu btn-mobile-menu-header" onClick={() => setMobileMenuOpen(o => !o)} aria-label="Меню">☰</button>
           <div className="app-header-right">
             <div className="nav-upload">
               <UploadButton />
