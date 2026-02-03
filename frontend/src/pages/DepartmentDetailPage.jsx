@@ -5,6 +5,12 @@ import { API, apiFetch } from '../api'
 
 const monthNames = ['', 'Январь', 'Февраль', 'Март', 'Апрель', 'Май', 'Июнь', 'Июль', 'Август', 'Сентябрь', 'Октябрь', 'Ноябрь', 'Декабрь']
 
+function formatTooltipDate(iso) {
+  if (!iso) return ''
+  const [y, m, d] = iso.split('-').map(Number)
+  return `${d} ${monthNames[m]} ${y}`
+}
+
 export default function DepartmentDetailPage() {
   const [searchParams] = useSearchParams()
   const production = searchParams.get('production')
@@ -80,7 +86,7 @@ export default function DepartmentDetailPage() {
                     />
                     <Tooltip
                       formatter={(value) => [value.toLocaleString('ru-RU') + ' ' + unitLabel, 'Выпуск']}
-                      labelFormatter={(_, items) => items?.[0]?.payload?.fullDate || ''}
+                      labelFormatter={(_, items) => formatTooltipDate(items?.[0]?.payload?.fullDate)}
                     />
                     <Bar dataKey="quantity" fill="#14b8a6" radius={[4, 4, 0, 0]} name="Выпуск" />
                   </BarChart>

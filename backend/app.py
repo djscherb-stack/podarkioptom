@@ -7,7 +7,7 @@ from typing import Optional
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 import database as db
 import auth
@@ -75,6 +75,21 @@ async def login_post(request: Request):
     response = JSONResponse({"ok": True})
     response.set_cookie("analytics_session", token, httponly=True, samesite="lax", max_age=7 * 24 * 3600, path="/")
     return response
+
+
+@app.get("/api/dev-auto-login")
+async def dev_auto_login(request: Request):
+    """Автовход под админом. Только для localhost (dev)."""
+    host = request.client.host if request.client else ""
+    if host not in ("127.0.0.1", "::1", "localhost"):
+        raise HTTPException(status_code=403, detail="Только для localhost")
+    if not auth.check_password(auth.ADMIN_USER, auth.ADMIN_PASSWORD):
+        raise HTTPException(status_code=500, detail="Нет учётных данных админа")
+    auth.log_login(auth.ADMIN_USER)
+    token = auth.create_session(auth.ADMIN_USER)
+    r = RedirectResponse(url="/", status_code=302)
+    r.set_cookie("analytics_session", token, httponly=True, samesite="lax", max_age=7 * 24 * 3600, path="/")
+    return r
 
 
 @app.post("/api/logout")

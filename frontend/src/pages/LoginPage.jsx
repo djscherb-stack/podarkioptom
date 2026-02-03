@@ -35,8 +35,7 @@ export default function LoginPage({ onLogin }) {
   return (
     <div className="login-page">
       <header className="site-header site-header-login">
-        <img src="/happy-brands-logo.png" alt="Happy Brands" className="site-logo" />
-        <span className="site-title">Happy Brands production analytics</span>
+        <span className="site-title">Производственная аналитика</span>
       </header>
       <div className="login-box">
         <h1>Аналитика выпуска</h1>

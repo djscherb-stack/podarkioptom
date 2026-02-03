@@ -229,6 +229,19 @@ body {
   border-color: rgba(20,184,166,0.4);
 }
 
+.dept-card-expanded {
+  grid-column: 1 / -1;
+  max-width: 100%;
+}
+
+.dept-card-summary {
+  /* содержимое, по которому кликаем для перехода на страницу участка */
+}
+
+.dept-card-detail {
+  /* кнопка и раскрытая детализация — не триггерят переход */
+}
+
 .dept-card-main {
   border-color: var(--accent);
   background: linear-gradient(135deg, rgba(20,184,166,0.08) 0%, var(--bg-card) 100%);
@@ -328,6 +341,16 @@ body {
   overflow: hidden;
 }
 
+.dept-trend-tooltip {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.4rem 0.65rem;
+  font-size: 0.8rem;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  white-space: nowrap;
+}
+
 .comp-subs { margin-top: 0.4rem; padding-top: 0.4rem; border-top: 1px dashed var(--border); }
 .comp-sub-row { display: flex; gap: 0.4rem; margin-bottom: 0.15rem; font-size: 0.7rem; }
 .comp-sub-row span:first-child { width: 4rem; }
@@ -350,22 +373,68 @@ body {
 }
 .btn-expand:hover { background: rgba(20,184,166,0.15); }
 
-.nom-list, .nom-by-op {
+/* Детализация: расширяется по ширине, группировка по видам номенклатуры */
+.nom-detail {
   margin-top: 0.75rem;
-  font-size: 0.8rem;
-}
-.nom-list table, .nom-by-op table {
+  overflow-x: auto;
   width: 100%;
-  border-collapse: collapse;
 }
-.nom-list th, .nom-list td, .nom-by-op th, .nom-by-op td {
-  padding: 0.35rem 0.5rem;
+
+.nom-detail-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  white-space: nowrap;
+}
+
+.nom-detail-table th,
+.nom-detail-table td {
+  padding: 0.4rem 0.75rem;
   text-align: left;
   border-bottom: 1px solid var(--border);
 }
-.nom-list th, .nom-by-op th { color: var(--text-muted); font-weight: 500; }
-.nom-op-block { margin-bottom: 0.75rem; }
-.nom-op-block h4 { margin: 0 0 0.4rem; font-size: 0.8rem; color: var(--text-muted); }
+
+.nom-detail-table th {
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.nom-group-row td {
+  font-weight: 500;
+}
+
+.nom-group-btn {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  padding: 0;
+  font-size: inherit;
+  text-align: left;
+}
+
+.nom-group-btn:hover {
+  text-decoration: underline;
+}
+
+.nom-group-total {
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+.nom-item-row td {
+  padding-left: 1.5rem;
+  color: var(--text-muted);
+}
+
+.nom-item-row td:last-child {
+  padding-left: 0.75rem;
+  text-align: right;
+}
+
+.nom-by-op .nom-op-block { margin-bottom: 1rem; }
+.nom-by-op .nom-op-block h4 { margin: 0 0 0.5rem; font-size: 0.85rem; color: var(--text-muted); }
 
 /* Login */
 .login-page {

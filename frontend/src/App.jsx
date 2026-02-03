@@ -57,10 +57,7 @@ function AppContent({ userInfo }) {
       </aside>
       <div className="app-main">
         <header className="app-header">
-          <div style={{ display: 'flex', alignItems: 'center' }}>
-            <img src="/happy-brands-logo.png" alt="" className="site-logo" />
-            <span className="site-title">Happy Brands</span>
-          </div>
+          <span className="site-title">Производственная аналитика</span>
           <div className="app-header-right">
             <div className="nav-upload">
               <UploadButton />
@@ -116,9 +113,8 @@ function App() {
   if (authStatus === 'pending') {
     return (
       <div className="login-page">
-        <div style={{ position: 'absolute', top: '1.5rem', left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-          <img src="/happy-brands-logo.png" alt="" className="site-logo" />
-          <span className="site-title site-header-login">Happy Brands</span>
+        <div style={{ position: 'absolute', top: '1.5rem', left: '50%', transform: 'translateX(-50%)' }}>
+          <span className="site-title site-header-login">Производственная аналитика</span>
         </div>
         <div className="login-box"><p>Загрузка...</p></div>
       </div>
