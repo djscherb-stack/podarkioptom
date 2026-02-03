@@ -1,5 +1,6 @@
-import { useState, useEffect } from 'react'
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from 'react-router-dom'
+import { useState, useEffect, useCallback } from 'react'
+import { fetchTheme, applyTheme } from './theme'
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import MonthPage from './pages/MonthPage'
 import DayPage from './pages/DayPage'
 import MonthsComparePage from './pages/MonthsComparePage'
@@ -33,8 +34,14 @@ function DayNavLink(props) {
   return <NavLink to={getDayPath()} {...props} />
 }
 
-function AppContent({ userInfo }) {
+function AppContent({ userInfo, onRefreshUser }) {
   const isAdmin = userInfo?.is_admin === true
+  const location = useLocation()
+
+  useEffect(() => {
+    onRefreshUser?.()
+  }, [location.pathname, onRefreshUser])
+
   return (
     <div className="app">
       <aside className="app-sidebar">
@@ -97,6 +104,10 @@ function App() {
   const [userInfo, setUserInfo] = useState(null)
 
   useEffect(() => {
+    fetchTheme().then(applyTheme)
+  }, [])
+
+  const fetchUserInfo = useCallback(() => {
     fetch(`${API}/me`, { credentials: 'include' })
       .then(async (r) => {
         if (r.ok) {
@@ -105,10 +116,38 @@ function App() {
           setAuthStatus('ok')
         } else {
           setAuthStatus('fail')
+          setUserInfo(null)
         }
       })
-      .catch(() => setAuthStatus('fail'))
+      .catch(() => {
+        setAuthStatus('fail')
+        setUserInfo(null)
+      })
   }, [])
+
+  useEffect(() => {
+    fetchUserInfo()
+  }, [])
+
+  // Периодическая проверка сессии (чтобы is_admin не терялся)
+  useEffect(() => {
+    if (authStatus !== 'ok') return
+    const id = setInterval(() => {
+      fetch(`${API}/me`, { credentials: 'include' })
+        .then(async (r) => {
+          if (r.ok) {
+            const d = await r.json()
+            setUserInfo(prev => {
+              const next = { username: d.username, is_admin: d.is_admin }
+              if (prev?.is_admin !== next.is_admin || prev?.username !== next.username) return next
+              return prev
+            })
+          }
+        })
+        .catch(() => {})
+    }, 30000)
+    return () => clearInterval(id)
+  }, [authStatus])
 
   if (authStatus === 'pending') {
     return (
@@ -124,14 +163,14 @@ function App() {
   if (authStatus === 'fail') {
     return (
       <LoginPage
-        onLogin={() => setAuthStatus('ok')}
+        onLogin={() => fetchUserInfo()}
       />
     )
   }
 
   return (
     <BrowserRouter>
-      <AppContent userInfo={userInfo} />
+      <AppContent userInfo={userInfo} onRefreshUser={fetchUserInfo} />
     </BrowserRouter>
   )
 }

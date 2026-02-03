@@ -73,15 +73,41 @@ def _split_faskovka(df: pd.DataFrame) -> list[dict]:
     return result
 
 
-def _calc_sbor_units(combined_df: pd.DataFrame) -> int:
-    """Сборочный цех Елино: только «Комплект 4 шт» — каждая единица считается как 4 штуки. Остальная номенклатура — mult=1."""
+def _sbor_unit_multiplier(nom_type: str) -> int:
+    """Множитель для приведения к единицам: Набор чая 3 шт=1, Набор чая 6 шт=2, Комплект 4 шт=4."""
+    n = (nom_type or "").lower()
+    if "комплект 4 шт" in n or "комплект 4шт" in n:
+        return 4
+    if "набор чая 6 шт" in n or "набор чая 6шт" in n:
+        return 2
+    if "набор чая 3 шт" in n or "набор чая 3шт" in n:
+        return 1
+    return 1
+
+
+def _calc_sbor_units(combined_df: pd.DataFrame) -> Tuple[int, list]:
+    """
+    Сборочный цех Елино: приведение к единицам.
+    Набор чая 3 шт = 1 ед., Набор чая 6 шт = 2 ед., Комплект 4 шт = 4 ед.
+    Возвращает (total_units, breakdown) для кнопки «Проверка».
+    """
     nom = combined_df["nomenclature_type"].fillna("").astype(str)
     qty = combined_df["quantity"]
-    total = 0
+    # Группируем по виду номенклатуры
+    by_type = {}
     for n, q in zip(nom, qty):
-        mult = 4 if "комплект 4 шт" in n.lower() else 1
-        total += q * mult
-    return int(total)
+        nt = n.strip() or "—"
+        if nt not in by_type:
+            by_type[nt] = 0
+        by_type[nt] += int(q)
+    total = 0
+    breakdown = []
+    for nt, q in by_type.items():
+        mult = _sbor_unit_multiplier(nt)
+        units = q * mult
+        total += units
+        breakdown.append({"nomenclature_type": nt, "quantity": q, "units": units, "multiplier": mult})
+    return int(total), breakdown
 
 
 def _split_grav_karton(df: pd.DataFrame) -> list[dict]:
@@ -141,9 +167,11 @@ def _process_production_data(df: pd.DataFrame) -> dict[str, Any]:
             "main": cfg.get("main", False),
         }
 
-        # Сборочный цех Елино: вторая цифра — «Комплект N шт» считается как N единиц
+        # Сборочный цех Елино: в ед. продукции (Набор 3 шт=1, 6 шт=2, Комплект 4 шт=4)
         if block_name == "Сборочный цех Елино" and not split_type:
-            block["total_units"] = _calc_sbor_units(combined_df)
+            units_total, units_breakdown = _calc_sbor_units(combined_df)
+            block["total_units"] = units_total
+            block["units_breakdown"] = units_breakdown
 
         if split_type == "faskovka":
             subs = _split_faskovka(combined_df)

@@ -219,8 +219,8 @@ function DeptTrend({ trend, id, unitLabel, formatQty }) {
         <AreaChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
           <defs>
             <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#14b8a6" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="#14b8a6" stopOpacity={0} />
+              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.4} />
+              <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
             </linearGradient>
           </defs>
           <Tooltip
@@ -233,11 +233,47 @@ function DeptTrend({ trend, id, unitLabel, formatQty }) {
                 </div>
               )
             }}
-            cursor={{ stroke: '#14b8a6', strokeWidth: 1, strokeDasharray: '2 2' }}
+            cursor={{ stroke: 'var(--accent)', strokeWidth: 1, strokeDasharray: '2 2' }}
           />
-          <Area type="monotone" dataKey="q" stroke="#14b8a6" strokeWidth={1} fill={`url(#${gradId})`} />
+          <Area type="monotone" dataKey="q" stroke="var(--accent)" strokeWidth={1} fill={`url(#${gradId})`} />
         </AreaChart>
       </ResponsiveContainer>
+    </div>
+  )
+}
+
+function UnitsVerify({ breakdown, formatQty }) {
+  const [open, setOpen] = useState(false)
+  if (!breakdown?.length) return null
+  return (
+    <div className="units-verify">
+      <button type="button" className="btn-units-verify" onClick={(e) => { e.stopPropagation(); setOpen(o => !o) }}>
+        {open ? '▼ Свернуть' : '▶ Проверка'}
+      </button>
+      {open && (
+        <div className="units-verify-detail" onClick={(e) => e.stopPropagation()}>
+          <table className="units-verify-table">
+            <thead>
+              <tr>
+                <th>Вид номенклатуры</th>
+                <th>Выпущено</th>
+                <th>Коэфф.</th>
+                <th>В ед. продукции</th>
+              </tr>
+            </thead>
+            <tbody>
+              {breakdown.map((row, i) => (
+                <tr key={i}>
+                  <td>{row.nomenclature_type}</td>
+                  <td>{formatQty(row.quantity)} шт</td>
+                  <td>×{row.multiplier}</td>
+                  <td>{formatQty(row.units)} ед.</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   )
 }
@@ -280,7 +316,10 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                   {formatQty(dept.total)} {unitLabel}
                 </div>
                 {dept.total_units != null && (
-                  <div className="dept-total-units">в ед. продукции: {formatQty(dept.total_units)} шт.</div>
+                  <div className="dept-total-units-wrap">
+                    <div className="dept-total-units">в ед. продукции: {formatQty(dept.total_units)} шт.</div>
+                    <UnitsVerify breakdown={dept.units_breakdown} formatQty={formatQty} />
+                  </div>
                 )}
                 {dept.comparison != null && (
                   <DeptComparison

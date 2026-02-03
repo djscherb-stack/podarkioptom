@@ -1,15 +1,76 @@
-/* Dark theme — Quanti Analytics style */
-:root {
-  --bg: #111318;
-  --bg-card: #1a1d24;
-  --bg-card-hover: #22262e;
-  --border: #2d3239;
-  --text: #e2e8f0;
-  --text-muted: #94a3b8;
-  --accent: #14b8a6;
-  --accent-purple: #8b5cf6;
-  --accent-orange: #f59e0b;
-  --positive: #10b981;
+/* Базовые переменные — тема dark: сдержанные серые с лёгким синим */
+:root,
+[data-theme="dark"] {
+  --bg: #1a1d21;
+  --bg-card: #24282e;
+  --bg-card-hover: #2d3239;
+  --border: #3a4049;
+  --text: #d8dce2;
+  --text-muted: #8b92a0;
+  --accent: #5b8fc9;
+  --accent-purple: #6b9ed4;
+  --accent-orange: #7a9bb8;
+  --positive: #6b9e7a;
+  --negative: #b86b6b;
+}
+
+/* Чёрно-белая, контрастная */
+[data-theme="bw"] {
+  --bg: #0a0a0a;
+  --bg-card: #1a1a1a;
+  --bg-card-hover: #2a2a2a;
+  --border: #404040;
+  --text: #f5f5f5;
+  --text-muted: #b0b0b0;
+  --accent: #ffffff;
+  --accent-purple: #e0e0e0;
+  --accent-orange: #d0d0d0;
+  --positive: #e8e8e8;
+  --negative: #888888;
+}
+
+/* 1С:Enterprise стиль */
+[data-theme="1c"] {
+  --bg: #f5f0e1;
+  --bg-card: #fffef7;
+  --bg-card-hover: #faf5e8;
+  --border: #c4b896;
+  --text: #2c2c2c;
+  --text-muted: #5a5a5a;
+  --accent: #0d4a8b;
+  --accent-purple: #1e5a9e;
+  --accent-orange: #8b6914;
+  --positive: #1a6b1a;
+  --negative: #9b2d2d;
+}
+
+/* Бело-синяя */
+[data-theme="white-blue"] {
+  --bg: #f0f4f8;
+  --bg-card: #ffffff;
+  --bg-card-hover: #e8eef4;
+  --border: #c5d4e3;
+  --text: #1a365d;
+  --text-muted: #4a5568;
+  --accent: #2563eb;
+  --accent-purple: #3b82f6;
+  --accent-orange: #1d4ed8;
+  --positive: #059669;
+  --negative: #dc2626;
+}
+
+/* Яркая, пёстрая */
+[data-theme="bright"] {
+  --bg: #1e1b2e;
+  --bg-card: #2d2640;
+  --bg-card-hover: #3d3550;
+  --border: #5a4d7a;
+  --text: #f0e6ff;
+  --text-muted: #c9b8e8;
+  --accent: #f59e0b;
+  --accent-purple: #a855f7;
+  --accent-orange: #f97316;
+  --positive: #22c55e;
   --negative: #ef4444;
 }
 
@@ -64,7 +125,7 @@ body {
 .app-sidebar-nav a.active {
   color: var(--accent);
   border-left-color: var(--accent);
-  background: rgba(20,184,166,0.08);
+  background: rgba(91,143,201,0.12);
 }
 
 .app-main {
@@ -226,7 +287,7 @@ body {
 }
 
 .dept-card:hover {
-  border-color: rgba(20,184,166,0.4);
+  border-color: rgba(91,143,201,0.4);
 }
 
 .dept-card-expanded {
@@ -244,7 +305,7 @@ body {
 
 .dept-card-main {
   border-color: var(--accent);
-  background: linear-gradient(135deg, rgba(20,184,166,0.08) 0%, var(--bg-card) 100%);
+  background: linear-gradient(135deg, rgba(91,143,201,0.1) 0%, var(--bg-card) 100%);
 }
 
 .badge-main {
@@ -271,10 +332,53 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.dept-total-units-wrap {
+  margin-top: 0.2rem;
+}
+
 .dept-total-units {
   font-size: 0.75rem;
   color: var(--text-muted);
-  margin-top: 0.2rem;
+}
+
+.units-verify {
+  margin-top: 0.35rem;
+}
+
+.btn-units-verify {
+  padding: 0.25rem 0.5rem;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  font-size: 0.7rem;
+  cursor: pointer;
+}
+
+.btn-units-verify:hover {
+  background: rgba(91,143,201,0.1);
+}
+
+.units-verify-detail {
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+}
+
+.units-verify-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.units-verify-table th,
+.units-verify-table td {
+  padding: 0.3rem 0.5rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+
+.units-verify-table th {
+  color: var(--text-muted);
+  font-weight: 500;
 }
 
 /* Comparison + 30d avg — compact */
@@ -371,7 +475,7 @@ body {
   font-size: 0.75rem;
   cursor: pointer;
 }
-.btn-expand:hover { background: rgba(20,184,166,0.15); }
+.btn-expand:hover { background: rgba(91,143,201,0.15); }
 
 /* Детализация: расширяется по ширине, группировка по видам номенклатуры */
 .nom-detail {

@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
 import database as db
 import auth
+import theme as theme_mod
 
 
 def require_auth(request: Request) -> str:
@@ -311,6 +312,27 @@ def get_department_daily(production: str, department: str, year: int, month: int
     """Выпуск по дням для подразделения за месяц (query: production, department)."""
     from urllib.parse import unquote
     return db.get_department_daily_stats(unquote(production), unquote(department), year, month)
+
+
+@app.get("/api/theme")
+def api_get_theme():
+    """Текущая цветовая схема (для всех пользователей)."""
+    return {"theme": theme_mod.get_theme()}
+
+
+@app.post("/api/theme", dependencies=[Depends(require_admin)])
+async def set_theme_api(request: Request):
+    """Сохранить тему для всех пользователей. Только admin."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Ожидается JSON"}, status_code=400)
+    t = body.get("theme", "")
+    if t not in theme_mod.THEMES:
+        return JSONResponse({"error": f"Неизвестная тема. Допустимо: {theme_mod.THEMES}"}, status_code=400)
+    if not theme_mod.set_theme(t):
+        return JSONResponse({"error": "Ошибка сохранения"}, status_code=500)
+    return {"ok": True, "theme": t}
 
 
 @app.get("/api/admin/login-history", dependencies=[Depends(require_admin)])

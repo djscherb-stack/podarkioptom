@@ -88,7 +88,7 @@ export default function DepartmentDetailPage() {
                       formatter={(value) => [value.toLocaleString('ru-RU') + ' ' + unitLabel, 'Выпуск']}
                       labelFormatter={(_, items) => formatTooltipDate(items?.[0]?.payload?.fullDate)}
                     />
-                    <Bar dataKey="quantity" fill="#14b8a6" radius={[4, 4, 0, 0]} name="Выпуск" />
+                    <Bar dataKey="quantity" fill="var(--accent)" radius={[4, 4, 0, 0]} name="Выпуск" />
                   </BarChart>
                 </ResponsiveContainer>
               </div>
