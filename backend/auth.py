@@ -9,10 +9,13 @@ from typing import Optional
 
 # Admin — из env (ANALYTICS_USER, ANALYTICS_PASSWORD)
 # PR — фиксированный пароль Plkdf45, без доступа к админке
+# Pavel — без доступа к админке
 ADMIN_USER = os.environ.get("ANALYTICS_USER", "admin")
-ADMIN_PASSWORD = os.environ.get("ANALYTICS_PASSWORD", "vuhzyf")
+ADMIN_PASSWORD = os.environ.get("ANALYTICS_PASSWORD", "logos22")
 PR_USER = "PR"
 PR_PASSWORD = "Plkdf45"
+PAVEL_USER = "pavel"
+PAVEL_PASSWORD = "Pv7k9m"
 
 # token -> username
 SESSIONS: dict[str, str] = {}
@@ -58,6 +61,8 @@ def check_password(username: str, password: str) -> bool:
     if username == ADMIN_USER and password == ADMIN_PASSWORD:
         return True
     if username == PR_USER and password == PR_PASSWORD:
+        return True
+    if username == PAVEL_USER and password == PAVEL_PASSWORD:
         return True
     return False
 
