@@ -412,6 +412,12 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.dept-total-secondary {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.25rem;
+}
+
 .dept-total-units-wrap {
   margin-top: 0.2rem;
 }

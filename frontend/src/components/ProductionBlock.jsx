@@ -8,33 +8,41 @@ function formatQty(val) {
     : Number(val).toLocaleString('ru-RU')
 }
 
-function DeptComparison({ today, comparison, unitLabel, formatQty, labels = { current: 'сегодня', previous: 'вчера' }, unitsLabel }) {
+function DeptComparison({ today, comparison, unitLabel, formatQty, labels = { current: 'сегодня', previous: 'вчера' }, unitsLabel, useUnits, secondaryMetric }) {
   const { yesterday, delta, delta_pct, types_today, types_yesterday, types_delta, subs, units_today, units_yesterday, units_delta } = comparison
-  const maxVal = Math.max(today ?? 0, yesterday ?? 0, 1)
+  const t = useUnits ? (units_today ?? today) : today
+  const y = useUnits ? (units_yesterday ?? yesterday) : yesterday
+  const d = useUnits ? (units_delta ?? delta) : delta
+  const maxVal = Math.max(t ?? 0, y ?? 0, 1)
   return (
     <div className="dept-comparison">
       <div className="comp-chart">
         <div className="comp-bar-row">
           <span className="comp-bar-label">{labels.current}</span>
           <div className="comp-bar-wrap">
-            <div className="comp-bar today" style={{ width: `${(today / maxVal) * 100}%` }} />
+            <div className="comp-bar today" style={{ width: `${((t ?? 0) / maxVal) * 100}%` }} />
           </div>
-          <span className="comp-bar-val">{formatQty(today ?? 0)}</span>
+          <span className="comp-bar-val">{formatQty(t ?? 0)}</span>
         </div>
         <div className="comp-bar-row">
           <span className="comp-bar-label">{labels.previous}</span>
           <div className="comp-bar-wrap">
-            <div className="comp-bar yesterday" style={{ width: `${(yesterday / maxVal) * 100}%` }} />
+            <div className="comp-bar yesterday" style={{ width: `${(y / maxVal) * 100}%` }} />
           </div>
-          <span className="comp-bar-val">{formatQty(yesterday)}</span>
+          <span className="comp-bar-val">{formatQty(y)}</span>
         </div>
       </div>
       <div className="comp-metrics">
-        <div className={`comp-metric ${delta >= 0 ? 'up' : 'down'}`}>
+        <div className={`comp-metric ${d >= 0 ? 'up' : 'down'}`}>
           <span className="comp-metric-label">Δ объём</span>
-          <span>{delta >= 0 ? '+' : ''}{formatQty(delta)} {unitLabel}</span>
-          {delta_pct != null && delta_pct !== 0 && (
+          <span>{d >= 0 ? '+' : ''}{formatQty(d)} {useUnits ? 'ед.' : unitLabel}</span>
+          {!useUnits && delta_pct != null && delta_pct !== 0 && (
             <span className="comp-pct">({delta_pct >= 0 ? '+' : ''}{delta_pct}%)</span>
+          )}
+          {useUnits && units_delta != null && (
+            <span className="comp-pct">
+              ({y ? ((units_delta / y) * 100).toFixed(1) : '0'}%)
+            </span>
           )}
         </div>
         {types_today != null && (types_today > 0 || (types_yesterday ?? 0) > 0) && (
@@ -43,10 +51,16 @@ function DeptComparison({ today, comparison, unitLabel, formatQty, labels = { cu
             <span>{types_today} / {types_yesterday ?? 0}{(types_delta ?? 0) !== 0 && ` (Δ ${(types_delta ?? 0) >= 0 ? '+' : ''}${types_delta})`}</span>
           </div>
         )}
-        {units_today != null && unitsLabel && (
+        {units_today != null && unitsLabel && !useUnits && (
           <div className={`comp-metric ${(units_delta ?? 0) >= 0 ? 'up' : 'down'}`}>
             <span className="comp-metric-label">{unitsLabel}</span>
             <span>{formatQty(units_today)} / {formatQty(units_yesterday ?? 0)}{(units_delta ?? 0) !== 0 && ` (Δ ${(units_delta ?? 0) >= 0 ? '+' : ''}${formatQty(units_delta)})`}</span>
+          </div>
+        )}
+        {useUnits && secondaryMetric && (
+          <div className={`comp-metric ${(secondaryMetric.delta ?? 0) >= 0 ? 'up' : 'down'}`}>
+            <span className="comp-metric-label">выпуск (из 1С)</span>
+            <span>{formatQty(secondaryMetric.today)} / {formatQty(secondaryMetric.yesterday)} {(secondaryMetric.delta ?? 0) !== 0 && ` (Δ ${(secondaryMetric.delta ?? 0) >= 0 ? '+' : ''}${formatQty(secondaryMetric.delta)} шт)`}</span>
           </div>
         )}
       </div>
@@ -312,23 +326,41 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
               >
                 {dept.main && <span className="badge-main">Основной показатель</span>}
                 <h3>{dept.name}</h3>
-                <div className="dept-total">
-                  {formatQty(dept.total)} {unitLabel}
-                </div>
-                {dept.total_units != null && (
-                  <div className="dept-total-units-wrap">
-                    <div className="dept-total-units">в ед. продукции: {formatQty(dept.total_units)} шт.</div>
-                    <UnitsVerify breakdown={dept.units_breakdown} formatQty={formatQty} />
-                  </div>
+                {dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино' ? (
+                  <>
+                    <div className="dept-total">
+                      {formatQty(dept.total_units)} ед.
+                    </div>
+                    <div className="dept-total-secondary">
+                      выпуск: {formatQty(dept.total)} шт. (из 1С)
+                    </div>
+                    <div className="dept-total-units-wrap">
+                      <UnitsVerify breakdown={dept.units_breakdown} formatQty={formatQty} />
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="dept-total">
+                      {formatQty(dept.total)} {unitLabel}
+                    </div>
+                    {dept.total_units != null && (
+                      <div className="dept-total-units-wrap">
+                        <div className="dept-total-units">в ед. продукции: {formatQty(dept.total_units)} шт.</div>
+                        <UnitsVerify breakdown={dept.units_breakdown} formatQty={formatQty} />
+                      </div>
+                    )}
+                  </>
                 )}
                 {dept.comparison != null && (
                   <DeptComparison
-                    today={dept.total}
+                    today={dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино' ? dept.total_units : dept.total}
                     comparison={dept.comparison}
                     unitLabel={unitLabel}
                     formatQty={formatQty}
                     labels={comparisonLabels}
-                    unitsLabel={dept.total_units != null ? 'ед. продукции' : null}
+                    unitsLabel={dept.total_units != null && !(prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино') ? 'ед. продукции' : null}
+                    useUnits={dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино'}
+                    secondaryMetric={dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино' ? { today: dept.total, yesterday: dept.comparison.yesterday, delta: dept.comparison.delta } : null}
                   />
                 )}
                 {dept.avg_30d != null && (
