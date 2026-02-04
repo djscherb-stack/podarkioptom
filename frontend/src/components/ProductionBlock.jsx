@@ -164,6 +164,97 @@ function NomDetail({ items, unitLabel, formatQty, deptUnit }) {
   )
 }
 
+/** Последние 7 дней: день → виды номенклатуры → наименования */
+function NomDetail7Days({ last7days, unitLabel, formatQty, deptUnit, useUnits }) {
+  const [expandedDays, setExpandedDays] = useState(new Set())
+  const [expandedTypes, setExpandedTypes] = useState({})
+  const u = deptUnit || 'шт.'
+  const toggleDay = (e, date) => {
+    e.stopPropagation()
+    setExpandedDays(prev => {
+      const next = new Set(prev)
+      if (next.has(date)) next.delete(date)
+      else next.add(date)
+      return next
+    })
+  }
+  const toggleType = (e, dayDate, type) => {
+    e.stopPropagation()
+    const k = `${dayDate}\n${type}`
+    setExpandedTypes(prev => ({ ...prev, [k]: !prev[k] }))
+  }
+  return (
+    <div className="nom-detail nom-detail-7d" onClick={(e) => e.stopPropagation()}>
+      <table className="nom-detail-table">
+        <thead>
+          <tr>
+            <th>Дата</th>
+            <th>Вид номенклатуры</th>
+            <th>Наименование</th>
+            <th>Кол-во</th>
+          </tr>
+        </thead>
+        <tbody>
+          {(last7days || []).map(({ date, total, total_units, nomenclature }) => {
+            const [y, m, d] = (date || '').split('-').map(Number)
+            const dateLabel = `${d} ${MONTH_NAMES[m - 1] || ''}`
+            const dispTotal = useUnits && total_units != null ? total_units : total
+            const dispUnit = useUnits && total_units != null ? 'ед.' : u
+            const groups = groupByNomenclature(nomenclature)
+            const dayExpanded = expandedDays.has(date)
+            return (
+              <React.Fragment key={date}>
+                <tr className="nom-group-row nom-day-row">
+                  <td>
+                    <button
+                      type="button"
+                      className="nom-group-btn"
+                      onClick={(e) => toggleDay(e, date)}
+                    >
+                      {dayExpanded ? '▼' : '▶'} {dateLabel}
+                    </button>
+                  </td>
+                  <td colSpan={2} />
+                  <td className="nom-group-total">{formatQty(dispTotal)} {dispUnit}</td>
+                </tr>
+                {dayExpanded && groups.map(({ type, total: typeTotal, items: list }) => {
+                  const typeKey = `${date}\n${type}`
+                  const typeExpanded = expandedTypes[typeKey]
+                  return (
+                    <React.Fragment key={typeKey}>
+                      <tr className="nom-group-row nom-type-row">
+                        <td />
+                        <td colSpan={2}>
+                          <button
+                            type="button"
+                            className="nom-group-btn"
+                            onClick={(e) => toggleType(e, date, type)}
+                          >
+                            {typeExpanded ? '▼' : '▶'} {type}
+                          </button>
+                        </td>
+                        <td className="nom-group-total">{formatQty(typeTotal)} {u}</td>
+                      </tr>
+                      {typeExpanded && list.map((item, i) => (
+                        <tr key={`${typeKey}-${i}`} className="nom-item-row">
+                          <td />
+                          <td />
+                          <td>{item.product_name}</td>
+                          <td>{formatQty(item.quantity)} {u}</td>
+                        </tr>
+                      ))}
+                    </React.Fragment>
+                  )
+                })}
+              </React.Fragment>
+            )
+          })}
+        </tbody>
+      </table>
+    </div>
+  )
+}
+
 function NomDetailByOp({ nomenclatureByOp, formatQty }) {
   const [expanded, setExpanded] = useState({})
   const toggle = (e, op, type) => {
@@ -292,13 +383,13 @@ function UnitsVerify({ breakdown, formatQty }) {
   )
 }
 
-export default function ProductionBlock({ prodName, prodData, expandedKey, onToggle, year, month, comparisonLabels }) {
+export default function ProductionBlock({ prodName, prodData, expandedKey, onToggle, expanded7daysKey, onToggle7days, year, month, comparisonLabels }) {
   const navigate = useNavigate()
   const departments = prodData?.departments || []
   if (departments.length === 0) return null
 
   const handleCardClick = (e, dept) => {
-    if (e.target.closest('.btn-expand') || e.target.closest('.nom-detail') || e.target.closest('.dept-subs')) return
+    if (e.target.closest('.btn-expand') || e.target.closest('.btn-expand-7d') || e.target.closest('.nom-detail') || e.target.closest('.dept-subs')) return
     if (year && month) {
       navigate(`/department?production=${encodeURIComponent(prodName)}&department=${encodeURIComponent(dept.name)}&year=${year}&month=${month}`)
     }
@@ -311,7 +402,9 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
         {departments.map((dept) => {
           const key = `${prodName}-${dept.name}`
           const isExpanded = expandedKey === key
+          const is7daysExpanded = expanded7daysKey === key
           const hasDetail = (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op
+          const has7days = (dept.last_7_days?.length || 0) > 0
           const unitLabel = dept.unit === 'кг' ? 'кг' : 'шт.'
 
           return (
@@ -386,16 +479,32 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                 )}
               </div>
               <div className="dept-card-detail">
-                {hasDetail && (
-                  <button className="btn-expand" onClick={(e) => { e.stopPropagation(); onToggle(isExpanded ? null : key) }}>
-                    {isExpanded ? '▼ Свернуть' : '▶ Детализация'}
-                  </button>
-                )}
+                <div className="dept-detail-buttons">
+                  {hasDetail && (
+                    <button className="btn-expand" onClick={(e) => { e.stopPropagation(); onToggle(isExpanded ? null : key); onToggle7days?.(null) }}>
+                      {isExpanded ? '▼ Свернуть' : '▶ Детализация'}
+                    </button>
+                  )}
+                  {has7days && (
+                    <button className="btn-expand btn-expand-7d" onClick={(e) => { e.stopPropagation(); onToggle7days?.(is7daysExpanded ? null : key); onToggle?.(null) }}>
+                      {is7daysExpanded ? '▼ Свернуть' : '▶ Последние 7 дней'}
+                    </button>
+                  )}
+                </div>
                 {isExpanded && dept.nomenclature?.length > 0 && (
                   <NomDetail items={dept.nomenclature} unitLabel={unitLabel} formatQty={formatQty} deptUnit={dept.unit} />
                 )}
                 {isExpanded && dept.nomenclature_by_op && (
                   <NomDetailByOp nomenclatureByOp={dept.nomenclature_by_op} formatQty={formatQty} />
+                )}
+                {is7daysExpanded && dept.last_7_days?.length > 0 && (
+                  <NomDetail7Days
+                    last7days={dept.last_7_days}
+                    unitLabel={unitLabel}
+                    formatQty={formatQty}
+                    deptUnit={dept.unit}
+                    useUnits={dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино'}
+                  />
                 )}
               </div>
             </div>

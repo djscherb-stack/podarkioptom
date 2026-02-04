@@ -200,7 +200,37 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
             vs_avg_pct = round((vs_avg / avg_30d * 100) if avg_30d else 0, 1)
             dept["vs_avg_delta"] = vs_avg
             dept["vs_avg_pct"] = vs_avg_pct
-    
+
+            # Последние 7 дней: выпуск по дням с детализацией (вид номенклатуры → наименования)
+            last_7_days = []
+            for i in range(6, -1, -1):
+                d = target_date - timedelta(days=i)
+                day_df = df[df["date_only"] == d]
+                if day_df.empty:
+                    last_7_days.append({"date": d.isoformat(), "total": 0, "total_units": None, "nomenclature": []})
+                    continue
+                prod_day = build_productions_stats(day_df)
+                dept_day = None
+                for _pn, pdata in prod_day.items():
+                    for dep in pdata.get("departments", []):
+                        if dep["name"] == dept["name"]:
+                            dept_day = dep
+                            break
+                    if dept_day:
+                        break
+                if not dept_day:
+                    last_7_days.append({"date": d.isoformat(), "total": 0, "total_units": None, "nomenclature": []})
+                    continue
+                nom = list(dept_day.get("nomenclature", []))
+                if not nom and dept_day.get("nomenclature_by_op"):
+                    for op_items in dept_day["nomenclature_by_op"].values():
+                        nom.extend(op_items)
+                tot = dept_day.get("total", 0)
+                tot = round(float(tot), 2) if use_float else int(tot)
+                tu = dept_day.get("total_units")
+                last_7_days.append({"date": d.isoformat(), "total": tot, "total_units": tu, "nomenclature": nom})
+            dept["last_7_days"] = last_7_days
+
     return {
         "date": target_date.isoformat(),
         "productions": productions_today,

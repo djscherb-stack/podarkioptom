@@ -32,6 +32,7 @@ export default function DayPage() {
   )
   const [data, setData] = useState(null)
   const [expandedKey, setExpandedKey] = useState(null)
+  const [expanded7daysKey, setExpanded7daysKey] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
 
@@ -97,9 +98,9 @@ export default function DayPage() {
             const month = d ? d.getMonth() + 1 : null
             return (
               <>
-                <ProductionBlock prodName="ЧАЙ" prodData={productions.ЧАЙ} expandedKey={expandedKey} onToggle={setExpandedKey} year={year} month={month} />
-                <ProductionBlock prodName="ГРАВИРОВКА" prodData={productions.ГРАВИРОВКА} expandedKey={expandedKey} onToggle={setExpandedKey} year={year} month={month} />
-                <ProductionBlock prodName="ЛЮМИНАРК" prodData={productions.ЛЮМИНАРК} expandedKey={expandedKey} onToggle={setExpandedKey} year={year} month={month} />
+                <ProductionBlock prodName="ЧАЙ" prodData={productions.ЧАЙ} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
+                <ProductionBlock prodName="ГРАВИРОВКА" prodData={productions.ГРАВИРОВКА} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
+                <ProductionBlock prodName="ЛЮМИНАРК" prodData={productions.ЛЮМИНАРК} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
               </>
             )
           })()}
