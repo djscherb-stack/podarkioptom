@@ -22,7 +22,12 @@ export default function AdminPage() {
   const [themeSaving, setThemeSaving] = useState(false)
   const [themeMsg, setThemeMsg] = useState(null)
   const [themeError, setThemeError] = useState(false)
+  const [dateRange, setDateRange] = useState(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => setDateRange({ dates: [] }))
+  }, [])
 
   useEffect(() => {
     fetchTheme().then(t => setTheme(t))
@@ -97,6 +102,28 @@ export default function AdminPage() {
   return (
     <div className="admin-page">
       <h2>Админ-панель</h2>
+
+      {dateRange && (
+        <section className="admin-dates-section">
+          <h3>Диагностика данных</h3>
+          <p className="admin-dates-summary">
+            Даты в системе: {dateRange.min_date || '—'} … {dateRange.max_date || '—'}
+            {dateRange.dates?.length > 0 && ` (${dateRange.dates.length} дней)`}
+          </p>
+          {dateRange.dates?.length > 0 && (
+            <div className="admin-dates-list">
+              {(dateRange.dates.length <= 50
+                ? dateRange.dates
+                : [...dateRange.dates.slice(0, 10), { date: '...', rows: '' }, ...dateRange.dates.slice(-10)]
+              ).map((d, i) => (
+                <span key={d.date + i} className="admin-date-chip" title={d.rows ? `${d.rows} записей` : ''}>
+                  {d.date}{d.rows ? ` (${d.rows})` : ''}
+                </span>
+              ))}
+            </div>
+          )}
+        </section>
+      )}
 
       <section className="admin-theme-section">
         <h3>Цветовая схема</h3>

@@ -184,5 +184,10 @@ def sync_from_gdrive(
 
     if result["downloaded"]:
         db.refresh_data()
+        try:
+            import telegram_notify
+            telegram_notify.notify_data_updated("gdrive", downloaded=result["downloaded"])
+        except Exception:
+            pass
 
     return result

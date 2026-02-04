@@ -308,6 +308,21 @@ def get_department_daily_stats(production: str, department: str, year: int, mont
     return {"department": department, "production": production, "unit": unit, "daily": result, "year": year, "month": month}
 
 
+def get_data_date_range() -> dict:
+    """Диагностика: диапазон дат и количество записей по дням (для отладки пропавших данных)."""
+    df = get_df()
+    if df.empty:
+        return {"dates": [], "min_date": None, "max_date": None}
+    daily_counts = df.groupby("date_only", as_index=False).size()
+    daily_counts = daily_counts.sort_values("date_only")
+    dates = [{"date": str(row["date_only"]), "rows": int(row["size"])} for _, row in daily_counts.iterrows()]
+    return {
+        "dates": dates,
+        "min_date": str(df["date_only"].min()) if not df.empty else None,
+        "max_date": str(df["date_only"].max()) if not df.empty else None,
+    }
+
+
 def get_available_months() -> list[dict[str, int]]:
     """Список месяцев, для которых есть данные."""
     df = get_df()

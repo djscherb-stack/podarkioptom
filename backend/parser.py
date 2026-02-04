@@ -8,13 +8,19 @@ import pandas as pd
 
 
 def parse_date(value) -> Optional[datetime]:
-    """Парсинг даты из различных форматов."""
+    """Парсинг даты из различных форматов (текст, datetime, Excel-серийный номер)."""
     if value is None or (isinstance(value, float) and pd.isna(value)):
         return None
     if isinstance(value, datetime):
         return value
     if isinstance(value, pd.Timestamp):
         return value.to_pydatetime()
+    # Excel-серийный номер (1 янв 1900 = 1; 1 янв 2026 ≈ 45310)
+    if isinstance(value, (int, float)) and value > 0:
+        try:
+            return (pd.Timestamp("1899-12-30") + pd.Timedelta(days=float(value))).to_pydatetime()
+        except (ValueError, OverflowError):
+            pass
     s = str(value).strip()
     if not s:
         return None
@@ -27,6 +33,11 @@ def parse_date(value) -> Optional[datetime]:
     try:
         return datetime.strptime(s_date, "%d.%m.%Y")
     except ValueError:
+        pass
+    try:
+        ts = pd.to_datetime(value)
+        return ts.to_pydatetime() if hasattr(ts, "to_pydatetime") else datetime.fromisoformat(str(ts)[:19])
+    except Exception:
         pass
     return None
 

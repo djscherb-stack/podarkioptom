@@ -117,3 +117,31 @@
 .admin-theme-msg-error {
   color: var(--negative) !important;
 }
+
+.admin-dates-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.admin-dates-summary {
+  margin: 0.5rem 0;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.admin-dates-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.5rem;
+}
+
+.admin-date-chip {
+  font-size: 0.75rem;
+  padding: 0.2rem 0.5rem;
+  background: rgba(0,0,0,0.1);
+  border-radius: 4px;
+}

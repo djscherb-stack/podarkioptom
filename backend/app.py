@@ -135,6 +135,11 @@ def _do_upload(content: bytes, filename: str) -> dict:
     dest = data_dir / safe_name
     dest.write_bytes(content)
     db.refresh_data()
+    try:
+        import telegram_notify
+        telegram_notify.notify_data_updated("upload")
+    except Exception:
+        pass
     return {"status": "ok", "file": safe_name}
 
 
@@ -393,6 +398,12 @@ def admin_sync_from_gdrive():
         prefix=prefix.strip(),
         recursive=recursive,
     )
+
+
+@app.get("/api/admin/data-dates", dependencies=[Depends(require_admin)])
+def admin_data_dates():
+    """Диагностика: какие даты есть в данных (для отладки пропавших 1–2 января)."""
+    return db.get_data_date_range()
 
 
 @app.get("/api/admin/login-history", dependencies=[Depends(require_admin)])
