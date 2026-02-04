@@ -147,12 +147,24 @@ def load_all_data(data_dir: str) -> pd.DataFrame:
     if not frames:
         return pd.DataFrame(columns=["article", "nomenclature_type", "product_name", "quantity", "date", "department"])
     
-    combined = pd.concat(frames, ignore_index=True)
-    # Убираем дубликаты: одна запись = дата (день) + подразделение + вид + наименование + кол-во
-    combined["_dup_date"] = combined["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
-    dup_cols = ["_dup_date", "department", "nomenclature_type", "product_name", "quantity"]
-    dup_cols = [c for c in dup_cols if c in combined.columns]
-    if dup_cols:
-        combined = combined.drop_duplicates(subset=dup_cols, keep="first")
-    combined = combined.drop(columns=["_dup_date"], errors="ignore")
-    return combined
+    # 1. Внутри каждого файла: несколько строк с одним ключом — СУММИРУЕМ (две по 2400 → 4800)
+    # 2. Между файлами: дубли одного периода — берём MAX (повторная загрузка не искажает данные)
+    aggregated_per_file = []
+    for df in frames:
+        df = df.copy()
+        df["_date_day"] = df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+        group_cols = ["_date_day", "department", "nomenclature_type", "product_name"]
+        if all(c in df.columns for c in group_cols):
+            agg = df.groupby(group_cols, as_index=False)["quantity"].sum()
+            aggregated_per_file.append(agg)
+
+    if not aggregated_per_file:
+        return pd.DataFrame(columns=["article", "nomenclature_type", "product_name", "quantity", "date", "department"])
+
+    combined = pd.concat(aggregated_per_file, ignore_index=True)
+    # Между файлами: для одного ключа берём max (не сумму), чтобы повторная загрузка периода не удваивала
+    group_cols = ["_date_day", "department", "nomenclature_type", "product_name"]
+    final = combined.groupby(group_cols, as_index=False)["quantity"].max()
+    final["date"] = pd.to_datetime(final["_date_day"])
+    final["article"] = ""
+    return final[["article", "nomenclature_type", "product_name", "quantity", "date", "department"]]
