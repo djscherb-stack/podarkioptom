@@ -156,6 +156,13 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
     
     productions_today = build_productions_stats(day_data)
     productions_yesterday = build_productions_stats(prev_data)
+
+    # Предрасчёт для last_7_days: один вызов build_productions_stats на день вместо 7×N на отделов
+    prod_by_day: dict[date, dict] = {}
+    for i in range(6, -1, -1):
+        d = target_date - timedelta(days=i)
+        day_df = df[df["date_only"] == d]
+        prod_by_day[d] = build_productions_stats(day_df) if not day_df.empty else {}
     
     for prod_name, prod_data in productions_today.items():
         prod_prev = productions_yesterday.get(prod_name, {})
@@ -201,15 +208,11 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
             dept["vs_avg_delta"] = vs_avg
             dept["vs_avg_pct"] = vs_avg_pct
 
-            # Последние 7 дней: выпуск по дням с детализацией (вид номенклатуры → наименования)
+            # Последние 7 дней: из предрасчитанного prod_by_day (не вызываем build_productions_stats повторно)
             last_7_days = []
             for i in range(6, -1, -1):
                 d = target_date - timedelta(days=i)
-                day_df = df[df["date_only"] == d]
-                if day_df.empty:
-                    last_7_days.append({"date": d.isoformat(), "total": 0, "total_units": None, "nomenclature": []})
-                    continue
-                prod_day = build_productions_stats(day_df)
+                prod_day = prod_by_day.get(d, {})
                 dept_day = None
                 for _pn, pdata in prod_day.items():
                     for dep in pdata.get("departments", []):
@@ -220,15 +223,15 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
                         break
                 if not dept_day:
                     last_7_days.append({"date": d.isoformat(), "total": 0, "total_units": None, "nomenclature": []})
-                    continue
-                nom = list(dept_day.get("nomenclature", []))
-                if not nom and dept_day.get("nomenclature_by_op"):
-                    for op_items in dept_day["nomenclature_by_op"].values():
-                        nom.extend(op_items)
-                tot = dept_day.get("total", 0)
-                tot = round(float(tot), 2) if use_float else int(tot)
-                tu = dept_day.get("total_units")
-                last_7_days.append({"date": d.isoformat(), "total": tot, "total_units": tu, "nomenclature": nom})
+                else:
+                    nom = list(dept_day.get("nomenclature", []))
+                    if not nom and dept_day.get("nomenclature_by_op"):
+                        for op_items in dept_day["nomenclature_by_op"].values():
+                            nom.extend(op_items)
+                    tot = dept_day.get("total", 0)
+                    tot = round(float(tot), 2) if use_float else int(tot)
+                    tu = dept_day.get("total_units")
+                    last_7_days.append({"date": d.isoformat(), "total": tot, "total_units": tu, "nomenclature": nom})
             dept["last_7_days"] = last_7_days
 
     return {

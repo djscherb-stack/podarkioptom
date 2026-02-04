@@ -35,6 +35,7 @@ export default function DayPage() {
   const [expanded7daysKey, setExpanded7daysKey] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [dayCache, setDayCache] = useState({})
 
   // Синхронизация с URL и sessionStorage при смене даты
   useEffect(() => {
@@ -45,14 +46,27 @@ export default function DayPage() {
   }, [selectedDate])
 
   useEffect(() => {
-    if (selectedDate) {
-      setLoading(true)
+    if (!selectedDate) return
+    if (dayCache[selectedDate]) {
+      setData(dayCache[selectedDate])
+      setLoading(false)
       setError(null)
-      apiFetch(`${API}/day/${selectedDate}`)
-        .then(setData)
-        .catch(e => setError(e.message))
-        .finally(() => setLoading(false))
+      return
     }
+    setLoading(true)
+    setError(null)
+    apiFetch(`${API}/day/${selectedDate}`)
+      .then(res => {
+        setData(res)
+        setDayCache(prev => {
+          const next = { ...prev, [selectedDate]: res }
+          const keys = Object.keys(next)
+          if (keys.length > 10) delete next[keys[0]]
+          return next
+        })
+      })
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false))
   }, [selectedDate])
 
   const handleRefresh = () => {
