@@ -410,11 +410,11 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
           return (
             <div
               key={key}
-              className={`dept-card ${dept.main ? 'dept-card-main' : ''} ${isExpanded ? 'dept-card-expanded' : ''}`}
+              className={`dept-card ${dept.main ? 'dept-card-main' : ''} ${(isExpanded || is7daysExpanded) ? 'dept-card-expanded' : ''}`}
             >
               <div
-                className={`dept-card-summary ${year && month && !isExpanded ? 'dept-card-clickable' : ''}`}
-                onClick={year && month && !isExpanded ? (e) => handleCardClick(e, dept) : undefined}
+                className={`dept-card-summary ${year && month && !isExpanded && !is7daysExpanded ? 'dept-card-clickable' : ''}`}
+                onClick={year && month && !isExpanded && !is7daysExpanded ? (e) => handleCardClick(e, dept) : undefined}
                 role={year && month && !isExpanded ? 'button' : undefined}
               >
                 {dept.main && <span className="badge-main">Основной показатель</span>}
