@@ -280,8 +280,21 @@ def get_department_daily_stats(production: str, department: str, year: int, mont
     if m.empty:
         return {"department": department, "production": production, "unit": unit, "daily": [], "year": year, "month": month}
     
-    daily = m.groupby("date_only", as_index=False)["quantity"].sum()
-    daily = daily.sort_values("date_only")
+    # Сборочный цех Елино (ЧАЙ): график в «ед. продукции», как на странице «По дню»
+    use_sbor_units = (production == "ЧАЙ" and department == "Сборочный цех Елино")
+    
+    if use_sbor_units:
+        from productions import _calc_sbor_units
+        daily_groups = m.groupby("date_only")
+        rows_list = []
+        for date_val, g in daily_groups:
+            units, _ = _calc_sbor_units(g)
+            rows_list.append({"date_only": date_val, "quantity": units})
+        daily = pd.DataFrame(rows_list).sort_values("date_only")
+        unit = "ед."
+    else:
+        daily = m.groupby("date_only", as_index=False)["quantity"].sum()
+        daily = daily.sort_values("date_only")
     
     result = []
     for _, row in daily.iterrows():
