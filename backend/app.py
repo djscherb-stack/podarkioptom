@@ -289,6 +289,43 @@ async def upload_by_token(
         return {"error": str(e)}
 
 
+def _check_upload_token(x_upload_token: str = Header(None, alias="X-Upload-Token")):
+    """Проверка токена для автоматизации (cron, webhooks)."""
+    expected = os.environ.get("UPLOAD_TOKEN", "")
+    if not expected or not x_upload_token or x_upload_token != expected:
+        raise HTTPException(status_code=403, detail="Неверный или отсутствующий токен")
+
+
+@app.get("/api/sync-from-gdrive")
+def sync_from_gdrive_api(
+    x_upload_token: str = Header(None, alias="X-Upload-Token"),
+):
+    """
+    Синхронизация из Google Drive: забирает новые файлы с именем «Выпуск продукции*»
+    и загружает в аналитику. Вызывается cron-ом или вручную.
+    Заголовок: X-Upload-Token.
+    """
+    _check_upload_token(x_upload_token)
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    credentials = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
+    prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_PRODUCTION", "Выпуск продукции")
+    recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
+    if not folder_id or not credentials:
+        return {
+            "ok": False,
+            "error": "Задайте GOOGLE_DRIVE_FOLDER_ID и GOOGLE_DRIVE_CREDENTIALS_JSON",
+            "downloaded": [],
+            "errors": [],
+        }
+    import gdrive_sync
+    return gdrive_sync.sync_from_gdrive(
+        folder_id=folder_id,
+        credentials_json=credentials,
+        prefix=prefix.strip(),
+        recursive=recursive,
+    )
+
+
 @app.get("/api/months", dependencies=[Depends(require_auth)])
 def get_months():
     """Список доступных месяцев."""

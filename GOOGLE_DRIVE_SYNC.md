@@ -1,0 +1,150 @@
+# Автозагрузка отчётов из Google Drive
+
+Сайт может автоматически забирать новые Excel-файлы из папки Google Drive и загружать их в аналитику.  
+Сейчас поддерживаются файлы, имя которых начинается с **«Выпуск продукции»**. Позже можно добавить другие типы (выработка сотрудников и т.д.).
+
+---
+
+## Шаг 1. Проект в Google Cloud
+
+1. Откройте [Google Cloud Console](https://console.cloud.google.com/).
+2. Создайте новый проект или выберите существующий.
+3. В меню слева: **APIs & Services** → **Library**.
+4. Найдите **Google Drive API** и нажмите **Enable** (Включить).
+
+---
+
+## Шаг 2. Service Account (сервисный аккаунт)
+
+1. **APIs & Services** → **Credentials** → **Create Credentials** → **Service Account**.
+2. Имя: например `analytics-sync`.
+3. Нажмите **Create and Continue**.
+4. Роль можно не назначать → **Done**.
+5. Откройте созданный сервисный аккаунт (клик по email).
+6. Вкладка **Keys** → **Add Key** → **Create new key** → **JSON** → **Create**.
+7. Сохраните скачанный JSON-файл — он понадобится на шаге 5.
+
+**Важно:** Скопируйте **email сервисного аккаунта** (типа `analytics-sync@project-id.iam.gserviceaccount.com`) — он нужен для шага 4.
+
+---
+
+## Шаг 3. Папка в Google Drive
+
+1. Создайте папку в Google Drive для отчётов (или используйте существующую).
+2. Убедитесь, что 1С настроена на выгрузку в эту папку.
+3. Откройте папку в браузере и скопируйте ID из URL:
+   ```
+   https://drive.google.com/drive/folders/1ABCdefGHIjkLMnoPQRstuVWXyz
+                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                        это Folder ID
+   ```
+
+---
+
+## Шаг 4. Доступ к папке для Service Account
+
+1. Правый клик по папке в Google Drive → **Share** (Настройки доступа).
+2. Добавьте **email сервисного аккаунта** (из шага 2) с правами **Viewer** (Читатель).
+3. Нажмите **Share** / **Готово**.
+
+Без этого шага сайт не сможет читать файлы в папке.
+
+---
+
+## Шаг 5. Переменные окружения на Render
+
+В [Render Dashboard](https://dashboard.render.com/) → ваш сервис → **Environment** → **Environment Variables** добавьте:
+
+| Переменная | Значение |
+|------------|----------|
+| `GOOGLE_DRIVE_FOLDER_ID` | ID папки из шага 3 |
+| `GOOGLE_DRIVE_CREDENTIALS_JSON` | **Всё содержимое** JSON-файла из шага 2 (одной строкой) |
+| `UPLOAD_TOKEN` | Секретный токен для вызова sync (если ещё не задан) |
+
+### Как вставить JSON в Render
+
+1. Откройте скачанный JSON в текстовом редакторе.
+2. Скопируйте **весь текст** (от `{` до `}`).
+3. В Render: **Add Environment Variable** → Key: `GOOGLE_DRIVE_CREDENTIALS_JSON`.
+4. Value: вставьте скопированный JSON.
+5. **Важно:** JSON должен быть одной строкой. Если Render ругается, можно использовать [jsonformatter.org](https://jsonformatter.org/json-minify) чтобы убрать переносы.
+
+### Опционально
+
+| Переменная | По умолчанию | Описание |
+|------------|--------------|----------|
+| `GOOGLE_DRIVE_PREFIX_PRODUCTION` | `Выпуск продукции` | Начало имени файла для выпуска продукции |
+| `GOOGLE_DRIVE_RECURSIVE` | `true` | Искать файлы и в подпапках (`true` / `false`) |
+
+---
+
+## Шаг 6. Cron Job на Render
+
+Чтобы сайт периодически проверял папку (например, каждые 15 минут):
+
+1. **Dashboard** → **New** → **Cron Job**.
+2. Name: `analytics-gdrive-sync`.
+3. **Command:**
+   ```bash
+   curl -s -H "X-Upload-Token: ВАШ_UPLOAD_TOKEN" https://ВАШ-САЙТ.onrender.com/api/sync-from-gdrive
+   ```
+   Замените `ВАШ_UPLOAD_TOKEN` и `ВАШ-САЙТ` на свои значения.
+4. **Schedule:** `*/15 * * * *` (каждые 15 минут) или `0 * * * *` (каждый час).
+5. **Region:** тот же, что у веб-сервиса.
+6. **Create Cron Job**.
+
+### Если Cron Job на Render недоступен (тариф Free)
+
+Можно использовать внешний cron-сервис:
+
+- [cron-job.org](https://cron-job.org) (бесплатно)
+- [EasyCron](https://www.easycron.com)
+- Любой свой сервер с `crontab`
+
+**Пример crontab** (каждые 15 минут):
+```bash
+*/15 * * * * curl -s -H "X-Upload-Token: ВАШ_ТОКЕН" https://podarkioptom.onrender.com/api/sync-from-gdrive
+```
+
+---
+
+## Шаг 7. Ручная проверка
+
+Проверьте синхронизацию вручную (замените токен и URL):
+
+```bash
+curl -H "X-Upload-Token: ВАШ_UPLOAD_TOKEN" https://podarkioptom.onrender.com/api/sync-from-gdrive
+```
+
+**Успешный ответ:**
+```json
+{
+  "ok": true,
+  "downloaded": [
+    {"name": "Выпуск продукции 01.02.2026.xlsx", "saved_as": "gdrive_20260201_120000_abc12345.xlsx"}
+  ],
+  "errors": []
+}
+```
+
+**Если новых файлов нет:**
+```json
+{"ok": true, "downloaded": [], "errors": []}
+```
+
+---
+
+## Как это устроено
+
+1. Каждые N минут (по расписанию cron) вызывается `/api/sync-from-gdrive`.
+2. Сайт подключается к Google Drive по Service Account.
+3. Сканирует папку (и подпапки) и ищет файлы `.xlsx` / `.xls`, имя которых начинается с «Выпуск продукции».
+4. Файлы, которые уже были загружены ранее, пропускаются (учёт по `file_id`).
+5. Новые файлы скачиваются и сохраняются в `data/`.
+6. Данные обновляются и сразу отражаются в аналитике.
+
+---
+
+## Другие типы отчётов (позже)
+
+В той же папке могут появляться отчёты «Выработка сотрудников» и др. Их поддержку можно добавить позже: будет задан новый префикс имени файла и логика парсинга.
