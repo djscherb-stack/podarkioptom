@@ -8,6 +8,7 @@ import DepartmentDetailPage from './pages/DepartmentDetailPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import UploadButton from './components/UploadButton'
+import SyncButton from './components/SyncButton'
 import { API, apiFetch, AuthError } from './api'
 import './App.css'
 
@@ -75,6 +76,7 @@ function AppContent({ userInfo, onRefreshUser }) {
           <div className="app-header-right">
             <div className="nav-upload">
               <UploadButton />
+              {isAdmin && <SyncButton />}
             </div>
             <button
               type="button"

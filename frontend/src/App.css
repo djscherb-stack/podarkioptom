@@ -244,7 +244,7 @@ body {
   gap: 1rem;
 }
 
-.nav-upload { margin-right: 0.5rem; }
+.nav-upload { display: flex; align-items: flex-start; gap: 0.5rem; margin-right: 0.5rem; }
 
 .btn-logout {
   padding: 0.4rem 0.9rem;
@@ -708,6 +708,84 @@ body {
 .btn-upload:hover:not(:disabled) { opacity: 0.9; }
 .btn-upload:disabled { opacity: 0.6; cursor: not-allowed; }
 .upload-msg { font-size: 0.75rem; color: var(--text-muted); }
+
+/* Sync from Google Drive */
+.sync-wrap { position: relative; }
+.btn-sync {
+  padding: 0.4rem 0.8rem;
+  background: #c0392b;
+  color: white;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.85rem;
+  white-space: nowrap;
+}
+.btn-sync:hover:not(:disabled) { background: #a93226; opacity: 0.95; }
+.btn-sync:disabled { opacity: 0.7; cursor: not-allowed; }
+.sync-panel {
+  position: absolute;
+  top: calc(100% + 0.5rem);
+  right: 0;
+  z-index: 100;
+  min-width: 380px;
+  max-width: 90vw;
+  max-height: 320px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+.sync-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0.75rem;
+  background: rgba(0,0,0,0.1);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+.sync-panel-close {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  color: var(--text-muted);
+  padding: 0 0.25rem;
+  line-height: 1;
+}
+.sync-panel-close:hover { color: var(--text); }
+.sync-progress { padding: 0.75rem; }
+.sync-progress-bar {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+  margin-bottom: 0.35rem;
+}
+.sync-progress-fill {
+  height: 100%;
+  background: #c0392b;
+  transition: width 0.3s;
+}
+.sync-progress-label { font-size: 0.75rem; color: var(--text-muted); }
+.sync-log {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0.5rem 0.75rem;
+  font-family: monospace;
+  font-size: 0.75rem;
+  line-height: 1.5;
+  max-height: 180px;
+}
+.sync-log-line { margin-bottom: 0.25rem; }
+.sync-log-time { color: var(--text-muted); margin-right: 0.5rem; }
+.sync-log-msg { color: var(--text); }
+.sync-log-success .sync-log-msg { color: var(--positive, #27ae60); }
+.sync-log-error .sync-log-msg { color: var(--negative, #e74c3c); }
 
 /* Month page */
 .controls select, .controls input {

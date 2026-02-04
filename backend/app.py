@@ -372,6 +372,29 @@ async def set_theme_api(request: Request):
     return {"ok": True, "theme": t}
 
 
+@app.get("/api/admin/sync-from-gdrive", dependencies=[Depends(require_admin)])
+def admin_sync_from_gdrive():
+    """Синхронизация из Google Drive (только для admin). То же, что /api/sync-from-gdrive по токену."""
+    folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
+    credentials = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
+    prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_PRODUCTION", "Выпуск продукции")
+    recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
+    if not folder_id or not credentials:
+        return {
+            "ok": False,
+            "error": "Задайте GOOGLE_DRIVE_FOLDER_ID и GOOGLE_DRIVE_CREDENTIALS_JSON",
+            "downloaded": [],
+            "errors": [],
+        }
+    import gdrive_sync
+    return gdrive_sync.sync_from_gdrive(
+        folder_id=folder_id,
+        credentials_json=credentials,
+        prefix=prefix.strip(),
+        recursive=recursive,
+    )
+
+
 @app.get("/api/admin/login-history", dependencies=[Depends(require_admin)])
 def admin_login_history():
     """История входов: кто, когда, сколько раз. Только для admin."""
