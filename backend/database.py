@@ -125,8 +125,18 @@ def _get_block_daily_trend(prod_name: str, block_name: str, end_date: date, days
     m = df[mask & mask_dept]
     if m.empty:
         return [], 0.0
-    daily = m.groupby("date_only", as_index=False)["quantity"].sum()
-    daily = daily.sort_values("date_only")
+    use_sbor_units = (prod_name == "ЧАЙ" and block_name == "Сборочный цех Елино")
+    if use_sbor_units:
+        from productions import _calc_sbor_units
+        daily_groups = m.groupby("date_only")
+        rows_list = []
+        for date_val, g in daily_groups:
+            units, _ = _calc_sbor_units(g)
+            rows_list.append({"date_only": date_val, "quantity": units})
+        daily = pd.DataFrame(rows_list).sort_values("date_only")
+    else:
+        daily = m.groupby("date_only", as_index=False)["quantity"].sum()
+        daily = daily.sort_values("date_only")
     trend = []
     total = 0.0
     for _, row in daily.iterrows():

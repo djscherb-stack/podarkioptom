@@ -461,12 +461,17 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                     avg30d={dept.avg_30d}
                     vsAvgDelta={dept.vs_avg_delta}
                     vsAvgPct={dept.vs_avg_pct}
-                    unitLabel={unitLabel}
+                    unitLabel={dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино' ? 'ед.' : unitLabel}
                     formatQty={formatQty}
                   />
                 )}
                 {dept.trend_30d?.length > 0 && (
-                  <DeptTrend trend={dept.trend_30d} id={key} unitLabel={unitLabel} formatQty={formatQty} />
+                  <DeptTrend
+                    trend={dept.trend_30d}
+                    id={key}
+                    unitLabel={dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино' ? 'ед.' : unitLabel}
+                    formatQty={formatQty}
+                  />
                 )}
                 {dept.subs?.length > 0 && (
                   <div className="dept-subs">
