@@ -74,6 +74,49 @@
   --negative: #ef4444;
 }
 
+/* Google Таблицы: белый фон, серые линии, зелёный для факта */
+[data-theme="sheets"] {
+  --bg: #f8f9fa;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f1f3f4;
+  --border: #dadce0;
+  --text: #202124;
+  --text-muted: #5f6368;
+  --accent: #1a73e8;
+  --accent-purple: #4285f4;
+  --accent-orange: #ea4335;
+  --positive: #1e8e3e;
+  --negative: #d93025;
+}
+
+[data-theme="sheets"] body {
+  font-family: Roboto, Arial, sans-serif;
+}
+
+[data-theme="sheets"] .dept-card {
+  border: 1px solid #dadce0;
+  box-shadow: none;
+}
+
+[data-theme="sheets"] .nom-detail-table th,
+[data-theme="sheets"] .nom-detail-table td,
+[data-theme="sheets"] .admin-table th,
+[data-theme="sheets"] .admin-table td,
+[data-theme="sheets"] .months-compare-table th,
+[data-theme="sheets"] .months-compare-table td {
+  border: 1px solid #dadce0;
+}
+
+[data-theme="sheets"] .comp-bar.today,
+[data-theme="sheets"] .nom-day-row {
+  background: #e6f4ea;
+}
+
+[data-theme="sheets"] .comp-avg-val,
+[data-theme="sheets"] .sync-log-success .sync-log-msg {
+  color: #1e8e3e;
+}
+
 * {
   box-sizing: border-box;
 }
@@ -91,13 +134,63 @@ body {
   display: flex;
 }
 
-/* Sidebar */
+/* Sidebar: по умолчанию свёрнута (бутерброд) для всех */
 .app-sidebar {
+  position: fixed;
+  top: 0;
+  left: 0;
   width: 220px;
+  height: 100vh;
+  z-index: 1001;
   background: var(--bg-card);
   border-right: 1px solid var(--border);
   padding: 1rem 0;
-  flex-shrink: 0;
+  transform: translateX(-100%);
+  transition: transform 0.2s ease;
+}
+
+.app-sidebar.open {
+  transform: translateX(0);
+}
+
+.app-sidebar-overlay {
+  display: none;
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.5);
+  z-index: 1000;
+  opacity: 0;
+  transition: opacity 0.2s;
+}
+
+.app-sidebar-overlay.open {
+  display: block;
+  opacity: 1;
+}
+
+.btn-mobile-menu,
+.btn-mobile-menu-header {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  font-size: 1.4rem;
+  cursor: pointer;
+}
+
+.btn-mobile-menu:hover,
+.btn-mobile-menu-header:hover {
+  background: var(--border);
+}
+
+.btn-mobile-menu-header {
+  margin-right: 0.5rem;
 }
 
 .app-sidebar-nav {
@@ -128,83 +221,13 @@ body {
   background: rgba(91,143,201,0.12);
 }
 
-/* Мобильная версия: скрытая панель, кнопка меню */
-.btn-mobile-menu {
-  display: none;
-}
-
 @media (max-width: 768px) {
-  .app-sidebar {
-    position: fixed;
-    top: 0;
-    left: 0;
-    height: 100vh;
-    z-index: 1001;
-    transform: translateX(-100%);
-    transition: transform 0.2s ease;
-  }
-
-  .app-sidebar.open {
-    transform: translateX(0);
-  }
-
-  .app-sidebar-overlay {
-    display: none;
-    position: fixed;
-    inset: 0;
-    background: rgba(0,0,0,0.5);
-    z-index: 1000;
-    opacity: 0;
-    transition: opacity 0.2s;
-  }
-
-  .app-sidebar-overlay.open {
-    display: block;
-    opacity: 1;
-  }
-
-  .btn-mobile-menu,
-  .btn-mobile-menu-header {
-    display: flex !important;
-    align-items: center;
-    justify-content: center;
-    width: 44px;
-    height: 44px;
-    padding: 0;
-    background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: 8px;
-    color: var(--text);
-    font-size: 1.4rem;
-    cursor: pointer;
-  }
-
-  .btn-mobile-menu:hover,
-  .btn-mobile-menu-header:hover {
-    background: var(--border);
-  }
-
-  .btn-mobile-menu-header {
-    margin-right: 0.5rem;
-  }
-
   .app-main {
     padding: 1rem;
   }
 
   .dept-cards {
     grid-template-columns: 1fr;
-  }
-}
-
-@media (min-width: 769px) {
-  .btn-mobile-menu,
-  .btn-mobile-menu-header {
-    display: none !important;
-  }
-
-  .app-sidebar-overlay {
-    display: none !important;
   }
 }
 

@@ -58,7 +58,7 @@ def _list_files_recursive(service, folder_id: str, prefix_lower: str) -> list:
                 service.files()
                 .list(
                     q=query,
-                    fields="files(id, name, mimeType)",
+                    fields="files(id, name, mimeType, modifiedTime)",
                     pageSize=100,
                 )
                 .execute()
@@ -127,7 +127,7 @@ def sync_from_gdrive(
                 service.files()
                 .list(
                     q=query,
-                    fields="files(id, name, mimeType)",
+                    fields="files(id, name, mimeType, modifiedTime)",
                     pageSize=100,
                 )
                 .execute()
@@ -152,8 +152,18 @@ def sync_from_gdrive(
         file_id = f.get("id")
         if not file_id:
             continue
-        if str(file_id) in processed:
+        modified_time = f.get("modifiedTime") or ""
+        prev = processed.get(str(file_id))
+        if prev and prev.get("modified_time") == modified_time:
             continue
+        if prev and prev.get("saved_as"):
+            old_path = data_dir / prev["saved_as"]
+            if old_path.exists():
+                try:
+                    old_path.unlink()
+                    logger.info("gdrive sync: removed outdated %s", prev["saved_as"])
+                except Exception as e:
+                    logger.warning("gdrive sync: could not remove %s: %s", prev["saved_as"], e)
 
         try:
             request = service.files().get_media(fileId=file_id)
@@ -176,6 +186,7 @@ def sync_from_gdrive(
             "name": name,
             "saved_as": safe_name,
             "at": datetime.now().isoformat(),
+            "modified_time": modified_time,
         }
         result["downloaded"].append({"name": name, "saved_as": safe_name})
         logger.info("gdrive sync: downloaded %s -> %s", name, safe_name)

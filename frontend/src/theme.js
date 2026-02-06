@@ -6,11 +6,12 @@ export const THEME_OPTIONS = [
   { id: '1c', label: '1С' },
   { id: 'white-blue', label: 'Бело-синяя' },
   { id: 'bright', label: 'Яркая' },
+  { id: 'sheets', label: 'Google Таблицы' },
 ]
 
 export function applyTheme(theme) {
   const root = document.documentElement
-  if (theme && ['dark', 'bw', '1c', 'white-blue', 'bright'].includes(theme)) {
+  if (theme && ['dark', 'bw', '1c', 'white-blue', 'bright', 'sheets'].includes(theme)) {
     root.setAttribute('data-theme', theme)
   } else {
     root.setAttribute('data-theme', 'dark')

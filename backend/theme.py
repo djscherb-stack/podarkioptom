@@ -8,7 +8,7 @@ import database as db
 def _get_theme_path() -> Path:
     return db.get_data_dir() / "theme.json"
 
-THEMES = ["dark", "bw", "1c", "white-blue", "bright"]
+THEMES = ["dark", "bw", "1c", "white-blue", "bright", "sheets"]
 
 def get_theme() -> str:
     """Текущая тема (для всех пользователей)."""

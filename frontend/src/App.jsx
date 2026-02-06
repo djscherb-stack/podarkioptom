@@ -74,10 +74,12 @@ function AppContent({ userInfo, onRefreshUser }) {
           <span className="site-title">Производственная аналитика</span>
           <button type="button" className="btn-mobile-menu btn-mobile-menu-header" onClick={() => setMobileMenuOpen(o => !o)} aria-label="Меню">☰</button>
           <div className="app-header-right">
-            <div className="nav-upload">
-              <UploadButton />
-              {isAdmin && <SyncButton />}
-            </div>
+            {isAdmin && (
+              <div className="nav-upload">
+                <UploadButton />
+                <SyncButton />
+              </div>
+            )}
             <button
               type="button"
               className="btn-logout"

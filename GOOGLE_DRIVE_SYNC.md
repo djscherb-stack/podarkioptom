@@ -78,33 +78,39 @@
 
 ---
 
-## Шаг 6. Cron Job на Render
+## Шаг 6. Автосинхронизация в 8–10 утра по Москве
 
-Чтобы сайт периодически проверял папку (например, каждые 15 минут):
+Москва = UTC+3. Чтобы синхронизация запускалась каждый день в 8:00 по Москве:
+- 8:00 МСК = 5:00 UTC → cron: `0 5 * * *`
+- 9:00 МСК = 6:00 UTC → cron: `0 6 * * *`
+- 10:00 МСК = 7:00 UTC → cron: `0 7 * * *`
+
+### Вариант A: Render Cron Job (если доступен)
 
 1. **Dashboard** → **New** → **Cron Job**.
 2. Name: `analytics-gdrive-sync`.
 3. **Command:**
    ```bash
-   curl -s -H "X-Upload-Token: ВАШ_UPLOAD_TOKEN" https://ВАШ-САЙТ.onrender.com/api/sync-from-gdrive
+   curl -s -H "X-Upload-Token: ВАШ_UPLOAD_TOKEN" https://podarkioptom.onrender.com/api/sync-from-gdrive
    ```
-   Замените `ВАШ_UPLOAD_TOKEN` и `ВАШ-САЙТ` на свои значения.
-4. **Schedule:** `*/15 * * * *` (каждые 15 минут) или `0 * * * *` (каждый час).
+4. **Schedule:** `0 5 * * *` (ежедневно в 8:00 по Москве).
 5. **Region:** тот же, что у веб-сервиса.
 6. **Create Cron Job**.
 
-### Если Cron Job на Render недоступен (тариф Free)
+### Вариант B: cron-job.org (бесплатно, подходит для Free-тарифа)
 
-Можно использовать внешний cron-сервис:
+1. Зарегистрируйтесь на [cron-job.org](https://cron-job.org).
+2. **Create Cronjob**:
+   - **Title:** Синхронизация аналитики
+   - **URL:** `https://podarkioptom.onrender.com/api/sync-from-gdrive`
+   - **Request method:** GET
+   - **Request headers:** `X-Upload-Token: ВАШ_UPLOAD_TOKEN`
+3. **Schedule** → выберите **Daily** → 08:00, Timezone: **Europe/Moscow**.
+4. Сохраните.
 
-- [cron-job.org](https://cron-job.org) (бесплатно)
-- [EasyCron](https://www.easycron.com)
-- Любой свой сервер с `crontab`
+### Вариант C: Три раза (8:00, 9:00, 10:00 МСК)
 
-**Пример crontab** (каждые 15 минут):
-```bash
-*/15 * * * * curl -s -H "X-Upload-Token: ВАШ_ТОКЕН" https://podarkioptom.onrender.com/api/sync-from-gdrive
-```
+В cron-job.org создайте три задания на 08:00, 09:00 и 10:00 (Europe/Moscow).
 
 ---
 
