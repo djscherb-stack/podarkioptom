@@ -1,6 +1,6 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { AreaChart, Area, ResponsiveContainer, Tooltip } from 'recharts'
+import { LineChart, Line, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
 
 function formatQty(val) {
   return typeof val === 'number' && val % 1 !== 0
@@ -14,20 +14,24 @@ function DeptComparison({ today, comparison, unitLabel, formatQty, labels = { cu
   const y = useUnits ? (units_yesterday ?? yesterday) : yesterday
   const d = useUnits ? (units_delta ?? delta) : delta
   const maxVal = Math.max(t ?? 0, y ?? 0, 1)
+  const tv = t ?? 0
+  const yv = y ?? 0
+  const todayColor = tv > yv ? '#1e8e3e' : tv < yv ? '#d93025' : '#9ca3af'
+  const yesterdayColor = yv > tv ? '#1e8e3e' : yv < tv ? '#d93025' : '#9ca3af'
   return (
     <div className="dept-comparison">
       <div className="comp-chart">
         <div className="comp-bar-row">
           <span className="comp-bar-label">{labels.current}</span>
-          <div className="comp-bar-wrap">
-            <div className="comp-bar today" style={{ width: `${((t ?? 0) / maxVal) * 100}%` }} />
+          <div className="comp-bar-wrap comp-bar-wrap-gray">
+            <div className="comp-bar today" style={{ width: `${(tv / maxVal) * 100}%`, background: todayColor }} />
           </div>
           <span className="comp-bar-val">{formatQty(t ?? 0)}</span>
         </div>
         <div className="comp-bar-row">
           <span className="comp-bar-label">{labels.previous}</span>
-          <div className="comp-bar-wrap">
-            <div className="comp-bar yesterday" style={{ width: `${(y / maxVal) * 100}%` }} />
+          <div className="comp-bar-wrap comp-bar-wrap-gray">
+            <div className="comp-bar yesterday" style={{ width: `${(yv / maxVal) * 100}%`, background: yesterdayColor }} />
           </div>
           <span className="comp-bar-val">{formatQty(y)}</span>
         </div>
@@ -317,17 +321,16 @@ function DeptTrend({ trend, id, unitLabel, formatQty }) {
     const dateLabel = `${d} ${MONTH_NAMES[m - 1]}`
     return { date: date.slice(5), dateLabel, fullDate: date, q: quantity }
   })
-  const gradId = `trendGrad-${(id || '').replace(/[^a-z0-9]/gi, '-')}`
+  const qs = data.map(r => r.q)
+  const minQ = Math.min(...qs)
+  const maxQ = Math.max(...qs)
+  const padding = Math.max((maxQ - minQ) * 0.08, 1)
+  const domain = [minQ - padding, maxQ + padding]
   return (
     <div className="dept-trend">
       <ResponsiveContainer width="100%" height={36}>
-        <AreaChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
-          <defs>
-            <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="var(--accent)" stopOpacity={0.4} />
-              <stop offset="100%" stopColor="var(--accent)" stopOpacity={0} />
-            </linearGradient>
-          </defs>
+        <LineChart data={data} margin={{ top: 2, right: 2, left: 2, bottom: 2 }}>
+          <YAxis hide domain={domain} />
           <Tooltip
             content={({ active, payload }) => {
               if (!active || !payload?.[0]) return null
@@ -338,10 +341,10 @@ function DeptTrend({ trend, id, unitLabel, formatQty }) {
                 </div>
               )
             }}
-            cursor={{ stroke: 'var(--accent)', strokeWidth: 1, strokeDasharray: '2 2' }}
+            cursor={{ stroke: '#6b7280', strokeWidth: 1, strokeDasharray: '2 2' }}
           />
-          <Area type="monotone" dataKey="q" stroke="var(--accent)" strokeWidth={1} fill={`url(#${gradId})`} />
-        </AreaChart>
+          <Line type="monotone" dataKey="q" stroke="#6b7280" strokeWidth={2} dot={false} />
+        </LineChart>
       </ResponsiveContainer>
     </div>
   )
@@ -406,6 +409,7 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
           const hasDetail = (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op
           const has7days = (dept.last_7_days?.length || 0) > 0
           const unitLabel = dept.unit === 'кг' ? 'кг' : 'шт.'
+          const hasProminentSubs = (prodName === 'ЧАЙ' && dept.name === 'Фасовочный цех Елино') || (prodName === 'ГРАВИРОВКА' && dept.name === 'Картон/Дерево Елино Гравировка')
 
           return (
             <div
@@ -444,6 +448,15 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                     )}
                   </>
                 )}
+                {hasProminentSubs && dept.subs?.length > 0 && (
+                  <div className="dept-prominent-subs">
+                    {dept.subs.map((s) => (
+                      <div key={s.sub_name} className="dept-prominent-sub">
+                        {s.sub_name}: {formatQty(s.total)} {s.unit || 'шт.'}
+                      </div>
+                    ))}
+                  </div>
+                )}
                 {dept.comparison != null && (
                   <DeptComparison
                     today={dept.total_units != null && prodName === 'ЧАЙ' && dept.name === 'Сборочный цех Елино' ? dept.total_units : dept.total}
@@ -473,7 +486,7 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                     formatQty={formatQty}
                   />
                 )}
-                {dept.subs?.length > 0 && (
+                {dept.subs?.length > 0 && !hasProminentSubs && (
                   <div className="dept-subs">
                     {dept.subs.map((s) => (
                       <div key={s.sub_name} className="sub-row">

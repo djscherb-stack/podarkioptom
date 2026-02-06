@@ -74,7 +74,7 @@
   --negative: #ef4444;
 }
 
-/* Google Таблицы: белый фон, серые линии, зелёный для факта */
+/* Google Таблицы: белый фон, серые линии, прямые углы, клетчатая подложка */
 [data-theme="sheets"] {
   --bg: #f8f9fa;
   --bg-card: #ffffff;
@@ -91,11 +91,21 @@
 
 [data-theme="sheets"] body {
   font-family: Roboto, Arial, sans-serif;
+  background-color: #ffffff;
+  background-image:
+    linear-gradient(to right, #e8eaed 1px, transparent 1px),
+    linear-gradient(to bottom, #e8eaed 1px, transparent 1px);
+  background-size: 20px 20px;
+}
+
+[data-theme="sheets"] .app-main {
+  background: rgba(255,255,255,0.85);
 }
 
 [data-theme="sheets"] .dept-card {
   border: 1px solid #dadce0;
   box-shadow: none;
+  border-radius: 0;
 }
 
 [data-theme="sheets"] .nom-detail-table th,
@@ -115,6 +125,45 @@
 [data-theme="sheets"] .comp-avg-val,
 [data-theme="sheets"] .sync-log-success .sync-log-msg {
   color: #1e8e3e;
+}
+
+/* Прямые углы (без закруглений) для темы Google Таблицы */
+[data-theme="sheets"] .btn-mobile-menu,
+[data-theme="sheets"] .btn-mobile-menu-header,
+[data-theme="sheets"] .btn-logout,
+[data-theme="sheets"] .btn-refresh,
+[data-theme="sheets"] .btn-upload,
+[data-theme="sheets"] .btn-sync,
+[data-theme="sheets"] .btn-expand,
+[data-theme="sheets"] .btn-units-verify,
+[data-theme="sheets"] .login-box,
+[data-theme="sheets"] .login-form input,
+[data-theme="sheets"] .login-btn,
+[data-theme="sheets"] .mini-calendar,
+[data-theme="sheets"] .mini-cal-nav,
+[data-theme="sheets"] .mini-cal-day,
+[data-theme="sheets"] .sync-panel,
+[data-theme="sheets"] .chart-container,
+[data-theme="sheets"] .months-compare-block,
+[data-theme="sheets"] .comp-bar-wrap,
+[data-theme="sheets"] .comp-bar,
+[data-theme="sheets"] .upload-progress,
+[data-theme="sheets"] .sync-progress-bar,
+[data-theme="sheets"] .dept-trend {
+  border-radius: 0 !important;
+}
+
+[data-theme="sheets"] .controls select,
+[data-theme="sheets"] .controls input,
+[data-theme="sheets"] .admin-btn-save-theme,
+[data-theme="sheets"] .admin-btn-back,
+[data-theme="sheets"] .dept-trend-tooltip,
+[data-theme="sheets"] .admin-upload-section,
+[data-theme="sheets"] .admin-theme-section,
+[data-theme="sheets"] .admin-dates-section,
+[data-theme="sheets"] .admin-date-chip,
+[data-theme="sheets"] .badge-main {
+  border-radius: 0 !important;
 }
 
 * {
@@ -577,6 +626,22 @@ body {
 .comp-sub-delta.down { color: var(--negative); }
 
 .dept-subs { margin-top: 0.4rem; font-size: 0.75rem; color: var(--text-muted); }
+
+.dept-prominent-subs {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem 1.25rem;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.dept-prominent-sub {
+  font-variant-numeric: tabular-nums;
+}
 .sub-row { margin-bottom: 0.15rem; }
 
 .btn-expand {
@@ -885,5 +950,18 @@ body {
   border-radius: 10px;
   padding: 1rem;
   border: 1px solid var(--border);
+}
+
+.chart-container-gray {
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  border: 1px solid #9ca3af;
+}
+
+.comp-bar-wrap-gray {
+  background: linear-gradient(90deg, #e5e7eb 0%, #d1d5db 100%);
+}
+
+.dept-trend-gray {
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
 }
 .dept-subtitle { font-size: 0.9rem; color: var(--text-muted); margin-top: 0.25rem; }
