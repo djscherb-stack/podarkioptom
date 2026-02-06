@@ -15,6 +15,21 @@
   font-weight: 600;
 }
 
+.admin-upload-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.admin-upload-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
 .admin-table {
   width: 100%;
   border-collapse: collapse;

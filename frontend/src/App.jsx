@@ -7,9 +7,7 @@ import MonthsComparePage from './pages/MonthsComparePage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
-import UploadButton from './components/UploadButton'
-import SyncButton from './components/SyncButton'
-import { API, apiFetch, AuthError } from './api'
+import { API } from './api'
 import './App.css'
 
 function getYesterdayDateStr() {
@@ -74,12 +72,6 @@ function AppContent({ userInfo, onRefreshUser }) {
           <span className="site-title">Производственная аналитика</span>
           <button type="button" className="btn-mobile-menu btn-mobile-menu-header" onClick={() => setMobileMenuOpen(o => !o)} aria-label="Меню">☰</button>
           <div className="app-header-right">
-            {isAdmin && (
-              <div className="nav-upload">
-                <UploadButton />
-                <SyncButton />
-              </div>
-            )}
             <button
               type="button"
               className="btn-logout"

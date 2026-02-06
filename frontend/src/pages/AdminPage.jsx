@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch, API } from '../api'
 import { fetchTheme, saveTheme, applyTheme, THEME_OPTIONS } from '../theme'
+import UploadButton from '../components/UploadButton'
+import SyncButton from '../components/SyncButton'
 import './AdminPage.css'
 
 function formatDate(iso) {
@@ -102,6 +104,14 @@ export default function AdminPage() {
   return (
     <div className="admin-page">
       <h2>Админ-панель</h2>
+
+      <section className="admin-upload-section">
+        <h3>Загрузка данных</h3>
+        <div className="admin-upload-buttons">
+          <UploadButton />
+          <SyncButton />
+        </div>
+      </section>
 
       {dateRange && (
         <section className="admin-dates-section">
