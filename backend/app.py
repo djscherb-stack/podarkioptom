@@ -4,6 +4,15 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Optional
 
+# Загружаем .env (корень проекта или backend/) для OPENAI_API_KEY, ANALYTICS_* и др.
+try:
+    from dotenv import load_dotenv
+    _root = Path(__file__).resolve().parent.parent
+    load_dotenv(_root / ".env")
+    load_dotenv(Path(__file__).resolve().parent / ".env")  # на случай если .env лежит в backend/
+except ImportError:
+    pass
+
 from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -46,6 +55,7 @@ _cors_origins = [
     "http://localhost:5173", "http://localhost:8000",
     "http://127.0.0.1:5173", "http://127.0.0.1:8000",
     "https://podarkioptom.onrender.com", "https://www.podarkioptom.onrender.com",
+    "https://proanalitik.onrender.com", "https://www.proanalitik.onrender.com",
 ]
 _extra = os.environ.get("CORS_ORIGINS", "")
 if _extra:
@@ -79,8 +89,8 @@ async def login_post(request: Request):
 
 
 @app.get("/api/dev-auto-login")
-async def dev_auto_login(request: Request):
-    """Автовход под админом. Только для localhost (dev)."""
+async def dev_auto_login(request: Request, next: str = "/"):
+    """Автовход под админом. Только для localhost (dev). next — куда редирект после входа."""
     host = request.client.host if request.client else ""
     if host not in ("127.0.0.1", "::1", "localhost"):
         raise HTTPException(status_code=403, detail="Только для localhost")
@@ -88,7 +98,8 @@ async def dev_auto_login(request: Request):
         raise HTTPException(status_code=500, detail="Нет учётных данных админа")
     auth.log_login(auth.ADMIN_USER)
     token = auth.create_session(auth.ADMIN_USER)
-    r = RedirectResponse(url="/", status_code=302)
+    redirect_to = next if next.startswith("/") else "/"
+    r = RedirectResponse(url=redirect_to, status_code=302)
     r.set_cookie("analytics_session", token, httponly=True, samesite="lax", max_age=7 * 24 * 3600, path="/")
     return r
 
@@ -421,6 +432,42 @@ def get_day_stats(date_str: str):
     except ValueError:
         return {"error": "Неверный формат даты. Используйте YYYY-MM-DD"}
     return db.get_daily_stats(d)
+
+
+def _sanitize_ai_error(err_msg: str) -> str:
+    """Скрыть технические фрагменты (JSON/парсер) в сообщении об ошибке."""
+    if not err_msg:
+        return err_msg
+    # Фрагмент вроде '\n "productions"' — заменить на понятное сообщение
+    if "productions" in err_msg and (len(err_msg) < 80 or "\n" in err_msg or "\\n" in err_msg or '"\n' in err_msg):
+        return "ИИ вернул некорректный ответ (возможна обрезка). Попробуйте ещё раз."
+    return err_msg
+
+
+@app.get("/api/day/{date_str}/ai-analytics", dependencies=[Depends(require_auth)])
+def get_day_ai_analytics(date_str: str, debug: Optional[str] = None):
+    """ИИ-аналитика за день: оценка выработки по производствам, тренды, вопросы для руководителей."""
+    from datetime import datetime
+    try:
+        d = datetime.strptime(date_str, "%Y-%m-%d").date()
+    except ValueError:
+        return JSONResponse({"error": "Неверный формат даты. Используйте YYYY-MM-DD", "enabled": True, "productions": {}, "general_notes": ""}, status_code=400)
+    import ai_analytics
+    try:
+        return ai_analytics.get_ai_analytics(d)
+    except Exception as e:
+        err_msg = str(e).strip()
+        err_msg = _sanitize_ai_error(f"Ошибка сервера: {err_msg[:300]}")
+        out = {
+            "enabled": True,
+            "date": date_str,
+            "productions": {},
+            "general_notes": "",
+            "error": err_msg,
+        }
+        if debug:
+            out["debug_error_type"] = type(e).__name__
+        return out
 
 
 # Раздача статики React (после сборки)

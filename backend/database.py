@@ -6,7 +6,7 @@ from datetime import datetime, date, timedelta
 from typing import Any, Optional
 import pandas as pd
 
-from parser import load_all_data
+from parser import load_all_data, load_all_employee_output_data
 from productions import build_productions_stats, get_block_config
 
 # Папка с данными. DATA_DIR из env — для persistent disk на Render (загруженные файлы сохраняются)
@@ -15,6 +15,7 @@ DATA_DIR = Path(os.environ.get("DATA_DIR", _default))
 ROOT_DIR = Path(__file__).resolve().parent.parent
 
 _df: Optional[pd.DataFrame] = None
+_df_employee: Optional[pd.DataFrame] = None
 
 
 def get_data_dir() -> Path:
@@ -28,12 +29,17 @@ def ensure_data_dir():
 
 
 def refresh_data():
-    """Перезагрузить данные из файлов."""
-    global _df
+    """Перезагрузить данные из файлов (продукция + выработка сотрудников)."""
+    global _df, _df_employee
     ensure_data_dir()
     _df = load_all_data(str(DATA_DIR))
     _df["year_month"] = _df["date"].dt.to_period("M")
     _df["date_only"] = _df["date"].dt.date
+    _df_employee = load_all_employee_output_data(str(DATA_DIR))
+    if not _df_employee.empty:
+        _df_employee["date_only"] = _df_employee["date"].apply(
+            lambda x: x.date() if hasattr(x, "date") else x
+        )
 
 
 def get_df() -> pd.DataFrame:
@@ -42,6 +48,81 @@ def get_df() -> pd.DataFrame:
     if _df is None:
         refresh_data()
     return _df
+
+
+def get_employee_output_df() -> pd.DataFrame:
+    """Получить датафрейм выработки сотрудников."""
+    global _df_employee
+    if _df_employee is None:
+        refresh_data()
+    return _df_employee
+
+
+def get_daily_output_stats(target_date: date) -> dict[str, Any]:
+    """Выработка сотрудников за день: по участкам, по сотрудникам, детализация по номенклатуре. Сравнение выпуск vs выработка."""
+    emp_df = get_employee_output_df()
+    if emp_df.empty:
+        return {"by_department": [], "comparison": []}
+    emp_df = emp_df.copy()
+    if "date_only" not in emp_df.columns:
+        emp_df["date_only"] = emp_df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+    emp_df = emp_df[emp_df["date_only"] == target_date]
+    if emp_df.empty:
+        return {"by_department": [], "comparison": []}
+    by_dept = []
+    for (prod, dept), grp in emp_df.groupby(["production", "department"]):
+        total_output = grp["output"].sum()
+        employees_list = []
+        for user, u_grp in grp.groupby("user"):
+            u_total = u_grp["output"].sum()
+            by_type_list = []
+            for nom_type, t_grp in u_grp.groupby("nomenclature_type"):
+                t_total = t_grp["output"].sum()
+                items_df = t_grp.groupby("product_name", as_index=False)["output"].sum()
+                items = [
+                    {"product_name": (row["product_name"] or "—").strip() or "—", "output": round(float(row["output"]), 2)}
+                    for _, row in items_df.iterrows()
+                ]
+                if not items:
+                    items = [{"product_name": "—", "output": round(float(t_total), 2)}]
+                by_type_list.append({
+                    "nomenclature_type": (str(nom_type or "—").strip()) or "—",
+                    "total": round(float(t_total), 2),
+                    "items": items,
+                })
+            employees_list.append({
+                "user": user or "—",
+                "total": round(float(u_total), 2),
+                "by_nomenclature_type": by_type_list,
+            })
+        by_dept.append({
+            "production": prod,
+            "department": dept,
+            "total_output": round(float(total_output), 2),
+            "employees": employees_list,
+        })
+    day_data = get_df()
+    day_data = day_data[day_data["date_only"] == target_date] if not day_data.empty else pd.DataFrame()
+    productions_today = build_productions_stats(day_data) if not day_data.empty else {}
+    comparison = []
+    for item in by_dept:
+        prod_name, dept_name = item["production"], item["department"]
+        output_val = item["total_output"]
+        release_val = 0
+        unit = "шт"
+        for d in productions_today.get(prod_name, {}).get("departments", []):
+            if d.get("name") == dept_name:
+                release_val = d.get("total_units") if d.get("total_units") is not None else d.get("total")
+                unit = d.get("unit", "шт")
+                break
+        comparison.append({
+            "production": prod_name,
+            "department": dept_name,
+            "release": int(release_val) if isinstance(release_val, (int, float)) and release_val == int(release_val) else round(float(release_val), 2),
+            "output": output_val,
+            "unit": unit,
+        })
+    return {"by_department": by_dept, "comparison": comparison}
 
 
 def _prev_month(year: int, month: int) -> tuple[int, int]:
@@ -158,6 +239,7 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
         return {
             "date": target_date.isoformat(),
             "productions": {},
+            "employee_output": get_daily_output_stats(target_date),
         }
     
     yesterday = target_date - timedelta(days=1)
@@ -247,6 +329,7 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
     return {
         "date": target_date.isoformat(),
         "productions": productions_today,
+        "employee_output": get_daily_output_stats(target_date),
     }
 
 

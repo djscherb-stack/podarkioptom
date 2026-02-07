@@ -118,6 +118,127 @@ def _is_employee_file(filepath: Path) -> bool:
         return False
 
 
+# Операция сканирования → (производство, участок)
+SCAN_OPERATION_MAPPING = {
+    "гравировочный цех елино": ("ГРАВИРОВКА", "Гравировочный цех Елино"),
+    "картон/дерево елино": ("ГРАВИРОВКА", "Картон/Дерево Елино Гравировка"),
+    "картон дерева елино": ("ГРАВИРОВКА", "Картон/Дерево Елино Гравировка"),
+    "купаж": ("ЧАЙ", "Купажный цех Елино"),
+    "упаковка-гравировка": ("ГРАВИРОВКА", "Сборочный цех Елино Гравировка"),
+    "упаковка гравировка": ("ГРАВИРОВКА", "Сборочный цех Елино Гравировка"),
+    "упаковка елино": ("ЧАЙ", "Сборочный цех Елино"),
+    "фасовка елино": ("ЧАЙ", "Фасовочный цех Елино"),
+    "шелкография": ("ГРАВИРОВКА", "Шелкография Елино Гравировка"),
+    "шелкография елино": ("ЧАЙ", "Шелкография Елино"),
+    "упаковка люминарк": ("ЛЮМИНАРК", "Сборочный цех Люминарк"),
+}
+
+
+def _scan_operation_to_department(op: str) -> Optional[tuple]:
+    if not op or not isinstance(op, str):
+        return None
+    key = op.strip().lower()
+    if key == "итого":
+        return None
+    return SCAN_OPERATION_MAPPING.get(key)
+
+
+def load_employee_output_file(filepath: Path) -> pd.DataFrame:
+    """Загрузка одного Excel выработки сотрудников."""
+    df = pd.read_excel(filepath, header=0)
+    col_map = {}
+    for c in df.columns:
+        s = str(c).strip().lower()
+        if "операция сканирования" in s:
+            col_map[c] = "scan_operation"
+        elif "пользователь" in s:
+            col_map[c] = "user"
+        elif "артикул" in s:
+            col_map[c] = "article"
+        elif "вид номенклатуры" in s:
+            col_map[c] = "nomenclature_type"
+        elif "наименование" in s and "номенклатур" in str(c).lower():
+            col_map[c] = "product_name"
+        elif "дата операции" in s:
+            col_map[c] = "date"
+        elif "выработка" in s and ("кол" in s or "дел" in s):
+            col_map[c] = "output"
+        elif s == "количество":
+            col_map[c] = "quantity"
+    df = df.rename(columns=col_map)
+    if "output" not in df.columns and "quantity" in df.columns:
+        df["output"] = df["quantity"]
+    elif "output" not in df.columns:
+        df["output"] = 0
+    out_col = df["output"] if "output" in df.columns else df.get("quantity", pd.Series([0] * len(df)))
+    df["output"] = pd.to_numeric(out_col, errors="coerce").fillna(0)
+    scan_col = "scan_operation" if "scan_operation" in df.columns else df.columns[0]
+    df["scan_operation"] = df[scan_col].fillna("").astype(str).str.strip()
+    df["_prod_dept"] = df["scan_operation"].str.lower().map(
+        lambda x: _scan_operation_to_department(x) if isinstance(x, str) else None
+    )
+    df = df[df["_prod_dept"].notna()]
+    if df.empty:
+        return pd.DataFrame(columns=["production", "department", "user", "article", "nomenclature_type", "product_name", "date", "output"])
+    df["production"] = df["_prod_dept"].map(lambda x: x[0])
+    df["department"] = df["_prod_dept"].map(lambda x: x[1])
+    df = df.drop(columns=["_prod_dept"])
+    user_col = "user" if "user" in df.columns else df.columns[1]
+    df["user"] = df[user_col].fillna("").astype(str).str.strip()
+    date_col = "date" if "date" in df.columns else None
+    if not date_col:
+        for c in df.columns:
+            if "дат" in str(c).lower():
+                date_col = c
+                break
+    if date_col:
+        df["date_parsed"] = df[date_col].apply(parse_date)
+        df = df[df["date_parsed"].notna()]
+    if df.empty:
+        return pd.DataFrame(columns=["production", "department", "user", "article", "nomenclature_type", "product_name", "date", "output"])
+    df["date"] = df["date_parsed"]
+    for col in ["article", "nomenclature_type", "product_name"]:
+        if col not in df.columns:
+            df[col] = ""
+        else:
+            df[col] = df[col].fillna("").astype(str).str.strip()
+    return df[["production", "department", "user", "article", "nomenclature_type", "product_name", "date", "output"]]
+
+
+def load_all_employee_output_data(data_dir: str) -> pd.DataFrame:
+    """Загрузка всех Excel выработки сотрудников из data_dir."""
+    path = Path(data_dir)
+    if not path.exists():
+        path.mkdir(parents=True, exist_ok=True)
+    seen = set()
+    frames = []
+    for f in path.glob("**/*.xlsx"):
+        if f.name.startswith("~$"):
+            continue
+        if not _is_employee_file(f):
+            continue
+        key = str(f.resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            df = load_employee_output_file(f)
+            if not df.empty:
+                frames.append(df)
+        except Exception as e:
+            print(f"Ошибка выработки {f}: {e}")
+    if not frames:
+        return pd.DataFrame(columns=["production", "department", "user", "nomenclature_type", "product_name", "date", "output"])
+    combined = pd.concat(frames, ignore_index=True)
+    combined["date_only"] = combined["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+    agg = combined.groupby(
+        ["date_only", "production", "department", "user", "nomenclature_type", "product_name"],
+        as_index=False,
+    )["output"].sum()
+    agg["date"] = pd.to_datetime(agg["date_only"])
+    return agg.drop(columns=["date_only"])
+
+
 def load_all_data(data_dir: str) -> pd.DataFrame:
     """Загрузка всех Excel-файлов выпуска продукции (не выработка сотрудников)."""
     import os

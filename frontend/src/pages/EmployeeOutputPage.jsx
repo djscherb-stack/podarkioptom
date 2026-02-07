@@ -1,11 +1,10 @@
 import { useState, useEffect } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import ProductionBlock from '../components/ProductionBlock'
-import EmployeeOutputBlock from '../components/EmployeeOutputBlock'
-import AIAnalyticsBlock from '../components/AIAnalyticsBlock'
 import Calendar from '../components/Calendar'
+import { ComparisonTable, DepartmentBlock, formatQty } from '../components/EmployeeOutputBlock'
 import { API, apiFetch } from '../api'
-const STORAGE_KEY = 'analytics-day-date'
+
+const STORAGE_KEY = 'employee-output-date'
 const MONTH_NAMES = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 
 function formatDate(d) {
@@ -18,29 +17,26 @@ function formatDateLabel(iso) {
   return `${d} ${MONTH_NAMES[m - 1]} ${y}`
 }
 
-function getStoredDate() {
+function getDefaultDate() {
   try {
     const stored = sessionStorage.getItem(STORAGE_KEY)
     if (stored && /^\d{4}-\d{2}-\d{2}$/.test(stored)) return stored
   } catch (_) {}
-  return null
+  // По умолчанию — дата, за которой обычно есть данные выработки
+  return '2026-02-05'
 }
 
-export default function DayPage() {
+export default function EmployeeOutputPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlDate = searchParams.get('date')
   const [selectedDate, setSelectedDate] = useState(() =>
-    urlDate || getStoredDate() || formatDate(new Date())
+    urlDate || getDefaultDate()
   )
   const [data, setData] = useState(null)
-  const [expandedKey, setExpandedKey] = useState(null)
-  const [expanded7daysKey, setExpanded7daysKey] = useState(null)
-  const [employeeOutputExpanded, setEmployeeOutputExpanded] = useState(false)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [dayCache, setDayCache] = useState({})
+  const [cache, setCache] = useState({})
 
-  // Синхронизация с URL и sessionStorage при смене даты
   useEffect(() => {
     if (selectedDate) {
       if (urlDate !== selectedDate) setSearchParams({ date: selectedDate }, { replace: true })
@@ -50,8 +46,8 @@ export default function DayPage() {
 
   useEffect(() => {
     if (!selectedDate) return
-    if (dayCache[selectedDate]) {
-      setData(dayCache[selectedDate])
+    if (cache[selectedDate]) {
+      setData(cache[selectedDate])
       setLoading(false)
       setError(null)
       return
@@ -59,16 +55,16 @@ export default function DayPage() {
     setLoading(true)
     setError(null)
     apiFetch(`${API}/day/${selectedDate}`)
-      .then(res => {
+      .then((res) => {
         setData(res)
-        setDayCache(prev => {
+        setCache((prev) => {
           const next = { ...prev, [selectedDate]: res }
           const keys = Object.keys(next)
           if (keys.length > 10) delete next[keys[0]]
           return next
         })
       })
-      .catch(e => setError(e.message))
+      .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }, [selectedDate])
 
@@ -78,16 +74,11 @@ export default function DayPage() {
       .then(() => apiFetch(`${API}/day/${selectedDate}`))
       .then((res) => {
         setData(res)
-        setDayCache((prev) => ({ ...prev, [selectedDate]: res }))
+        setCache((prev) => ({ ...prev, [selectedDate]: res }))
       })
       .catch((e) => setError(e.message))
       .finally(() => setLoading(false))
   }
-
-  if (error) return <div className="error">Ошибка: {error}</div>
-
-  const productions = data?.productions || {}
-  const hasData = Object.values(productions).some(p => p?.departments?.length > 0)
 
   const handleDateChange = (v) => {
     setSelectedDate(v)
@@ -95,11 +86,18 @@ export default function DayPage() {
     setSearchParams({ date: v }, { replace: true })
   }
 
+  if (error) return <div className="error">Ошибка: {error}</div>
+
+  const employeeOutput = data?.employee_output || {}
+  const byDepartment = employeeOutput.by_department || []
+  const comparison = employeeOutput.comparison || []
+  const hasData = byDepartment.length > 0 || comparison.length > 0
+
   return (
-    <div className="page day-page">
+    <div className="page employee-output-page">
       <div className="day-page-header">
         <div className="day-page-title-row">
-          <h1>Аналитика по дню</h1>
+          <h1>Выработка сотрудников</h1>
           <button onClick={handleRefresh} className="btn-refresh" title="Обновить данные">
             ⟳
           </button>
@@ -114,29 +112,26 @@ export default function DayPage() {
 
       {loading && <div className="loading">Загрузка...</div>}
       {!loading && (
-        <>
-          {(() => {
-            const d = selectedDate ? new Date(selectedDate + 'T12:00:00') : null
-            const year = d?.getFullYear()
-            const month = d ? d.getMonth() + 1 : null
-            return (
-              <>
-                <ProductionBlock prodName="ЧАЙ" prodData={productions.ЧАЙ} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
-                <ProductionBlock prodName="ГРАВИРОВКА" prodData={productions.ГРАВИРОВКА} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
-                <ProductionBlock prodName="ЛЮМИНАРК" prodData={productions.ЛЮМИНАРК} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
-                <EmployeeOutputBlock
-                  employeeOutput={data?.employee_output}
-                  expanded={employeeOutputExpanded}
-                  onToggle={setEmployeeOutputExpanded}
-                />
-                <AIAnalyticsBlock dateStr={selectedDate} />
-              </>
-            )
-          })()}
-          {!hasData && !(data?.employee_output?.by_department?.length || data?.employee_output?.comparison?.length) && (
-            <div className="empty">Нет данных за выбранный день</div>
+        <div className="employee-output-page-content">
+          {hasData ? (
+            <>
+              <ComparisonTable comparison={comparison} />
+              <div className="employee-output-by-dept">
+                {byDepartment.map((item, i) => (
+                  <DepartmentBlock
+                    key={`${item.production}-${item.department}-${i}`}
+                    item={item}
+                    formatQty={formatQty}
+                  />
+                ))}
+              </div>
+            </>
+          ) : (
+            <p className="employee-output-empty">
+              Нет данных по выработке за выбранный день. Нажмите <strong>⟳ Обновить данные</strong>, затем выберите дату, за которую загружен отчёт — например <strong>29</strong>, <strong>30</strong>, <strong>31 января</strong> или <strong>5 февраля 2026</strong>.
+            </p>
           )}
-        </>
+        </div>
       )}
     </div>
   )

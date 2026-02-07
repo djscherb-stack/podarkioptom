@@ -3,6 +3,7 @@ import { fetchTheme, applyTheme } from './theme'
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 'react-router-dom'
 import MonthPage from './pages/MonthPage'
 import DayPage from './pages/DayPage'
+import EmployeeOutputPage from './pages/EmployeeOutputPage'
 import MonthsComparePage from './pages/MonthsComparePage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
 import LoginPage from './pages/LoginPage'
@@ -60,6 +61,9 @@ function AppContent({ userInfo, onRefreshUser }) {
           <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             Аналитика по месяцам
           </NavLink>
+          <NavLink to="/employee-output" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            Выработка сотрудников
+          </NavLink>
           {isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Админ
@@ -92,6 +96,7 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Route path="/" element={<Navigate to={getYesterdayDayPath()} replace />} />
           <Route path="/month" element={<MonthPage />} />
           <Route path="/day" element={<DayPage />} />
+          <Route path="/employee-output" element={<EmployeeOutputPage />} />
           <Route path="/months" element={<MonthsComparePage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />

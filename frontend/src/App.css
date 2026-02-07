@@ -421,6 +421,124 @@ body {
   border-bottom: 2px solid var(--accent);
 }
 
+/* ИИ-аналитика за день */
+.ai-analytics-section .production-title {
+  margin-bottom: 0.35rem;
+}
+.ai-analytics-header {
+  margin-bottom: 1rem;
+}
+.ai-analytics-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0 0 0.75rem;
+  max-width: 42rem;
+}
+.btn-ai-run {
+  padding: 0.5rem 1rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+.btn-ai-run:hover:not(:disabled) { opacity: 0.9; }
+.btn-ai-run:disabled { opacity: 0.6; cursor: not-allowed; }
+.ai-analytics-loading {
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+.ai-analytics-not-configured,
+.ai-analytics-error {
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text-muted);
+}
+.ai-analytics-error { border-color: var(--negative); color: var(--negative); }
+.ai-analytics-error p { margin: 0 0 0.35rem; }
+.ai-analytics-error p:last-child { margin-bottom: 0; }
+.ai-analytics-debug { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.5rem; }
+.ai-analytics-debug code { background: var(--bg); padding: 0.1rem 0.35rem; border-radius: 4px; }
+.ai-analytics-hint { margin-top: 0.5rem; font-size: 0.8rem; }
+.ai-analytics-hint code { background: var(--bg); padding: 0.1rem 0.3rem; border-radius: 4px; }
+.ai-analytics-results {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+.ai-analytics-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.2rem;
+}
+.ai-analytics-card-title {
+  font-size: 1rem;
+  color: var(--accent);
+  margin: 0 0 0.75rem;
+  padding-bottom: 0.35rem;
+  border-bottom: 1px solid var(--border);
+}
+.ai-analytics-label {
+  display: block;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+.ai-analytics-assessment,
+.ai-analytics-trend,
+.ai-analytics-issues,
+.ai-analytics-questions,
+.ai-analytics-general {
+  margin-bottom: 0.9rem;
+}
+.ai-analytics-assessment:last-child,
+.ai-analytics-trend:last-child,
+.ai-analytics-issues:last-child,
+.ai-analytics-questions:last-child { margin-bottom: 0; }
+.ai-analytics-assessment p,
+.ai-analytics-trend p,
+.ai-analytics-general p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.45;
+  color: var(--text);
+}
+.ai-analytics-issues ul {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
+.ai-issue-item {
+  color: var(--negative);
+  font-size: 0.85rem;
+  margin-bottom: 0.2rem;
+}
+.ai-analytics-questions ol {
+  margin: 0.25rem 0 0;
+  padding-left: 1.2rem;
+}
+.ai-question-item {
+  font-size: 0.9rem;
+  line-height: 1.4;
+  margin-bottom: 0.35rem;
+  color: var(--text);
+}
+.ai-analytics-general {
+  margin-top: 0.5rem;
+  padding-top: 0.75rem;
+  border-top: 1px solid var(--border);
+}
+
 /* Compact department cards grid */
 .dept-cards {
   display: grid;
@@ -965,3 +1083,60 @@ body {
   background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
 }
 .dept-subtitle { font-size: 0.9rem; color: var(--text-muted); margin-top: 0.25rem; }
+
+/* Выработка сотрудников */
+.employee-output-section { margin-top: 1.25rem; }
+.employee-output-header { margin-bottom: 0.5rem; }
+.employee-output-toggle {
+  font-size: 1rem;
+  padding: 0.65rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text);
+  cursor: pointer;
+  width: 100%;
+  text-align: left;
+  font-weight: 500;
+}
+.employee-output-toggle:hover { background: var(--bg-card-hover); }
+.employee-output-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-top: 0.5rem;
+}
+.employee-output-comparison { margin-bottom: 1.5rem; }
+.employee-output-comparison h4,
+.employee-output-dept-title { font-size: 0.95rem; color: var(--text-muted); margin: 0 0 0.75rem; }
+.employee-output-table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.employee-output-table th,
+.employee-output-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); color: var(--text); }
+.employee-output-table th { font-weight: 600; color: var(--text-muted); }
+.employee-output-by-dept { display: flex; flex-direction: column; gap: 1.25rem; }
+.employee-output-dept { padding: 0.75rem 0; border-top: 1px solid var(--border); }
+.employee-output-dept:first-of-type { border-top: none; }
+.employee-output-dept-total { margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--text); }
+.employee-output-employees { margin-top: 0.5rem; }
+.employee-output-employee-cell { padding-left: 1.5rem !important; vertical-align: top; background: var(--bg); }
+.employee-output-employee-detail { padding: 0.5rem 0; }
+.employee-output-nom-type { margin-bottom: 0.5rem; display: flex; flex-wrap: wrap; align-items: baseline; gap: 0.5rem; }
+.employee-output-nom-total { color: var(--text-muted); font-size: 0.85rem; }
+.employee-output-items { list-style: none; padding-left: 1.5rem; margin: 0.25rem 0 0; font-size: 0.85rem; color: var(--text-muted); }
+.employee-output-items li { margin-bottom: 0.2rem; }
+.employee-output-empty { color: var(--text-muted); font-size: 0.95rem; margin: 0; line-height: 1.5; }
+.employee-output-empty code { background: var(--bg); padding: 0.15rem 0.4rem; border-radius: 4px; font-size: 0.85em; }
+
+/* Страница «Выработка сотрудников» */
+.employee-output-page .employee-output-page-content {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1.25rem 1.5rem;
+  margin-top: 0.5rem;
+  min-height: 200px;
+}
+.employee-output-page .employee-output-comparison {
+  margin-bottom: 1.5rem;
+}
