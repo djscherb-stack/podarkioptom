@@ -1,6 +1,7 @@
 import React, { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { LineChart, Line, YAxis, ResponsiveContainer, Tooltip } from 'recharts'
+import { DeptEmployeeAnalytics } from './EmployeeOutputBlock'
 
 function formatQty(val) {
   return typeof val === 'number' && val % 1 !== 0
@@ -386,13 +387,17 @@ function UnitsVerify({ breakdown, formatQty }) {
   )
 }
 
-export default function ProductionBlock({ prodName, prodData, expandedKey, onToggle, expanded7daysKey, onToggle7days, year, month, comparisonLabels }) {
+export default function ProductionBlock({ prodName, prodData, employeeOutput, expandedKey, onToggle, expanded7daysKey, onToggle7days, year, month, comparisonLabels }) {
   const navigate = useNavigate()
   const departments = prodData?.departments || []
+  const byDeptMap = (employeeOutput?.by_department || []).reduce((acc, d) => {
+    acc[`${d.production}-${d.department}`] = d
+    return acc
+  }, {})
   if (departments.length === 0) return null
 
   const handleCardClick = (e, dept) => {
-    if (e.target.closest('.btn-expand') || e.target.closest('.btn-expand-7d') || e.target.closest('.nom-detail') || e.target.closest('.dept-subs')) return
+    if (e.target.closest('.btn-expand') || e.target.closest('.btn-expand-7d') || e.target.closest('.nom-detail') || e.target.closest('.dept-subs') || e.target.closest('.employee-output-dept-analytics-wrap') || e.target.closest('.dept-card-employee-summary')) return
     if (year && month) {
       navigate(`/department?production=${encodeURIComponent(prodName)}&department=${encodeURIComponent(dept.name)}&year=${year}&month=${month}`)
     }
@@ -404,9 +409,11 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
       <div className="dept-cards">
         {departments.map((dept) => {
           const key = `${prodName}-${dept.name}`
+          const deptEmployeeOutput = byDeptMap[key]
+          const hasEmployeeOutput = deptEmployeeOutput && ((deptEmployeeOutput.employee_count ?? 0) > 0 || (deptEmployeeOutput.employees?.length ?? 0) > 0)
           const isExpanded = expandedKey === key
           const is7daysExpanded = expanded7daysKey === key
-          const hasDetail = (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op
+          const hasDetail = (dept.nomenclature?.length > 0) || dept.subs?.length || dept.nomenclature_by_op || hasEmployeeOutput
           const has7days = (dept.last_7_days?.length || 0) > 0
           const unitLabel = dept.unit === 'кг' ? 'кг' : 'шт.'
           const hasProminentSubs = (prodName === 'ЧАЙ' && dept.name === 'Фасовочный цех Елино') || (prodName === 'ГРАВИРОВКА' && dept.name === 'Картон/Дерево Елино Гравировка')
@@ -495,6 +502,38 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                     ))}
                   </div>
                 )}
+                {hasEmployeeOutput && (
+                  <div className="dept-card-employee-summary">
+                    <div className="dept-card-employee-row">
+                      <span>Сотрудников: <strong>{deptEmployeeOutput.employee_count ?? deptEmployeeOutput.employees?.length ?? 0}</strong></span>
+                      {deptEmployeeOutput.employee_count_yesterday != null && (
+                        <span className="dept-card-employee-vs">
+                          {' '}(вчера {deptEmployeeOutput.employee_count_yesterday}
+                          {(deptEmployeeOutput.employee_count ?? 0) - deptEmployeeOutput.employee_count_yesterday !== 0 && (
+                            <span className={(deptEmployeeOutput.employee_count ?? 0) >= deptEmployeeOutput.employee_count_yesterday ? 'dept-card-delta-up' : 'dept-card-delta-down'}>
+                              {' '}{(deptEmployeeOutput.employee_count ?? 0) - deptEmployeeOutput.employee_count_yesterday >= 0 ? '+' : ''}{(deptEmployeeOutput.employee_count ?? 0) - deptEmployeeOutput.employee_count_yesterday}
+                            </span>
+                          )})
+                        </span>
+                      )}
+                    </div>
+                    {deptEmployeeOutput.average_per_employee != null && (
+                      <div className="dept-card-employee-row">
+                        <span>Выработка на сотрудника: <strong>{formatQty(deptEmployeeOutput.average_per_employee)}</strong></span>
+                        {deptEmployeeOutput.average_per_employee_yesterday != null && (
+                          <span className="dept-card-employee-vs">
+                            {' '}(вчера {formatQty(deptEmployeeOutput.average_per_employee_yesterday)}
+                            {Math.abs((deptEmployeeOutput.average_per_employee ?? 0) - deptEmployeeOutput.average_per_employee_yesterday) > 1e-6 && (
+                              <span className={(deptEmployeeOutput.average_per_employee ?? 0) >= deptEmployeeOutput.average_per_employee_yesterday ? 'dept-card-delta-up' : 'dept-card-delta-down'}>
+                                {' '}{((deptEmployeeOutput.average_per_employee ?? 0) - deptEmployeeOutput.average_per_employee_yesterday) >= 0 ? '+' : ''}{formatQty((deptEmployeeOutput.average_per_employee ?? 0) - deptEmployeeOutput.average_per_employee_yesterday)}
+                              </span>
+                            )})
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="dept-card-detail">
                 <div className="dept-detail-buttons">
@@ -509,6 +548,11 @@ export default function ProductionBlock({ prodName, prodData, expandedKey, onTog
                     </button>
                   )}
                 </div>
+                {isExpanded && hasEmployeeOutput && (
+                  <div className="dept-card-employee-analytics" onClick={(e) => e.stopPropagation()}>
+                    <DeptEmployeeAnalytics item={deptEmployeeOutput} formatQty={formatQty} compact summaryOnCard />
+                  </div>
+                )}
                 {isExpanded && dept.nomenclature?.length > 0 && (
                   <NomDetail items={dept.nomenclature} unitLabel={unitLabel} formatQty={formatQty} deptUnit={dept.unit} />
                 )}

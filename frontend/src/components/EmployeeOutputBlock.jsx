@@ -80,7 +80,7 @@ const GRAV_KARTON_DEPT = 'Картон/Дерево Елино Гравиров�
 const ROLE_ORDER = ['Оператор станка ЧПУ', 'Сборщик']
 const ROLE_LABELS = { 'Оператор станка ЧПУ': 'Оператор станка ЧПУ', 'Сборщик': 'Сборщики' }
 
-function DeltaSpan({ today, yesterday, isPct = false }) {
+function DeltaSpan({ today, yesterday, isPct = false, formatQty }) {
   if (yesterday == null) return null
   const delta = today - yesterday
   const same = delta === 0
@@ -94,8 +94,8 @@ function DeltaSpan({ today, yesterday, isPct = false }) {
   )
 }
 
-/** Участок: всего выработка + аналитика (кол-во сотрудников, средняя выработка) + по кнопке список сотрудников с % и раскрытием до номенклатуры. Для Картон/Дерево Елино Гравировка — группы Сборщики и Оператор станка ЧПУ */
-export function DepartmentBlock({ item, formatQty }) {
+/** Аналитика по выработке на участке: кол-во сотрудников, средняя выработка, кнопка развернуть список с % и детализацией до наименования. summaryOnCard=true — не показывать две сводные строки (уже на карточке). */
+export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard }) {
   const [showEmployeesList, setShowEmployeesList] = useState(false)
   const [expandedUsers, setExpandedUsers] = useState(new Set())
   const toggleUser = (e, user) => {
@@ -107,12 +107,12 @@ export function DepartmentBlock({ item, formatQty }) {
       return next
     })
   }
-  const employees = item.employees || []
-  const nEmp = item.employee_count ?? employees.length
-  const avgPerEmp = item.average_per_employee
-  const avgYesterday = item.average_per_employee_yesterday
-  const nEmpYesterday = item.employee_count_yesterday
-  const isGravKarton = item.department === GRAV_KARTON_DEPT
+  const employees = item?.employees || []
+  const nEmp = item?.employee_count ?? employees.length
+  const avgPerEmp = item?.average_per_employee
+  const avgYesterday = item?.average_per_employee_yesterday
+  const nEmpYesterday = item?.employee_count_yesterday
+  const isGravKarton = item?.department === GRAV_KARTON_DEPT
   const byRole = isGravKarton && employees.some(e => e.role)
     ? ROLE_ORDER.map(role => ({
         role,
@@ -147,31 +147,31 @@ export function DepartmentBlock({ item, formatQty }) {
       </React.Fragment>
     ))
 
+  if (!item || (nEmp === 0 && employees.length === 0)) return null
+
   return (
-    <div className="employee-output-dept">
-      <h4 className="employee-output-dept-title">
-        {item.production} — {item.department}
-      </h4>
-      <div className="employee-output-dept-total">
-        Всего выработка: <strong>{formatQty(item.total_output)}</strong>
-      </div>
+    <div className={`employee-output-dept-analytics-wrap ${compact ? 'employee-output-analytics-compact' : ''}`}>
       <div className="employee-output-dept-analytics">
-        <div className="employee-output-analytics-row">
-          <span>Количество сотрудников: <strong>{nEmp}</strong></span>
-          <DeltaSpan today={nEmp} yesterday={nEmpYesterday} />
-        </div>
-        {avgPerEmp != null && (
-          <div className="employee-output-analytics-row">
-            <span>Средняя выработка на сотрудника: <strong>{formatQty(avgPerEmp)}</strong></span>
-            {avgYesterday != null && (
-              <DeltaSpan today={avgPerEmp} yesterday={avgYesterday} />
+        {!summaryOnCard && (
+          <>
+            <div className="employee-output-analytics-row">
+              <span>Количество сотрудников: <strong>{nEmp}</strong></span>
+              <DeltaSpan today={nEmp} yesterday={nEmpYesterday} formatQty={formatQty} />
+            </div>
+            {avgPerEmp != null && (
+              <div className="employee-output-analytics-row">
+                <span>Средняя выработка на сотрудника: <strong>{formatQty(avgPerEmp)}</strong></span>
+                {avgYesterday != null && (
+                  <DeltaSpan today={avgPerEmp} yesterday={avgYesterday} formatQty={formatQty} />
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
         <button
           type="button"
           className="employee-output-expand-btn"
-          onClick={() => setShowEmployeesList(s => !s)}
+          onClick={(e) => { e.stopPropagation(); setShowEmployeesList(s => !s) }}
         >
           {showEmployeesList ? '▼ Свернуть список сотрудников' : '▶ Развернуть список сотрудников'}
         </button>
@@ -204,6 +204,21 @@ export function DepartmentBlock({ item, formatQty }) {
           </table>
         )
       )}
+    </div>
+  )
+}
+
+/** Участок: всего выработка + аналитика (кол-во сотрудников, средняя выработка) + по кнопке список сотрудников с % и раскрытием до номенклатуры. Для Картон/Дерево Елино Гравировка — группы Сборщики и Оператор станка ЧПУ */
+export function DepartmentBlock({ item, formatQty }) {
+  return (
+    <div className="employee-output-dept">
+      <h4 className="employee-output-dept-title">
+        {item.production} — {item.department}
+      </h4>
+      <div className="employee-output-dept-total">
+        Всего выработка: <strong>{formatQty(item.total_output)}</strong>
+      </div>
+      <DeptEmployeeAnalytics item={item} formatQty={formatQty} />
     </div>
   )
 }
