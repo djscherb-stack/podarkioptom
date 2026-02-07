@@ -401,6 +401,42 @@ def get_department_daily_stats(production: str, department: str, year: int, mont
     return {"department": department, "production": production, "unit": unit, "daily": result, "year": year, "month": month}
 
 
+def get_last_n_days_detailed_for_ai(target_date: date, days: int = 10) -> list[dict[str, Any]]:
+    """
+    Детальные данные за последние N дней для ИИ: по каждому дню, по каждому производству и участку,
+    полная номенклатура (вид, наименование, количество). Для глубокого анализа трендов и «лёгких/сложных» видов.
+    """
+    df = get_df()
+    if df.empty:
+        return []
+    result = []
+    for i in range(days - 1, -1, -1):
+        d = target_date - timedelta(days=i)
+        day_df = df[df["date_only"] == d]
+        if day_df.empty:
+            result.append({"date": d.isoformat(), "productions": {}})
+            continue
+        productions = build_productions_stats(day_df)
+        # Оставляем только нужное для промпта: по участкам — итог и полная номенклатура
+        day_out = {"date": d.isoformat(), "productions": {}}
+        for prod_name, prod_data in productions.items():
+            day_out["productions"][prod_name] = {"departments": []}
+            for dept in prod_data.get("departments", []):
+                block = {
+                    "name": dept.get("name"),
+                    "unit": dept.get("unit", "шт"),
+                    "total": dept.get("total", 0),
+                    "total_units": dept.get("total_units"),
+                    "main": dept.get("main", False),
+                    "nomenclature": list(dept.get("nomenclature", [])),
+                    "nomenclature_by_op": dict(dept.get("nomenclature_by_op") or {}),
+                    "subs": list(dept.get("subs") or []),
+                }
+                day_out["productions"][prod_name]["departments"].append(block)
+        result.append(day_out)
+    return result
+
+
 def get_data_date_range() -> dict:
     """Диагностика: диапазон дат и количество записей по дням (для отладки пропавших данных)."""
     df = get_df()

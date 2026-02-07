@@ -1,6 +1,6 @@
 """
-ИИ-аналитика по выпуску продукции за день.
-По каждому производству: оценка выработки, тренд за 30 дней, проблемы/скачки, 3–4 вопроса для руководителя.
+ИИ-аналитика по выпуску продукции.
+Анализ последних 10 дней: по каждому дню, участку, видам номенклатуры и наименованиям — для точных выводов.
 """
 
 import json
@@ -10,101 +10,98 @@ from typing import Any, Optional
 
 import database as db
 
+# Сколько дней детальных данных отдаём в промпт (по дням, участкам, номенклатуре)
+AI_ANALYSIS_DAYS = 10
 
-def _serialize_production_for_ai(prod_name: str, prod_data: dict, employee_comparison: list) -> dict:
-    """Собрать по одному производству данные для промпта ИИ."""
-    depts = prod_data.get("departments", [])
-    main_dept = next((d for d in depts if d.get("main")), depts[0] if depts else None)
-    if not main_dept:
-        return {"production": prod_name, "departments": [], "main": None}
 
-    # Основной показатель: у сборочного цеха может быть total_units (ед. продукции)
-    today_val = main_dept.get("total_units") if main_dept.get("total_units") is not None else main_dept.get("total", 0)
-    unit = main_dept.get("unit", "шт")
-    if main_dept.get("total_units") is not None:
-        unit = "ед."
+def _format_nomenclature(nom_list: list, unit: str) -> list[str]:
+    """Список строк: вид номенклатуры / наименование — количество."""
+    lines = []
+    for n in nom_list or []:
+        nt = (n.get("nomenclature_type") or n.get("product_name") or "—").strip() or "—"
+        pn = (n.get("product_name") or n.get("nomenclature_type") or "—").strip() or "—"
+        qty = n.get("quantity", 0)
+        if nt == pn:
+            lines.append(f"    • {nt}: {qty} {unit}")
+        else:
+            lines.append(f"    • {nt} / {pn}: {qty} {unit}")
+    return lines
 
-    comp = main_dept.get("comparison", {})
-    yesterday_val = comp.get("units_yesterday") if main_dept.get("total_units") is not None else comp.get("yesterday", 0)
-    delta = comp.get("units_delta") if main_dept.get("total_units") is not None else comp.get("delta", 0)
-    delta_pct = comp.get("delta_pct", 0)
 
-    trend_30 = main_dept.get("trend_30d", [])
-    avg_30 = main_dept.get("avg_30d", 0)
-    vs_avg_delta = main_dept.get("vs_avg_delta")
-    vs_avg_pct = main_dept.get("vs_avg_pct")
+def _build_context_10_days(target_date: date) -> str:
+    """
+    Собрать максимально подробный контекст за последние 10 дней:
+    по каждому дню → производство → участок (цех) → итог + полная номенклатура (вид, наименование, кол-во).
+    """
+    days_data = db.get_last_n_days_detailed_for_ai(target_date, days=AI_ANALYSIS_DAYS)
+    stats_today = db.get_daily_stats(target_date)
+    employee_output = stats_today.get("employee_output", {})
+    comparison = employee_output.get("comparison", [])
 
-    last_7 = main_dept.get("last_7_days", [])
-    last_7_vals = [d.get("total_units") if d.get("total_units") is not None else d.get("total", 0) for d in last_7]
+    parts = [
+        "=== ДЕТАЛЬНЫЕ ДАННЫЕ ПО ДНЯМ И УЧАСТКАМ (последние 10 дней) ===",
+        "По каждому дню указаны: производство, участок (цех), итог по участку, затем вид номенклатуры / наименование и количество.",
+        "",
+    ]
 
-    # Сравнение выпуск vs выработка по этому производству
-    release_vs_output = [c for c in employee_comparison if c.get("production") == prod_name]
+    for day_block in days_data:
+        d = day_block.get("date", "")
+        parts.append(f"--- День: {d} ---")
+        for prod_name in ["ЧАЙ", "ГРАВИРОВКА", "ЛЮМИНАРК"]:
+            prod = day_block.get("productions", {}).get(prod_name, {})
+            depts = prod.get("departments", [])
+            if not depts:
+                parts.append(f"  [{prod_name}]: данных нет.")
+                continue
+            parts.append(f"  [{prod_name}]")
+            for dept in depts:
+                name = dept.get("name", "—")
+                unit = dept.get("unit", "шт")
+                total = dept.get("total", 0)
+                total_units = dept.get("total_units")
+                if total_units is not None:
+                    parts.append(f"    Участок: {name} | итог: {total_units} ед. продукции (выпуск в шт: {total} {unit})")
+                else:
+                    parts.append(f"    Участок: {name} | итог: {total} {unit}")
+                nom = dept.get("nomenclature", [])
+                if nom:
+                    parts.extend(_format_nomenclature(nom, unit))
+                nom_by_op = dept.get("nomenclature_by_op") or {}
+                for op_name, op_list in nom_by_op.items():
+                    if op_list:
+                        parts.append(f"    Операция: {op_name}")
+                        parts.extend(_format_nomenclature(op_list, "шт"))
+                subs = dept.get("subs") or []
+                for s in subs:
+                    parts.append(f"    Подблок: {s.get('sub_name', '—')} — {s.get('total', 0)} {s.get('unit', 'шт')}")
+        parts.append("")
 
-    return {
-        "production": prod_name,
-        "main_department": main_dept.get("name"),
-        "today": today_val,
-        "yesterday": yesterday_val,
-        "delta": delta,
-        "delta_pct": delta_pct,
-        "unit": unit,
-        "trend_30_days": trend_30[-14:] if len(trend_30) > 14 else trend_30,  # последние 14 точек
-        "avg_30_days": avg_30,
-        "vs_avg_delta": vs_avg_delta,
-        "vs_avg_pct": vs_avg_pct,
-        "last_7_days_values": last_7_vals,
-        "departments_summary": [
-            {
-                "name": d.get("name"),
-                "total": d.get("total"),
-                "total_units": d.get("total_units"),
-                "unit": d.get("unit"),
-            }
-            for d in depts
-        ],
-        "release_vs_output": release_vs_output,
-    }
+    parts.append("=== СРАВНЕНИЕ: ВЫПУСК VS ВЫРАБОТКА (за выбранный день) ===")
+    for c in comparison:
+        parts.append(f"  {c.get('production')} / {c.get('department')}: выпуск {c.get('release')} — выработка {c.get('output')} {c.get('unit', '')}")
+    parts.append("")
+
+    return "\n".join(parts)
 
 
 def _build_context(target_date: date) -> tuple[list[dict], str]:
-    """Собрать контекст по всем производствам за дату. Возвращает (list для JSON, текст для промпта)."""
-    stats = db.get_daily_stats(target_date)
-    productions_data = stats.get("productions", {})
-    employee_output = stats.get("employee_output", {})
-    comparison = employee_output.get("comparison", [])
-
-    date_str = target_date.isoformat()
-    parts = [f"Дата: {date_str}\n"]
-
-    for prod_name in ["ЧАЙ", "ГРАВИРОВКА", "ЛЮМИНАРК"]:
-        prod_data = productions_data.get(prod_name, {})
-        if not prod_data:
-            parts.append(f"\n### {prod_name}: данных за этот день нет.")
-            continue
-        obj = _serialize_production_for_ai(prod_name, prod_data, comparison)
-        parts.append(f"\n### {prod_name}")
-        parts.append(f"  Сегодня: {obj['today']} {obj['unit']}, вчера: {obj['yesterday']}, Δ: {obj['delta']} ({obj.get('delta_pct')}%)")
-        parts.append(f"  Среднее за 30 дней: {obj['avg_30_days']} {obj['unit']}, отклонение от среднего: {obj.get('vs_avg_delta')} ({obj.get('vs_avg_pct')}%)")
-        parts.append(f"  Последние 7 дней: {obj['last_7_days_values']}")
-        if obj.get("release_vs_output"):
-            for r in obj["release_vs_output"]:
-                parts.append(f"  Выпуск vs выработка: {r.get('department')} — выпуск {r.get('release')}, выработка {r.get('output')} {r.get('unit', '')}")
-
-    return [
-        _serialize_production_for_ai(pn, productions_data.get(pn, {}), comparison)
-        for pn in ["ЧАЙ", "ГРАВИРОВКА", "ЛЮМИНАРК"]
-    ], "\n".join(parts)
+    """Собрать контекст: один большой текст за 10 дней (детально) для промпта. Возвращает ([], context_text)."""
+    context_text = _build_context_10_days(target_date)
+    return [], context_text
 
 
-SYSTEM_PROMPT = """Ты — аналитик производственной отчётности. Тебе даны данные по выпуску продукции за день по трём производствам: ЧАЙ, ГРАВИРОВКА, ЛЮМИНАРК.
-Твоя задача:
-1) По каждому производству дать краткую оценку выработки за день с учётом тренда за последние 30 дней (нормально / выше нормы / ниже нормы / подозрительные данные).
-2) Подмечать тренды (рост, спад, стабильность), возможные проблемы, скачки вверх/вниз, неадекватность данных (например, нули при обычных объёмах, резкое падение без выходных).
-3) Для каждого производства сформулировать 3–4 конкретных вопроса для руководителя производства, чтобы он мог, ответив на них, улучшить показатели на следующий день. Вопросы должны быть по существу: про причины отклонений, про узкие места, про планы.
+SYSTEM_PROMPT = """Ты — аналитик производственной отчётности. Тебе даны ДЕТАЛЬНЫЕ данные по выпуску продукции за последние 10 дней по трём производствам: ЧАЙ, ГРАВИРОВКА, ЛЮМИНАРК.
+По каждому дню указаны участки (цехи), итоги по участку и полная номенклатура: вид номенклатуры, наименование, количество. Есть также разбивка по операциям (РЕЗКА, Сборка, Пресс и т.д.) где применимо.
+
+Твои задачи:
+1) Проанализировать все 10 дней: по каждому дню, по каждому участку, какие виды номенклатуры и наименования производились и в каких объёмах.
+2) Сделать выводы: какие виды номенклатуры / наименования производятся чаще и в больших объёмах (легче/быстрее), какие реже или в малых объёмах (сложнее/дольше). Учитывать типы операций и участки.
+3) Подмечать тренды по дням, скачки, аномалии, неадекватность данных. Оценить выработку за последний день относительно предыдущих.
+4) Для каждого производства сформулировать 3–4 конкретных вопроса для руководителя производства (причины отклонений, узкие места, планы).
 Отвечай строго в формате JSON."""
 
-# В шаблоне буквальные { } экранированы как {{ }} — иначе .format() воспринимает их как плейсхолдеры и даёт KeyError
-USER_PROMPT_TEMPLATE = """Данные за {date_str}:
+# В шаблоне буквальные {{ }} экранированы — иначе .format() даёт KeyError
+USER_PROMPT_TEMPLATE = """Ниже — полные данные за последние 10 дней (по дням, участкам, видам номенклатуры и наименованиям). Дата выбранного дня (для оценки «сегодня»): {date_str}.
 
 {context}
 
@@ -112,18 +109,18 @@ USER_PROMPT_TEMPLATE = """Данные за {date_str}:
 {{
   "productions": {{
     "ЧАЙ": {{
-      "assessment": "1–3 предложения: оценка выработки за день и относительно тренда",
-      "trend_summary": "Кратко: тренд за 30 дней (рост/падение/стабильно)",
-      "issues": ["список замечаний: скачки, аномалии, неполные данные"],
-      "questions": ["вопрос 1?", "вопрос 2?", "вопрос 3?", "вопрос 4?"]
+      "assessment": "2–4 предложения: оценка выработки за последний день и выводы по 10 дням; какие виды/наименования идут легче и быстрее, какие сложнее.",
+      "trend_summary": "Кратко: тренд за 10 дней по участкам и номенклатуре (рост/падение/стабильно, по каким видам).",
+      "issues": ["замечания: скачки, аномалии, неполные данные, проблемные участки или виды номенклатуры"],
+      "questions": ["вопрос 1 для руководителя?", "вопрос 2?", "вопрос 3?", "вопрос 4?"]
     }},
-    "ГРАВИРОВКА": {{ ... то же ... }},
-    "ЛЮМИНАРК": {{ ... то же ... }}
+    "ГРАВИРОВКА": {{ ... то же поля ... }},
+    "ЛЮМИНАРК": {{ ... то же поля ... }}
   }},
-  "general_notes": "Общие замечания по данным за день, если есть (иначе пустая строка)"
+  "general_notes": "Общие выводы по всем производствам за 10 дней: какие виды операций/номенклатуры стабильны, какие — узкие места (иначе пустая строка)."
 }}
-Если по производству нет данных за день — assessment и trend_summary укажи как «Нет данных за выбранный день», issues и questions можно пустые или с общим вопросом.
-Списки issues и questions — всегда массивы строк, не более 5 issues и 4 questions на производство."""
+Если по производству нет данных — в assessment и trend_summary укажи «Нет данных за выбранный период», issues и questions можно пустые или общие.
+Списки issues и questions — массивы строк, не более 5 issues и 4 questions на производство."""
 
 
 def _parse_ai_json(text: str) -> Optional[dict]:
@@ -176,7 +173,7 @@ def _call_llm(context_text: str, target_date: date) -> tuple[Optional[dict], Opt
                 {"role": "user", "content": user_prompt},
             ],
             temperature=0.3,
-            max_tokens=4096,
+            max_tokens=8192,
         )
         text = (response.choices[0].message.content or "").strip()
         data = _parse_ai_json(text)
