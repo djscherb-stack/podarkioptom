@@ -76,8 +76,27 @@ export function EmployeeDetail({ employee, formatQty }) {
   )
 }
 
-/** Участок: всего выработка + список сотрудников с раскрытием */
+const GRAV_KARTON_DEPT = 'Картон/Дерево Елино Гравировка'
+const ROLE_ORDER = ['Оператор станка ЧПУ', 'Сборщик']
+const ROLE_LABELS = { 'Оператор станка ЧПУ': 'Оператор станка ЧПУ', 'Сборщик': 'Сборщики' }
+
+function DeltaSpan({ today, yesterday, isPct = false }) {
+  if (yesterday == null) return null
+  const delta = today - yesterday
+  const same = delta === 0
+  const cls = same ? '' : delta > 0 ? 'employee-output-delta-plus' : 'employee-output-delta-minus'
+  const sign = delta > 0 ? '+' : ''
+  const text = isPct ? `${sign}${delta}%` : (delta % 1 !== 0 ? `${sign}${delta.toFixed(1)}` : `${sign}${delta}`)
+  return (
+    <span className={`employee-output-vs ${cls}`}>
+      {' '}(вчера {isPct ? yesterday + '%' : formatQty(yesterday)}, {same ? '0' : text})
+    </span>
+  )
+}
+
+/** Участок: всего выработка + аналитика (кол-во сотрудников, средняя выработка) + по кнопке список сотрудников с % и раскрытием до номенклатуры. Для Картон/Дерево Елино Гравировка — группы Сборщики и Оператор станка ЧПУ */
 export function DepartmentBlock({ item, formatQty }) {
+  const [showEmployeesList, setShowEmployeesList] = useState(false)
   const [expandedUsers, setExpandedUsers] = useState(new Set())
   const toggleUser = (e, user) => {
     e.stopPropagation()
@@ -88,6 +107,46 @@ export function DepartmentBlock({ item, formatQty }) {
       return next
     })
   }
+  const employees = item.employees || []
+  const nEmp = item.employee_count ?? employees.length
+  const avgPerEmp = item.average_per_employee
+  const avgYesterday = item.average_per_employee_yesterday
+  const nEmpYesterday = item.employee_count_yesterday
+  const isGravKarton = item.department === GRAV_KARTON_DEPT
+  const byRole = isGravKarton && employees.some(e => e.role)
+    ? ROLE_ORDER.map(role => ({
+        role,
+        label: ROLE_LABELS[role] || role,
+        employees: employees.filter(e => e.role === role),
+      })).filter(g => g.employees.length > 0)
+    : null
+
+  const renderEmployeeRows = (list) =>
+    list.map((emp, i) => (
+      <React.Fragment key={`${emp.user}-${i}`}>
+        <tr>
+          <td>
+            <button
+              type="button"
+              className="nom-group-btn"
+              onClick={(e) => toggleUser(e, emp.user)}
+            >
+              {expandedUsers.has(emp.user) ? '▼' : '▶'} {emp.user}
+              {emp.share_pct != null && <span className="employee-output-share-pct"> — {emp.share_pct}%</span>}
+            </button>
+          </td>
+          <td>{formatQty(emp.total)}</td>
+        </tr>
+        {expandedUsers.has(emp.user) && (
+          <tr>
+            <td colSpan={2} className="employee-output-employee-cell">
+              <EmployeeDetail employee={emp} formatQty={formatQty} />
+            </td>
+          </tr>
+        )}
+      </React.Fragment>
+    ))
+
   return (
     <div className="employee-output-dept">
       <h4 className="employee-output-dept-title">
@@ -96,39 +155,55 @@ export function DepartmentBlock({ item, formatQty }) {
       <div className="employee-output-dept-total">
         Всего выработка: <strong>{formatQty(item.total_output)}</strong>
       </div>
-      <table className="employee-output-table employee-output-employees">
-        <thead>
-          <tr>
-            <th>Сотрудник</th>
-            <th>Выработка</th>
-          </tr>
-        </thead>
-        <tbody>
-          {(item.employees || []).map((emp, i) => (
-            <React.Fragment key={`${emp.user}-${i}`}>
+      <div className="employee-output-dept-analytics">
+        <div className="employee-output-analytics-row">
+          <span>Количество сотрудников: <strong>{nEmp}</strong></span>
+          <DeltaSpan today={nEmp} yesterday={nEmpYesterday} />
+        </div>
+        {avgPerEmp != null && (
+          <div className="employee-output-analytics-row">
+            <span>Средняя выработка на сотрудника: <strong>{formatQty(avgPerEmp)}</strong></span>
+            {avgYesterday != null && (
+              <DeltaSpan today={avgPerEmp} yesterday={avgYesterday} />
+            )}
+          </div>
+        )}
+        <button
+          type="button"
+          className="employee-output-expand-btn"
+          onClick={() => setShowEmployeesList(s => !s)}
+        >
+          {showEmployeesList ? '▼ Свернуть список сотрудников' : '▶ Развернуть список сотрудников'}
+        </button>
+      </div>
+      {showEmployeesList && (
+        byRole ? (
+          byRole.map(({ role, label, employees: roleEmployees }) => (
+            <div key={role} className="employee-output-role-group">
+              <h5 className="employee-output-role-title">{label}</h5>
+              <table className="employee-output-table employee-output-employees">
+                <thead>
+                  <tr>
+                    <th>Сотрудник</th>
+                    <th>Выработка</th>
+                  </tr>
+                </thead>
+                <tbody>{renderEmployeeRows(roleEmployees)}</tbody>
+              </table>
+            </div>
+          ))
+        ) : (
+          <table className="employee-output-table employee-output-employees">
+            <thead>
               <tr>
-                <td>
-                  <button
-                    type="button"
-                    className="nom-group-btn"
-                    onClick={(e) => toggleUser(e, emp.user)}
-                  >
-                    {expandedUsers.has(emp.user) ? '▼' : '▶'} {emp.user}
-                  </button>
-                </td>
-                <td>{formatQty(emp.total)}</td>
+                <th>Сотрудник</th>
+                <th>Выработка</th>
               </tr>
-              {expandedUsers.has(emp.user) && (
-                <tr>
-                  <td colSpan={2} className="employee-output-employee-cell">
-                    <EmployeeDetail employee={emp} formatQty={formatQty} />
-                  </td>
-                </tr>
-              )}
-            </React.Fragment>
-          ))}
-        </tbody>
-      </table>
+            </thead>
+            <tbody>{renderEmployeeRows(employees)}</tbody>
+          </table>
+        )
+      )}
     </div>
   )
 }

@@ -90,15 +90,35 @@ def get_daily_output_stats(target_date: date) -> dict[str, Any]:
                     "total": round(float(t_total), 2),
                     "items": items,
                 })
-            employees_list.append({
+            emp_record = {
                 "user": user or "—",
                 "total": round(float(u_total), 2),
                 "by_nomenclature_type": by_type_list,
-            })
+            }
+            # Участок «Картон/Дерево Елино Гравировка»: делим на Оператор станка ЧПУ (есть «вырезанная») и Сборщики
+            if dept == "Картон/Дерево Елино Гравировка":
+                has_vyrezannaya = False
+                for nt in by_type_list:
+                    if "вырезанная" in (nt.get("nomenclature_type") or "").lower():
+                        has_vyrezannaya = True
+                        break
+                    for it in nt.get("items") or []:
+                        if "вырезанная" in (it.get("product_name") or "").lower():
+                            has_vyrezannaya = True
+                            break
+                emp_record["role"] = "Оператор станка ЧПУ" if has_vyrezannaya else "Сборщик"
+            employees_list.append(emp_record)
+        n_emp = len(employees_list)
+        total_out_f = float(total_output)
+        for emp in employees_list:
+            emp["share_pct"] = round((emp["total"] / total_out_f) * 100, 1) if total_out_f else 0
+        avg_per_emp = round(total_out_f / n_emp, 2) if n_emp else 0
         by_dept.append({
             "production": prod,
             "department": dept,
-            "total_output": round(float(total_output), 2),
+            "total_output": round(total_out_f, 2),
+            "employee_count": n_emp,
+            "average_per_employee": avg_per_emp,
             "employees": employees_list,
         })
     day_data = get_df()
@@ -326,10 +346,20 @@ def get_daily_stats(target_date: date) -> dict[str, Any]:
                     last_7_days.append({"date": d.isoformat(), "total": tot, "total_units": tu, "nomenclature": nom})
             dept["last_7_days"] = last_7_days
 
+    employee_output = get_daily_output_stats(target_date)
+    yesterday = target_date - timedelta(days=1)
+    out_yesterday = get_daily_output_stats(yesterday)
+    prev_by_key = {(item["production"], item["department"]): item for item in out_yesterday.get("by_department", [])}
+    for item in employee_output.get("by_department", []):
+        key = (item["production"], item["department"])
+        prev = prev_by_key.get(key)
+        item["employee_count_yesterday"] = prev["employee_count"] if prev else None
+        item["average_per_employee_yesterday"] = prev["average_per_employee"] if prev else None
+
     return {
         "date": target_date.isoformat(),
         "productions": productions_today,
-        "employee_output": get_daily_output_stats(target_date),
+        "employee_output": employee_output,
     }
 
 

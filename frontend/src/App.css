@@ -1150,6 +1150,32 @@ body {
 .employee-output-dept { padding: 0.75rem 0; border-top: 1px solid var(--border); }
 .employee-output-dept:first-of-type { border-top: none; }
 .employee-output-dept-total { margin-bottom: 0.75rem; font-size: 0.9rem; color: var(--text); }
+.employee-output-dept-analytics {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0.75rem;
+  background: var(--bg);
+  border-radius: 8px;
+  font-size: 0.9rem;
+}
+.employee-output-analytics-row { margin-bottom: 0.35rem; }
+.employee-output-analytics-row:last-of-type { margin-bottom: 0.5rem; }
+.employee-output-vs { color: var(--text-muted); font-weight: normal; }
+.employee-output-delta-plus { color: var(--positive); }
+.employee-output-delta-minus { color: var(--negative); }
+.employee-output-expand-btn {
+  font-size: 0.85rem;
+  padding: 0.35rem 0.6rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+.employee-output-expand-btn:hover { background: var(--bg-card-hover); }
+.employee-output-share-pct { color: var(--text-muted); font-size: 0.9em; }
+.employee-output-role-group { margin-top: 1rem; }
+.employee-output-role-group:first-of-type { margin-top: 0.5rem; }
+.employee-output-role-title { font-size: 0.9rem; color: var(--text-muted); margin: 0 0 0.5rem; font-weight: 600; }
 .employee-output-employees { margin-top: 0.5rem; }
 .employee-output-employee-cell { padding-left: 1.5rem !important; vertical-align: top; background: var(--bg); }
 .employee-output-employee-detail { padding: 0.5rem 0; }
