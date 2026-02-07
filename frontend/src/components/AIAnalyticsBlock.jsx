@@ -76,6 +76,15 @@ export default function AIAnalyticsBlock({ dateStr }) {
 
       {!loading && hasData && (
         <div className="ai-analytics-results">
+          {result.usage && (
+            <div className="ai-analytics-usage" title="Один запрос = одно нажатие кнопки. Лимит OpenAI — по токенам в минуту (TPM) и запросам в минуту (RPM).">
+              <span className="ai-analytics-usage-label">Токенов за этот запрос:</span>{' '}
+              промпт {result.usage.prompt_tokens?.toLocaleString('ru-RU') ?? '—'},{' '}
+              ответ {result.usage.completion_tokens?.toLocaleString('ru-RU') ?? '—'},{' '}
+              всего {result.usage.total_tokens?.toLocaleString('ru-RU') ?? '—'}.{' '}
+              Запросов в минуту (RPM): 1 при каждом нажатии.
+            </div>
+          )}
           {PRODUCTION_ORDER.map((prodName) => {
             const block = result.productions[prodName]
             if (!block) return null

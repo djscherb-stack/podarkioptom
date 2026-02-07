@@ -5,42 +5,53 @@
 
 import json
 import os
+import time
 from datetime import date
 from typing import Any, Optional
 
 import database as db
 
-# Сколько дней детальных данных отдаём в промпт (по дням, участкам, номенклатуре)
-AI_ANALYSIS_DAYS = 10
+# Сколько дней детальных данных отдаём в промпт. Можно уменьшить через .env (AI_ANALYSIS_DAYS=5), чтобы реже упираться в лимит токенов/запросов.
+def _get_analysis_days() -> int:
+    try:
+        return max(3, min(10, int(os.environ.get("AI_ANALYSIS_DAYS", "10"))))
+    except ValueError:
+        return 10
 
-
-def _format_nomenclature(nom_list: list, unit: str) -> list[str]:
-    """Список строк: вид номенклатуры / наименование — количество."""
-    lines = []
+def _format_nomenclature_by_type_only(nom_list: list, unit: str) -> list[str]:
+    """Только виды номенклатуры и суммарное количество по каждому виду (без наименований — экономим токены)."""
+    by_type: dict[str, float] = {}
     for n in nom_list or []:
         nt = (n.get("nomenclature_type") or n.get("product_name") or "—").strip() or "—"
-        pn = (n.get("product_name") or n.get("nomenclature_type") or "—").strip() or "—"
         qty = n.get("quantity", 0)
-        if nt == pn:
-            lines.append(f"    • {nt}: {qty} {unit}")
-        else:
-            lines.append(f"    • {nt} / {pn}: {qty} {unit}")
+        try:
+            qty = float(qty) if not isinstance(qty, (int, float)) else qty
+        except (TypeError, ValueError):
+            qty = 0
+        by_type[nt] = by_type.get(nt, 0) + qty
+    lines = []
+    for nt, total in sorted(by_type.items(), key=lambda x: -x[1]):
+        if nt == "—" and total == 0:
+            continue
+        total_int = int(total) if total == int(total) else round(total, 2)
+        lines.append(f"    • {nt}: {total_int} {unit}")
     return lines
 
 
 def _build_context_10_days(target_date: date) -> str:
     """
-    Собрать максимально подробный контекст за последние 10 дней:
-    по каждому дню → производство → участок (цех) → итог + полная номенклатура (вид, наименование, кол-во).
+    Собрать подробный контекст за последние N дней (см. _get_analysis_days):
+    по каждому дню → производство → участок (цех) → итог + номенклатура (вид, наименование, кол-во).
     """
-    days_data = db.get_last_n_days_detailed_for_ai(target_date, days=AI_ANALYSIS_DAYS)
+    days = _get_analysis_days()
+    days_data = db.get_last_n_days_detailed_for_ai(target_date, days=days)
     stats_today = db.get_daily_stats(target_date)
     employee_output = stats_today.get("employee_output", {})
     comparison = employee_output.get("comparison", [])
 
     parts = [
-        "=== ДЕТАЛЬНЫЕ ДАННЫЕ ПО ДНЯМ И УЧАСТКАМ (последние 10 дней) ===",
-        "По каждому дню указаны: производство, участок (цех), итог по участку, затем вид номенклатуры / наименование и количество.",
+        f"=== ДАННЫЕ ПО ДНЯМ И УЧАСТКАМ (последние {days} дн.) ===",
+        "По каждому дню: производство, участок (цех), итог, затем только вид номенклатуры и суммарное количество (без наименований).",
         "",
     ]
 
@@ -65,12 +76,12 @@ def _build_context_10_days(target_date: date) -> str:
                     parts.append(f"    Участок: {name} | итог: {total} {unit}")
                 nom = dept.get("nomenclature", [])
                 if nom:
-                    parts.extend(_format_nomenclature(nom, unit))
+                    parts.extend(_format_nomenclature_by_type_only(nom, unit))
                 nom_by_op = dept.get("nomenclature_by_op") or {}
                 for op_name, op_list in nom_by_op.items():
                     if op_list:
                         parts.append(f"    Операция: {op_name}")
-                        parts.extend(_format_nomenclature(op_list, "шт"))
+                        parts.extend(_format_nomenclature_by_type_only(op_list, "шт"))
                 subs = dept.get("subs") or []
                 for s in subs:
                     parts.append(f"    Подблок: {s.get('sub_name', '—')} — {s.get('total', 0)} {s.get('unit', 'шт')}")
@@ -90,18 +101,18 @@ def _build_context(target_date: date) -> tuple[list[dict], str]:
     return [], context_text
 
 
-SYSTEM_PROMPT = """Ты — аналитик производственной отчётности. Тебе даны ДЕТАЛЬНЫЕ данные по выпуску продукции за последние 10 дней по трём производствам: ЧАЙ, ГРАВИРОВКА, ЛЮМИНАРК.
-По каждому дню указаны участки (цехи), итоги по участку и полная номенклатура: вид номенклатуры, наименование, количество. Есть также разбивка по операциям (РЕЗКА, Сборка, Пресс и т.д.) где применимо.
+SYSTEM_PROMPT = """Ты — аналитик производственной отчётности. Тебе даны данные по выпуску продукции за последние дни по трём производствам: ЧАЙ, ГРАВИРОВКА, ЛЮМИНАРК.
+По каждому дню указаны участки (цехи), итоги по участку и виды номенклатуры с суммарным количеством (без наименований). Есть разбивка по операциям (РЕЗКА, Сборка, Пресс и т.д.) где применимо.
 
 Твои задачи:
-1) Проанализировать все 10 дней: по каждому дню, по каждому участку, какие виды номенклатуры и наименования производились и в каких объёмах.
-2) Сделать выводы: какие виды номенклатуры / наименования производятся чаще и в больших объёмах (легче/быстрее), какие реже или в малых объёмах (сложнее/дольше). Учитывать типы операций и участки.
-3) Подмечать тренды по дням, скачки, аномалии, неадекватность данных. Оценить выработку за последний день относительно предыдущих.
-4) Для каждого производства сформулировать 3–4 конкретных вопроса для руководителя производства (причины отклонений, узкие места, планы).
+1) Проанализировать все дни: по каждому дню и участку — какие виды номенклатуры производились и в каких объёмах.
+2) Сделать выводы: какие виды номенклатуры производятся чаще и в больших объёмах (легче/быстрее), какие реже или в малых объёмах (сложнее/дольше). Учитывать типы операций и участки.
+3) Подмечать тренды по дням, скачки, аномалии. Оценить выработку за последний день относительно предыдущих.
+4) Для каждого производства сформулировать 3–4 конкретных вопроса для руководителя (причины отклонений, узкие места, планы).
 Отвечай строго в формате JSON."""
 
 # В шаблоне буквальные {{ }} экранированы — иначе .format() даёт KeyError
-USER_PROMPT_TEMPLATE = """Ниже — полные данные за последние 10 дней (по дням, участкам, видам номенклатуры и наименованиям). Дата выбранного дня (для оценки «сегодня»): {date_str}.
+USER_PROMPT_TEMPLATE = """Ниже — данные за последние дни (по дням, участкам, видам номенклатуры и количеству). Дата выбранного дня: {date_str}.
 
 {context}
 
@@ -109,17 +120,17 @@ USER_PROMPT_TEMPLATE = """Ниже — полные данные за после
 {{
   "productions": {{
     "ЧАЙ": {{
-      "assessment": "2–4 предложения: оценка выработки за последний день и выводы по 10 дням; какие виды/наименования идут легче и быстрее, какие сложнее.",
-      "trend_summary": "Кратко: тренд за 10 дней по участкам и номенклатуре (рост/падение/стабильно, по каким видам).",
-      "issues": ["замечания: скачки, аномалии, неполные данные, проблемные участки или виды номенклатуры"],
+      "assessment": "2–4 предложения: оценка выработки за последний день и выводы по периоду; какие виды номенклатуры идут легче/быстрее, какие сложнее.",
+      "trend_summary": "Кратко: тренд по дням по участкам и видам номенклатуры (рост/падение/стабильно).",
+      "issues": ["замечания: скачки, аномалии, проблемные участки или виды номенклатуры"],
       "questions": ["вопрос 1 для руководителя?", "вопрос 2?", "вопрос 3?", "вопрос 4?"]
     }},
     "ГРАВИРОВКА": {{ ... то же поля ... }},
     "ЛЮМИНАРК": {{ ... то же поля ... }}
   }},
-  "general_notes": "Общие выводы по всем производствам за 10 дней: какие виды операций/номенклатуры стабильны, какие — узкие места (иначе пустая строка)."
+  "general_notes": "Общие выводы: какие виды операций/номенклатуры стабильны, какие — узкие места (иначе пустая строка)."
 }}
-Если по производству нет данных — в assessment и trend_summary укажи «Нет данных за выбранный период», issues и questions можно пустые или общие.
+Если по производству нет данных — в assessment и trend_summary укажи «Нет данных за выбранный период».
 Списки issues и questions — массивы строк, не более 5 issues и 4 questions на производство."""
 
 
@@ -148,16 +159,16 @@ def _parse_ai_json(text: str) -> Optional[dict]:
         return None
 
 
-def _call_llm(context_text: str, target_date: date) -> tuple[Optional[dict], Optional[str], Optional[str]]:
-    """Вызов LLM. Возвращает (данные, None, None) или (None, сообщение, тип_ошибки для отладки)."""
+def _call_llm(context_text: str, target_date: date) -> tuple[Optional[dict], Optional[str], Optional[str], Optional[dict]]:
+    """Вызов LLM. Возвращает (данные, None, None, usage) или (None, сообщение, тип_ошибки, None). usage = {prompt_tokens, completion_tokens, total_tokens}."""
     api_key = os.environ.get("OPENAI_API_KEY", "").strip()
     if not api_key:
-        return None, "OPENAI_API_KEY не задан", None
+        return None, "OPENAI_API_KEY не задан", None, None
 
     try:
         from openai import OpenAI
     except ImportError:
-        return None, "Не установлен пакет openai (pip install openai)", None
+        return None, "Не установлен пакет openai (pip install openai)", None, None
 
     client = OpenAI(api_key=api_key)
     user_prompt = USER_PROMPT_TEMPLATE.format(
@@ -165,34 +176,51 @@ def _call_llm(context_text: str, target_date: date) -> tuple[Optional[dict], Opt
         context=context_text,
     )
 
-    try:
-        response = client.chat.completions.create(
-            model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
-            messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_prompt},
-            ],
-            temperature=0.3,
-            max_tokens=8192,
-        )
-        text = (response.choices[0].message.content or "").strip()
-        data = _parse_ai_json(text)
-        if data is not None:
-            return data, None, None
-        return None, "ИИ вернул некорректный ответ. Попробуйте запустить аналитику ещё раз.", None
-    except Exception as e:
-        err = str(e).strip()
-        err_type = type(e).__name__
-        if "401" in err or "Incorrect API key" in err or "invalid_api_key" in err.lower():
-            return None, "Неверный API-ключ OpenAI. Проверьте OPENAI_API_KEY.", err_type
-        if "429" in err or "rate" in err.lower():
-            return None, "Превышен лимит запросов OpenAI. Подождите и попробуйте снова.", err_type
-        if "503" in err or "timeout" in err.lower():
-            return None, "Сервис OpenAI временно недоступен. Попробуйте позже.", err_type
-        # JSONDecodeError и др. — часто при обрезанном/неверном ответе API
-        if err_type == "JSONDecodeError" or ("productions" in err and len(err) < 100):
-            return None, "Ответ API в неверном формате (возможна обрезка или сбой). Попробуйте ещё раз.", err_type
-        return None, f"Ошибка OpenAI API: {err[:200]}", err_type
+    rate_limit_msg = (
+        "Превышен лимит запросов в минуту (Rate Limit). "
+        "На бесплатном тарифе OpenAI лимит небольшой. Подождите 1–2 минуты и нажмите «Запустить ИИ-аналитику» снова."
+    )
+
+    for attempt in range(2):
+        try:
+            response = client.chat.completions.create(
+                model=os.environ.get("OPENAI_MODEL", "gpt-4o-mini"),
+                messages=[
+                    {"role": "system", "content": SYSTEM_PROMPT},
+                    {"role": "user", "content": user_prompt},
+                ],
+                temperature=0.3,
+                max_tokens=8192,
+            )
+            text = (response.choices[0].message.content or "").strip()
+            data = _parse_ai_json(text)
+            usage = None
+            if getattr(response, "usage", None):
+                u = response.usage
+                usage = {
+                    "prompt_tokens": getattr(u, "prompt_tokens", None),
+                    "completion_tokens": getattr(u, "completion_tokens", None),
+                    "total_tokens": getattr(u, "total_tokens", None),
+                }
+            if data is not None:
+                return data, None, None, usage
+            return None, "ИИ вернул некорректный ответ. Попробуйте запустить аналитику ещё раз.", None, usage
+        except Exception as e:
+            err = str(e).strip()
+            err_type = type(e).__name__
+            if "401" in err or "Incorrect API key" in err or "invalid_api_key" in err.lower():
+                return None, "Неверный API-ключ OpenAI. Проверьте OPENAI_API_KEY.", err_type, None
+            if "429" in err or "rate" in err.lower() or err_type == "RateLimitError":
+                if attempt == 0:
+                    time.sleep(28)
+                    continue
+                return None, rate_limit_msg, err_type, None
+            if "503" in err or "timeout" in err.lower():
+                return None, "Сервис OpenAI временно недоступен. Попробуйте позже.", err_type, None
+            if err_type == "JSONDecodeError" or ("productions" in err and len(err) < 100):
+                return None, "Ответ API в неверном формате (возможна обрезка или сбой). Попробуйте ещё раз.", err_type, None
+            return None, f"Ошибка OpenAI API: {err[:200]}", err_type, None
+    return None, rate_limit_msg, "RateLimitError", None
 
 
 def get_ai_analytics(target_date: date) -> dict[str, Any]:
@@ -224,7 +252,7 @@ def get_ai_analytics(target_date: date) -> dict[str, Any]:
         return result
 
     try:
-        ai_response, err_msg, debug_type = _call_llm(context_text, target_date)
+        ai_response, err_msg, debug_type, usage = _call_llm(context_text, target_date)
     except BaseException as e:
         result["error"] = "Внутренняя ошибка при запросе к ИИ. Попробуйте ещё раз."
         result["debug_error_type"] = type(e).__name__
@@ -244,4 +272,6 @@ def get_ai_analytics(target_date: date) -> dict[str, Any]:
         productions = {}
     result["productions"] = productions
     result["general_notes"] = (ai_response.get("general_notes") or "") if isinstance(ai_response.get("general_notes"), str) else ""
+    if usage:
+        result["usage"] = usage
     return result
