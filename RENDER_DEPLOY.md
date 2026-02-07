@@ -53,8 +53,11 @@ git push origin main
 | `OPENAI_API_KEY` | Ключ OpenAI для ИИ-аналитики (начинается с `sk-...`) | Для ИИ-аналитики |
 | `OPENAI_MODEL` | Модель, например `gpt-4o-mini` | Нет (есть по умолчанию) |
 | `CORS_ORIGINS` | Доп. домены через запятую, если открываете с другого домена | Нет |
-| `UPLOAD_TOKEN` | Токен для загрузки по API / Mailparser | Если нужна автоматическая загрузка |
-| `DATA_DIR` | Путь к папке с Excel, если используете диск | По необходимости |
+| `UPLOAD_TOKEN` | Токен для загрузки по API / Mailparser / sync из Google Drive | Если нужна автоматическая загрузка |
+| `GOOGLE_DRIVE_FOLDER_ID` | ID папки в Google Drive для автозагрузки Excel | Для синхронизации с Google Drive |
+| `GOOGLE_DRIVE_CREDENTIALS_JSON` | JSON ключа сервисного аккаунта Google | Для синхронизации с Google Drive |
+| `GOOGLE_DRIVE_PREFIX_EMPLOYEE_OUTPUT` | Префикс файлов выработки (по умолчанию «Выработка сотрудников») | Нет |
+| `DATA_DIR` | Путь к папке с Excel (например `/app/data` при использовании диска) | По необходимости |
 
 На бесплатном тарифе **секреты** (пароли, ключи) задаются в том же разделе Environment.
 

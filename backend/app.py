@@ -325,6 +325,7 @@ def sync_from_gdrive_api(
     folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
     credentials = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
     prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_PRODUCTION", "Выпуск продукции")
+    employee_prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_EMPLOYEE_OUTPUT", "Выработка сотрудников")
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
     if not folder_id or not credentials:
         return {
@@ -339,6 +340,7 @@ def sync_from_gdrive_api(
         credentials_json=credentials,
         prefix=prefix.strip(),
         recursive=recursive,
+        employee_prefix=employee_prefix.strip() or None,
     )
 
 
@@ -394,6 +396,7 @@ def admin_sync_from_gdrive():
     folder_id = os.environ.get("GOOGLE_DRIVE_FOLDER_ID", "")
     credentials = os.environ.get("GOOGLE_DRIVE_CREDENTIALS_JSON", "")
     prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_PRODUCTION", "Выпуск продукции")
+    employee_prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_EMPLOYEE_OUTPUT", "Выработка сотрудников")
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
     if not folder_id or not credentials:
         return {
@@ -408,6 +411,7 @@ def admin_sync_from_gdrive():
         credentials_json=credentials,
         prefix=prefix.strip(),
         recursive=recursive,
+        employee_prefix=employee_prefix.strip() or None,
     )
 
 

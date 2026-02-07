@@ -14,8 +14,9 @@ logger = logging.getLogger(__name__)
 # Файл для учёта уже загруженных файлов (чтобы не дублировать)
 PROCESSED_FILE = "processed_gdrive.json"
 
-# Префиксы имён файлов → тип отчёта (пока только выпуск продукции; выработка сотрудников — позже)
+# Префиксы имён файлов (одна папка — оба типа)
 PREFIX_PRODUCTION = "Выпуск продукции"
+PREFIX_EMPLOYEE_OUTPUT = "Выработка сотрудников"
 
 
 def _get_processed_path() -> Path:
@@ -75,15 +76,47 @@ def _list_files_recursive(service, folder_id: str, prefix_lower: str) -> list:
     return all_files
 
 
+def _list_files_for_prefixes(service, folder_id: str, prefixes: list[str], recursive: bool) -> list:
+    """Собирает файлы, имя которых начинается с любого из prefixes (.xlsx/.xls)."""
+    seen_ids = set()
+    result = []
+    for prefix in prefixes:
+        if not prefix or not str(prefix).strip():
+            continue
+        prefix_lower = str(prefix).strip().lower()
+        if recursive:
+            files = _list_files_recursive(service, folder_id, prefix_lower)
+        else:
+            query = f"'{folder_id}' in parents and trashed = false"
+            response = (
+                service.files()
+                .list(q=query, fields="files(id, name, mimeType, modifiedTime)", pageSize=100)
+                .execute()
+            )
+            files = [
+                f for f in response.get("files", [])
+                if f.get("name", "").lower().startswith(prefix_lower)
+                and f.get("name", "").lower().endswith((".xlsx", ".xls"))
+            ]
+        for f in files:
+            fid = f.get("id")
+            if fid and fid not in seen_ids:
+                seen_ids.add(fid)
+                result.append(f)
+    return result
+
+
 def sync_from_gdrive(
     folder_id: str,
     credentials_json: str,
     prefix: str = PREFIX_PRODUCTION,
     recursive: bool = True,
+    employee_prefix: Optional[str] = None,
 ) -> dict:
     """
-    Сканирует папку Google Drive, находит новые файлы с именем на prefix,
+    Сканирует папку Google Drive, находит новые файлы (выпуск продукции и/или выработка сотрудников),
     скачивает и сохраняет в data/. Возвращает {ok, downloaded: [...], errors: [...]}.
+    prefix — для выпуска продукции; employee_prefix — для выработки (например «Выработка сотрудников»).
     """
     try:
         from google.oauth2 import service_account
@@ -116,25 +149,12 @@ def sync_from_gdrive(
         return result
 
     processed = _load_processed()
-    prefix_lower = prefix.lower().strip()
+    prefixes = [p.strip() for p in [prefix] + ([employee_prefix] if employee_prefix else []) if p]
+    if not prefixes:
+        prefixes = [prefix]
 
     try:
-        if recursive:
-            files = _list_files_recursive(service, folder_id, prefix_lower)
-        else:
-            query = f"'{folder_id}' in parents and trashed = false"
-            response = (
-                service.files()
-                .list(
-                    q=query,
-                    fields="files(id, name, mimeType, modifiedTime)",
-                    pageSize=100,
-                )
-                .execute()
-            )
-            files = [f for f in response.get("files", [])
-                     if f.get("name", "").lower().startswith(prefix_lower)
-                     and f.get("name", "").lower().endswith((".xlsx", ".xls"))]
+        files = _list_files_for_prefixes(service, folder_id, prefixes, recursive)
     except Exception as e:
         result["ok"] = False
         result["error"] = f"Ошибка чтения папки: {e}"
@@ -145,9 +165,10 @@ def sync_from_gdrive(
 
     for f in files:
         name = f.get("name", "")
-        if not name.lower().startswith(prefix_lower):
-            continue
         if not name.lower().endswith((".xlsx", ".xls")):
+            continue
+        prefix_matched = any(name.lower().startswith(p.lower().strip()) for p in prefixes)
+        if not prefix_matched:
             continue
         file_id = f.get("id")
         if not file_id:
