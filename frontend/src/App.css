@@ -1095,8 +1095,29 @@ body {
 }
 .dept-subtitle { font-size: 0.9rem; color: var(--text-muted); margin-top: 0.25rem; }
 
+/* Бета-метка в меню */
+.nav-beta {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: normal;
+}
+
 /* Выработка сотрудников */
 .employee-output-section { margin-top: 1.25rem; }
+.employee-output-beta {
+  font-size: 0.8em;
+  font-weight: normal;
+  color: var(--text-muted);
+}
+.employee-output-beta-note {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 0;
+  font-weight: normal;
+}
+.day-page-title-with-note {
+  flex: 1;
+}
 .employee-output-header { margin-bottom: 0.5rem; }
 .employee-output-toggle {
   font-size: 1rem;

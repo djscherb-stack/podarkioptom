@@ -61,8 +61,8 @@ function AppContent({ userInfo, onRefreshUser }) {
           <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             Аналитика по месяцам
           </NavLink>
-          <NavLink to="/employee-output" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            Выработка сотрудников
+          <NavLink to="/employee-output" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
+            Выработка сотрудников <span className="nav-beta">(бета)</span>
           </NavLink>
           {isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>

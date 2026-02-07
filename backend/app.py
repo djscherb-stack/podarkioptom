@@ -415,6 +415,13 @@ def admin_sync_from_gdrive():
     )
 
 
+@app.get("/api/admin/refresh", dependencies=[Depends(require_admin)])
+def admin_refresh():
+    """Пересчитать данные из файлов по новым правилам (только для admin)."""
+    db.refresh_data()
+    return {"status": "ok"}
+
+
 @app.get("/api/admin/data-dates", dependencies=[Depends(require_admin)])
 def admin_data_dates():
     """Диагностика: какие даты есть в данных (для отладки пропавших 1–2 января)."""

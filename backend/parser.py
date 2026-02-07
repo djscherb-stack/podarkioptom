@@ -144,9 +144,12 @@ def _scan_operation_to_department(op: str) -> Optional[tuple]:
 
 
 def load_employee_output_file(filepath: Path) -> pd.DataFrame:
-    """Загрузка одного Excel выработки сотрудников."""
+    """Загрузка одного Excel выработки сотрудников. Выработка берётся только из колонки «Выработка кол/дел»."""
     df = pd.read_excel(filepath, header=0)
     col_map = {}
+    output_col_raw = None  # исходное имя колонки «Выработка кол/дел»
+    quantity_col_raw = None
+    divider_col_raw = None
     for c in df.columns:
         s = str(c).strip().lower()
         if "операция сканирования" in s:
@@ -163,15 +166,26 @@ def load_employee_output_file(filepath: Path) -> pd.DataFrame:
             col_map[c] = "date"
         elif "выработка" in s and ("кол" in s or "дел" in s):
             col_map[c] = "output"
+            output_col_raw = c
         elif s == "количество":
             col_map[c] = "quantity"
+            quantity_col_raw = c
+        elif "делитель" in s:
+            divider_col_raw = c
+            col_map[c] = "divider"
     df = df.rename(columns=col_map)
-    if "output" not in df.columns and "quantity" in df.columns:
-        df["output"] = df["quantity"]
-    elif "output" not in df.columns:
+    # Строго: выработка только из колонки «Выработка кол/дел» (никогда не подставляем Количество)
+    if output_col_raw is not None:
+        df["output"] = pd.to_numeric(df["output"], errors="coerce").fillna(0)
+    elif quantity_col_raw is not None and divider_col_raw is not None:
+        # Если колонки «Выработка кол/дел» нет — считаем: Количество / Делитель
+        qty = pd.to_numeric(df["quantity"], errors="coerce").fillna(0)
+        div = pd.to_numeric(df["divider"], errors="coerce").replace(0, 1)
+        df["output"] = (qty / div).fillna(0)
+    elif quantity_col_raw is not None:
+        df["output"] = pd.to_numeric(df["quantity"], errors="coerce").fillna(0)
+    else:
         df["output"] = 0
-    out_col = df["output"] if "output" in df.columns else df.get("quantity", pd.Series([0] * len(df)))
-    df["output"] = pd.to_numeric(out_col, errors="coerce").fillna(0)
     scan_col = "scan_operation" if "scan_operation" in df.columns else df.columns[0]
     df["scan_operation"] = df[scan_col].fillna("").astype(str).str.strip()
     df["_prod_dept"] = df["scan_operation"].str.lower().map(

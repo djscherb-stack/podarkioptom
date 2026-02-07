@@ -97,7 +97,10 @@ export default function EmployeeOutputPage() {
     <div className="page employee-output-page">
       <div className="day-page-header">
         <div className="day-page-title-row">
-          <h1>Выработка сотрудников</h1>
+          <div className="day-page-title-with-note">
+            <h1>Выработка сотрудников <span className="employee-output-beta">(бета-версия)</span></h1>
+            <p className="employee-output-beta-note">Данные могут быть не корректными.</p>
+          </div>
           <button onClick={handleRefresh} className="btn-refresh" title="Обновить данные">
             ⟳
           </button>

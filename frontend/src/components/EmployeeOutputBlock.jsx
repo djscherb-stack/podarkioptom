@@ -140,14 +140,14 @@ export default function EmployeeOutputBlock({ employeeOutput, expanded, onToggle
 
   return (
     <section className="production-section employee-output-section" aria-label="Выработка сотрудников">
-      <h2 className="production-title">Выработка сотрудников</h2>
+      <h2 className="production-title">Выработка сотрудников <span className="employee-output-beta" title="Данные могут быть не корректными">(бета)</span></h2>
       <div className="employee-output-header">
         <button
           type="button"
           className={`btn-expand employee-output-toggle ${expanded ? 'expanded' : ''}`}
           onClick={() => onToggle(!expanded)}
         >
-          {expanded ? '▼ Свернуть' : '▶ Выработка сотрудников'}
+          {expanded ? '▼ Свернуть' : '▶ Выработка сотрудников (бета)'}
         </button>
       </div>
       {expanded && (

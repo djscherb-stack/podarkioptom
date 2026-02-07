@@ -26,8 +26,43 @@
 .admin-upload-buttons {
   display: flex;
   flex-wrap: wrap;
+  align-items: center;
   gap: 0.5rem;
   margin-top: 0.5rem;
+}
+
+.refresh-data-wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.admin-btn-refresh-data {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  background: #2d3748;
+  color: #e2e8f0;
+  border: 1px solid #4a5568;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.admin-btn-refresh-data:hover:not(:disabled) {
+  background: #3d4a5c;
+}
+
+.admin-btn-refresh-data:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.admin-refresh-msg {
+  font-size: 0.85rem;
+  color: #718096;
+}
+
+.admin-refresh-msg-error {
+  color: #e53e3e;
 }
 
 .admin-table {

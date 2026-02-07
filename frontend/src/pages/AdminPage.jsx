@@ -4,6 +4,7 @@ import { apiFetch, API } from '../api'
 import { fetchTheme, saveTheme, applyTheme, THEME_OPTIONS } from '../theme'
 import UploadButton from '../components/UploadButton'
 import SyncButton from '../components/SyncButton'
+import RefreshDataButton from '../components/RefreshDataButton'
 import './AdminPage.css'
 
 function formatDate(iso) {
@@ -110,6 +111,7 @@ export default function AdminPage() {
         <div className="admin-upload-buttons">
           <UploadButton />
           <SyncButton />
+          <RefreshDataButton onSuccess={() => apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => {})} />
         </div>
       </section>
 
