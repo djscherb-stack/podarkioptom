@@ -220,12 +220,15 @@ def load_employee_output_file(filepath: Path) -> pd.DataFrame:
 
 
 def load_all_employee_output_data(data_dir: str) -> pd.DataFrame:
-    """Загрузка всех Excel выработки сотрудников из data_dir."""
+    """Загрузка всех Excel выработки сотрудников из data_dir.
+    Внутри файла: несколько строк с одним ключом — суммируем.
+    Между файлами: один и тот же ключ (дата, участок, сотрудник, номенклатура) — берём max,
+    чтобы повторная загрузка или два файла с одним периодом не удваивали выработку."""
     path = Path(data_dir)
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
     seen = set()
-    frames = []
+    aggregated_per_file = []
     for f in path.glob("**/*.xlsx"):
         if f.name.startswith("~$"):
             continue
@@ -237,20 +240,26 @@ def load_all_employee_output_data(data_dir: str) -> pd.DataFrame:
         seen.add(key)
         try:
             df = load_employee_output_file(f)
-            if not df.empty:
-                frames.append(df)
+            if df.empty:
+                continue
+            df = df.copy()
+            df["_date_only"] = df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+            group_cols = ["_date_only", "production", "department", "user", "nomenclature_type", "product_name"]
+            if all(c in df.columns for c in group_cols):
+                agg = df.groupby(group_cols, as_index=False)["output"].sum()
+                aggregated_per_file.append(agg)
         except Exception as e:
             print(f"Ошибка выработки {f}: {e}")
-    if not frames:
+    if not aggregated_per_file:
         return pd.DataFrame(columns=["production", "department", "user", "nomenclature_type", "product_name", "date", "output"])
-    combined = pd.concat(frames, ignore_index=True)
-    combined["date_only"] = combined["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
-    agg = combined.groupby(
-        ["date_only", "production", "department", "user", "nomenclature_type", "product_name"],
+    combined = pd.concat(aggregated_per_file, ignore_index=True)
+    # Между файлами: для одного ключа берём max (не сумму), чтобы не удваивать выработку
+    final = combined.groupby(
+        ["_date_only", "production", "department", "user", "nomenclature_type", "product_name"],
         as_index=False,
-    )["output"].sum()
-    agg["date"] = pd.to_datetime(agg["date_only"])
-    return agg.drop(columns=["date_only"])
+    )["output"].max()
+    final["date"] = pd.to_datetime(final["_date_only"])
+    return final[["production", "department", "user", "nomenclature_type", "product_name", "date", "output"]]
 
 
 def load_all_data(data_dir: str) -> pd.DataFrame:
