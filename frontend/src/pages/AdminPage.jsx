@@ -26,10 +26,19 @@ export default function AdminPage() {
   const [themeMsg, setThemeMsg] = useState(null)
   const [themeError, setThemeError] = useState(false)
   const [dateRange, setDateRange] = useState(null)
+  const [syncLog, setSyncLog] = useState([])
   const navigate = useNavigate()
+
+  const loadSyncLog = () => {
+    apiFetch(`${API}/admin/sync-log`).then(r => setSyncLog(r.entries || [])).catch(() => setSyncLog([]))
+  }
 
   useEffect(() => {
     apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => setDateRange({ dates: [] }))
+  }, [])
+
+  useEffect(() => {
+    loadSyncLog()
   }, [])
 
   useEffect(() => {
@@ -110,9 +119,39 @@ export default function AdminPage() {
         <h3>Загрузка данных</h3>
         <div className="admin-upload-buttons">
           <UploadButton />
-          <SyncButton />
+          <SyncButton onSuccess={() => { loadSyncLog(); apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => {}) }} />
           <RefreshDataButton onSuccess={() => apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => {})} />
         </div>
+      </section>
+
+      <section className="admin-sync-log-section">
+        <h3>Лог синхронизации Google Drive</h3>
+        <p className="admin-sync-log-hint">Запуски по расписанию (cron) и вручную (кнопка). Обновить: <button type="button" className="admin-btn-link" onClick={loadSyncLog}>↻</button></p>
+        {syncLog.length === 0 ? (
+          <p className="admin-sync-log-empty">Записей пока нет</p>
+        ) : (
+          <div className="admin-sync-log-list">
+            {syncLog.map((e, i) => (
+              <div key={i} className={`admin-sync-log-entry ${e.ok ? '' : 'admin-sync-log-entry-error'}`}>
+                <div className="admin-sync-log-header">
+                  <span className="admin-sync-log-time">{formatDate(e.at)}</span>
+                  <span className={`admin-sync-log-source ${e.source === 'cron' ? 'admin-sync-log-cron' : ''}`}>{e.source === 'cron' ? 'cron' : 'админка'}</span>
+                  <span className={`admin-sync-log-status ${e.ok ? 'admin-sync-log-ok' : 'admin-sync-log-fail'}`}>{e.ok ? 'OK' : 'Ошибка'}</span>
+                </div>
+                {e.error && <div className="admin-sync-log-msg admin-sync-log-error">Ошибка: {e.error}</div>}
+                {e.downloaded?.length > 0 && (
+                  <div className="admin-sync-log-msg admin-sync-log-success">Загружено: {e.downloaded.map(f => f.name).join(', ')}</div>
+                )}
+                {e.errors?.length > 0 && (
+                  <div className="admin-sync-log-msg admin-sync-log-error">Ошибки файлов: {e.errors.map(er => `${er.file}: ${er.error}`).join('; ')}</div>
+                )}
+                {e.ok && !e.error && (!e.downloaded?.length) && (!e.errors?.length) && (
+                  <div className="admin-sync-log-msg admin-sync-log-muted">Новых файлов не найдено</div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {dateRange && (

@@ -328,20 +328,29 @@ def sync_from_gdrive_api(
     employee_prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_EMPLOYEE_OUTPUT", "Выработка сотрудников")
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
     if not folder_id or not credentials:
-        return {
+        res = {
             "ok": False,
             "error": "Задайте GOOGLE_DRIVE_FOLDER_ID и GOOGLE_DRIVE_CREDENTIALS_JSON",
             "downloaded": [],
             "errors": [],
         }
+        try:
+            import sync_log
+            sync_log.log_sync("cron", res)
+        except Exception:
+            pass
+        return res
     import gdrive_sync
-    return gdrive_sync.sync_from_gdrive(
+    import sync_log
+    res = gdrive_sync.sync_from_gdrive(
         folder_id=folder_id,
         credentials_json=credentials,
         prefix=prefix.strip(),
         recursive=recursive,
         employee_prefix=employee_prefix.strip() or None,
     )
+    sync_log.log_sync("cron", res)
+    return res
 
 
 @app.get("/api/months", dependencies=[Depends(require_auth)])
@@ -399,20 +408,36 @@ def admin_sync_from_gdrive():
     employee_prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_EMPLOYEE_OUTPUT", "Выработка сотрудников")
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
     if not folder_id or not credentials:
-        return {
+        res = {
             "ok": False,
             "error": "Задайте GOOGLE_DRIVE_FOLDER_ID и GOOGLE_DRIVE_CREDENTIALS_JSON",
             "downloaded": [],
             "errors": [],
         }
+        try:
+            import sync_log
+            sync_log.log_sync("admin", res)
+        except Exception:
+            pass
+        return res
     import gdrive_sync
-    return gdrive_sync.sync_from_gdrive(
+    import sync_log
+    res = gdrive_sync.sync_from_gdrive(
         folder_id=folder_id,
         credentials_json=credentials,
         prefix=prefix.strip(),
         recursive=recursive,
         employee_prefix=employee_prefix.strip() or None,
     )
+    sync_log.log_sync("admin", res)
+    return res
+
+
+@app.get("/api/admin/sync-log", dependencies=[Depends(require_admin)])
+def admin_sync_log():
+    """Лог запусков синхронизации с Google Drive (последние 100 записей)."""
+    import sync_log
+    return {"entries": sync_log.get_sync_log()}
 
 
 @app.get("/api/admin/refresh", dependencies=[Depends(require_admin)])

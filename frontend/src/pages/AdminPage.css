@@ -195,3 +195,110 @@
   background: rgba(0,0,0,0.1);
   border-radius: 4px;
 }
+
+/* Лог синхронизации */
+.admin-sync-log-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.admin-sync-log-hint {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin: 0.25rem 0 0.5rem;
+}
+
+.admin-btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 0 0.25rem;
+}
+
+.admin-btn-link:hover {
+  text-decoration: underline;
+}
+
+.admin-sync-log-empty {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+.admin-sync-log-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+.admin-sync-log-entry {
+  padding: 0.5rem 0.75rem;
+  background: rgba(0,0,0,0.05);
+  border-radius: 6px;
+  border-left: 3px solid var(--border);
+  font-size: 0.85rem;
+}
+
+.admin-sync-log-entry-error {
+  border-left-color: var(--negative);
+}
+
+.admin-sync-log-header {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.25rem;
+}
+
+.admin-sync-log-time {
+  font-weight: 500;
+  color: var(--text);
+}
+
+.admin-sync-log-source {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.admin-sync-log-cron {
+  background: rgba(0,0,0,0.15);
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+}
+
+.admin-sync-log-status {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.admin-sync-log-ok {
+  color: var(--positive);
+}
+
+.admin-sync-log-fail {
+  color: var(--negative);
+}
+
+.admin-sync-log-msg {
+  font-size: 0.8rem;
+  margin-top: 0.2rem;
+}
+
+.admin-sync-log-success {
+  color: var(--positive);
+}
+
+.admin-sync-log-error {
+  color: var(--negative);
+}
+
+.admin-sync-log-muted {
+  color: var(--text-muted);
+}
