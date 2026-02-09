@@ -1341,6 +1341,40 @@ body {
   cursor: pointer;
 }
 .employees-preset-btn:hover { background: var(--bg-card-hover); }
+.employees-yesterday-btn {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.85rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text);
+  cursor: pointer;
+}
+.employees-yesterday-btn:hover { background: var(--bg-card-hover); }
+.employees-yesterday-btn.expanded { border-color: var(--accent); color: var(--accent); }
+.employees-yesterday-summary {
+  margin-top: 0.75rem;
+  padding: 1rem 1.25rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.employees-yesterday-title { font-size: 1rem; margin: 0 0 0.75rem; color: var(--text); }
+.employees-yesterday-loading,
+.employees-yesterday-empty { color: var(--text-muted); margin: 0; }
+.employees-yesterday-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.9rem;
+}
+.employees-yesterday-table th,
+.employees-yesterday-table td {
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border);
+}
+.employees-yesterday-table th { color: var(--text-muted); font-weight: 600; }
+.employees-yesterday-table tbody tr:hover { background: var(--bg-card-hover); }
 .employees-submit-btn {
   padding: 0.5rem 1.25rem;
   font-size: 0.95rem;

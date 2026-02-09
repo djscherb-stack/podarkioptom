@@ -60,6 +60,9 @@ export default function EmployeesPage() {
   const [loadingDept, setLoadingDept] = useState(false)
   const [error, setError] = useState(null)
   const [errorDept, setErrorDept] = useState(null)
+  const [yesterdaySummaryOpen, setYesterdaySummaryOpen] = useState(false)
+  const [yesterdaySummary, setYesterdaySummary] = useState(null)
+  const [loadingYesterday, setLoadingYesterday] = useState(false)
 
   useEffect(() => {
     apiFetch(`${API}/employees`).then((r) => setEmployeeList(r.employees || [])).catch(() => setEmployeeList([]))
@@ -125,6 +128,52 @@ export default function EmployeesPage() {
     ? `${selectedDept.production} — ${selectedDept.department}`
     : ''
 
+  const loadYesterdaySummary = () => {
+    const now = new Date()
+    const yesterday = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1)
+    const dateStr = toISO(yesterday)
+    setLoadingYesterday(true)
+    setYesterdaySummary(null)
+    apiFetch(`${API}/day/${dateStr}`)
+      .then((data) => {
+        const byDept = data?.employee_output?.by_department || []
+        const byProduction = {}
+        byDept.forEach((item) => {
+          const p = item.production || '—'
+          if (!byProduction[p]) {
+            byProduction[p] = { production: p, employee_count: 0, total_output: 0 }
+          }
+          byProduction[p].employee_count += item.employee_count ?? 0
+          byProduction[p].total_output += item.total_output ?? 0
+        })
+        const list = Object.values(byProduction)
+          .filter((r) => r.employee_count > 0 || r.total_output > 0)
+          .map((r) => ({
+            ...r,
+            output_per_employee: r.employee_count ? round2(r.total_output / r.employee_count) : 0,
+            total_hours: r.employee_count * 12,
+            output_per_hour: r.employee_count ? round2(r.total_output / (r.employee_count * 12)) : 0,
+          }))
+          .sort((a, b) => (b.total_output || 0) - (a.total_output || 0))
+        setYesterdaySummary({ date: dateStr, list })
+      })
+      .catch(() => setYesterdaySummary({ date: dateStr, list: [], error: true }))
+      .finally(() => setLoadingYesterday(false))
+  }
+
+  const toggleYesterdaySummary = () => {
+    if (!yesterdaySummaryOpen) {
+      if (!yesterdaySummary && !loadingYesterday) loadYesterdaySummary()
+      setYesterdaySummaryOpen(true)
+    } else {
+      setYesterdaySummaryOpen(false)
+    }
+  }
+
+  function round2(val) {
+    return Math.round((val || 0) * 100) / 100
+  }
+
   return (
     <div className="page employees-page">
       <h1>Сотрудники <span className="employee-output-beta" title="Данные могут быть не корректными">(бета-версия)</span></h1>
@@ -142,9 +191,54 @@ export default function EmployeesPage() {
               <button type="button" className="employees-preset-btn" onClick={() => applyPreset('last_month')}>Прошлый месяц</button>
               <button type="button" className="employees-preset-btn" onClick={() => applyPreset('last_30')}>Последние 30 дней</button>
             </div>
+            <button
+              type="button"
+              className={`employees-yesterday-btn ${yesterdaySummaryOpen ? 'expanded' : ''}`}
+              onClick={toggleYesterdaySummary}
+            >
+              {yesterdaySummaryOpen ? '▼ Сводка за вчера' : '▶ Сводка за вчера'}
+            </button>
           </div>
         </div>
       </div>
+
+      {yesterdaySummaryOpen && (
+        <div className="employees-yesterday-summary">
+          {loadingYesterday && <p className="employees-yesterday-loading">Загрузка…</p>}
+          {!loadingYesterday && yesterdaySummary?.error && <p className="employees-error">Не удалось загрузить данные за вчера.</p>}
+          {!loadingYesterday && yesterdaySummary && !yesterdaySummary.error && (
+            <>
+              <h3 className="employees-yesterday-title">Сводка за {formatDateLabel(yesterdaySummary.date)}</h3>
+              {yesterdaySummary.list.length === 0 ? (
+                <p className="employees-yesterday-empty">Нет данных по выработке за вчера.</p>
+              ) : (
+                <table className="employees-yesterday-table">
+                  <thead>
+                    <tr>
+                      <th>Производство</th>
+                      <th>Сотрудников</th>
+                      <th>Выработка на сотрудника</th>
+                      <th>Выработка в час</th>
+                      <th>Всего выработка</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {yesterdaySummary.list.map((row, i) => (
+                      <tr key={row.production}>
+                        <td>{row.production}</td>
+                        <td>{row.employee_count}</td>
+                        <td>{formatQty(row.output_per_employee)}</td>
+                        <td>{formatQty(row.output_per_hour)}</td>
+                        <td>{formatQty(row.total_output)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </>
+          )}
+        </div>
+      )}
 
       {/* Блок: Сотрудник */}
       <section className="employees-block employees-block-person">
