@@ -4,6 +4,7 @@ import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from 're
 import MonthPage from './pages/MonthPage'
 import DayPage from './pages/DayPage'
 import EmployeeOutputPage from './pages/EmployeeOutputPage'
+import EmployeesPage from './pages/EmployeesPage'
 import MonthsComparePage from './pages/MonthsComparePage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
 import LoginPage from './pages/LoginPage'
@@ -64,6 +65,9 @@ function AppContent({ userInfo, onRefreshUser }) {
           <NavLink to="/employee-output" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
             Выработка сотрудников <span className="nav-beta">(бета)</span>
           </NavLink>
+          <NavLink to="/employees" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
+            Сотрудники <span className="nav-beta">(бета)</span>
+          </NavLink>
           {isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Админ
@@ -97,6 +101,7 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Route path="/month" element={<MonthPage />} />
           <Route path="/day" element={<DayPage />} />
           <Route path="/employee-output" element={<EmployeeOutputPage />} />
+          <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/months" element={<MonthsComparePage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />

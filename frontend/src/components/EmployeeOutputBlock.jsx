@@ -85,6 +85,48 @@ const GRAV_KARTON_DEPT = 'Картон/Дерево Елино Гравиров�
 const ROLE_ORDER = ['Оператор станка ЧПУ', 'Сборщик']
 const ROLE_LABELS = { 'Оператор станка ЧПУ': 'Оператор станка ЧПУ', 'Сборщик': 'Сборщики' }
 
+/** Весёлые названия для бригад (одинаковая выработка у нескольких человек) */
+const BRIGADE_NAMES = [
+  'Весёлые молотки', 'Бригада удачи', 'Огурцы-трудяги', 'Команда мечты', 'Звёзды сцены',
+  'Дружные винтики', 'Светлячки', 'Горячие пирожки', 'Быстрые ракеты', 'Ударники поля',
+  'Ловкие ручки', 'Тигры труда', 'Пчёлки-труженицы', 'Орлы и соколы', 'Весёлая семейка',
+  'Крепкий орешек', 'Девятый вал', 'Огонь и вода', 'Смелые капитаны', 'Золотые руки',
+]
+
+/** Группирует сотрудников: одинаковую выработку (2+) → бригада, иначе одиночка. Возвращает массив { type: 'single', ...emp } | { type: 'brigade', name, total, share_pct, employees }. */
+function buildEmployeeGroups(employees, totalOutput) {
+  if (!employees?.length) return []
+  const byTotal = {}
+  employees.forEach((emp) => {
+    const key = Math.round((emp.total || 0) * 100) / 100
+    if (!byTotal[key]) byTotal[key] = []
+    byTotal[key].push(emp)
+  })
+  const totals = Object.keys(byTotal)
+    .map(Number)
+    .sort((a, b) => b - a)
+  const result = []
+  let brigadeIndex = 0
+  totals.forEach((total) => {
+    const group = byTotal[total]
+    if (group.length >= 2) {
+      const brigadeTotal = total * group.length
+      const sharePct = totalOutput > 0 ? Math.round((brigadeTotal / totalOutput) * 1000) / 10 : 0
+      result.push({
+        type: 'brigade',
+        name: BRIGADE_NAMES[brigadeIndex % BRIGADE_NAMES.length],
+        total,
+        share_pct: sharePct,
+        employees: group,
+      })
+      brigadeIndex += 1
+    } else {
+      result.push({ type: 'single', ...group[0] })
+    }
+  })
+  return result
+}
+
 function DeltaSpan({ today, yesterday, isPct = false, formatQty }) {
   if (yesterday == null) return null
   const delta = today - yesterday
@@ -113,6 +155,7 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard 
     })
   }
   const employees = item?.employees || []
+  const totalOutput = item?.total_output ?? 0
   const nEmp = item?.employee_count ?? employees.length
   const avgPerEmp = item?.average_per_employee
   const avgYesterday = item?.average_per_employee_yesterday
@@ -126,31 +169,95 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard 
       })).filter(g => g.employees.length > 0)
     : null
 
-  const renderEmployeeRows = (list) =>
-    list.map((emp, i) => (
-      <React.Fragment key={`${emp.user}-${i}`}>
-        <tr>
-          <td>
-            <button
-              type="button"
-              className="nom-group-btn"
-              onClick={(e) => toggleUser(e, emp.user)}
-            >
-              {expandedUsers.has(emp.user) ? '▼' : '▶'} {emp.user}
-              {emp.share_pct != null && <span className="employee-output-share-pct"> — {emp.share_pct}%</span>}
-            </button>
-          </td>
-          <td>{formatQty(emp.total)}</td>
-        </tr>
-        {expandedUsers.has(emp.user) && (
-          <tr>
-            <td colSpan={2} className="employee-output-employee-cell">
-              <EmployeeDetail employee={emp} formatQty={formatQty} />
-            </td>
-          </tr>
-        )}
-      </React.Fragment>
-    ))
+  const [expandedBrigades, setExpandedBrigades] = useState(new Set())
+  const toggleBrigade = (e, id) => {
+    e.stopPropagation()
+    setExpandedBrigades(prev => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
+  }
+
+  const renderEmployeeRows = (list, totalOut) => {
+    const groups = buildEmployeeGroups(list, totalOut)
+    const rows = []
+    groups.forEach((row, idx) => {
+      if (row.type === 'single') {
+        const emp = row
+        rows.push(
+          <React.Fragment key={`single-${emp.user}-${idx}`}>
+            <tr>
+              <td>
+                <button
+                  type="button"
+                  className="nom-group-btn"
+                  onClick={(e) => toggleUser(e, emp.user)}
+                >
+                  {expandedUsers.has(emp.user) ? '▼' : '▶'} {emp.user}
+                  {emp.share_pct != null && <span className="employee-output-share-pct"> — {emp.share_pct}%</span>}
+                </button>
+              </td>
+              <td>{formatQty(emp.total)}</td>
+            </tr>
+            {expandedUsers.has(emp.user) && (
+              <tr>
+                <td colSpan={2} className="employee-output-employee-cell">
+                  <EmployeeDetail employee={emp} formatQty={formatQty} />
+                </td>
+              </tr>
+            )}
+          </React.Fragment>
+        )
+      } else {
+        const brigadeId = `brigade-${idx}-${row.name}-${row.total}`
+        const isBrigadeOpen = expandedBrigades.has(brigadeId)
+        rows.push(
+          <React.Fragment key={brigadeId}>
+            <tr>
+              <td>
+                <button
+                  type="button"
+                  className="nom-group-btn employee-output-brigade-btn"
+                  onClick={(e) => toggleBrigade(e, brigadeId)}
+                >
+                  {isBrigadeOpen ? '▼' : '▶'} Бригада «{row.name}»
+                  <span className="employee-output-brigade-meta"> — {row.employees.length} чел., {row.share_pct != null && `${row.share_pct}%`}</span>
+                </button>
+              </td>
+              <td>{formatQty(row.total)} × {row.employees.length}</td>
+            </tr>
+            {isBrigadeOpen && row.employees.map((emp, i) => (
+              <React.Fragment key={`${brigadeId}-${emp.user}-${i}`}>
+                <tr className="employee-output-brigade-member">
+                  <td>
+                    <button
+                      type="button"
+                      className="nom-group-btn"
+                      onClick={(e) => toggleUser(e, emp.user)}
+                    >
+                      {expandedUsers.has(emp.user) ? '▼' : '▶'} {emp.user}
+                      {emp.share_pct != null && <span className="employee-output-share-pct"> — {emp.share_pct}%</span>}
+                    </button>
+                  </td>
+                  <td>{formatQty(emp.total)}</td>
+                </tr>
+                {expandedUsers.has(emp.user) && (
+                  <tr>
+                    <td colSpan={2} className="employee-output-employee-cell">
+                      <EmployeeDetail employee={emp} formatQty={formatQty} />
+                    </td>
+                  </tr>
+                )}
+              </React.Fragment>
+            ))}
+          </React.Fragment>
+        )
+      }
+    })
+    return rows
+  }
 
   if (!item || (nEmp === 0 && employees.length === 0)) return null
 
@@ -193,7 +300,7 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard 
                     <th>Выработка</th>
                   </tr>
                 </thead>
-                <tbody>{renderEmployeeRows(roleEmployees)}</tbody>
+                <tbody>{renderEmployeeRows(roleEmployees, totalOutput)}</tbody>
               </table>
             </div>
           ))
@@ -205,7 +312,7 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard 
                 <th>Выработка</th>
               </tr>
             </thead>
-            <tbody>{renderEmployeeRows(employees)}</tbody>
+            <tbody>{renderEmployeeRows(employees, totalOutput)}</tbody>
           </table>
         )
       )}

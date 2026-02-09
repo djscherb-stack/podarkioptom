@@ -459,6 +459,28 @@ def admin_login_history():
     return auth.get_login_history()
 
 
+@app.get("/api/employees", dependencies=[Depends(require_auth)])
+def get_employees_list():
+    """Список ФИО сотрудников (из данных выработки)."""
+    return {"employees": db.get_employee_names()}
+
+
+@app.get("/api/employees/stats", dependencies=[Depends(require_auth)])
+def get_employee_stats(user: str = "", date_from: str = "", date_to: str = ""):
+    """Статистика по сотруднику за период: даты выхода, участки, продукция."""
+    from datetime import datetime
+    if not user or not date_from or not date_to:
+        return {"error": "Укажите user, date_from и date_to (YYYY-MM-DD)"}
+    try:
+        d_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+        d_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+    except ValueError:
+        return {"error": "Формат дат: YYYY-MM-DD"}
+    if d_from > d_to:
+        return {"error": "Дата начала не может быть позже даты конца"}
+    return db.get_employee_period_stats(user.strip(), d_from, d_to)
+
+
 @app.get("/api/day/{date_str}", dependencies=[Depends(require_auth)])
 def get_day_stats(date_str: str):
     """Аналитика за день (date_str: YYYY-MM-DD)."""

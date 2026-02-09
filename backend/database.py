@@ -58,6 +58,56 @@ def get_employee_output_df() -> pd.DataFrame:
     return _df_employee
 
 
+def get_employee_names() -> list[str]:
+    """Список ФИО сотрудников (уникальные user из выработки), отсортированный."""
+    emp_df = get_employee_output_df()
+    if emp_df.empty or "user" not in emp_df.columns:
+        return []
+    names = emp_df["user"].dropna().astype(str).str.strip()
+    names = names[names != ""].unique().tolist()
+    return sorted(names)
+
+
+def get_employee_period_stats(user: str, date_from: date, date_to: date) -> dict[str, Any]:
+    """По сотруднику и периоду: даты выхода, кол-во дней, участки, продукция (вид — наименование, кол-во)."""
+    emp_df = get_employee_output_df()
+    if emp_df.empty:
+        return {"work_dates": [], "days_count": 0, "departments": [], "products": []}
+    emp_df = emp_df.copy()
+    if "date_only" not in emp_df.columns:
+        emp_df["date_only"] = emp_df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+    user_clean = (user or "").strip()
+    mask_user = emp_df["user"].astype(str).str.strip() == user_clean
+    mask_from = emp_df["date_only"] >= date_from
+    mask_to = emp_df["date_only"] <= date_to
+    sub = emp_df.loc[mask_user & mask_from & mask_to]
+    if sub.empty:
+        return {"work_dates": [], "days_count": 0, "departments": [], "products": []}
+    work_dates = sorted(sub["date_only"].unique().tolist())
+    work_dates_str = [str(d) for d in work_dates]
+    dept_pairs = sub.groupby(["production", "department"]).size().reset_index(name="_n")
+    departments = [
+        {"production": row["production"], "department": row["department"]}
+        for _, row in dept_pairs.iterrows()
+    ]
+    prod_agg = sub.groupby(["nomenclature_type", "product_name"], as_index=False)["output"].sum()
+    products = [
+        {
+            "nomenclature_type": (row["nomenclature_type"] or "—").strip() or "—",
+            "product_name": (row["product_name"] or "—").strip() or "—",
+            "output": round(float(row["output"]), 2),
+        }
+        for _, row in prod_agg.iterrows()
+    ]
+    products.sort(key=lambda x: (-x["output"], x["nomenclature_type"], x["product_name"]))
+    return {
+        "work_dates": work_dates_str,
+        "days_count": len(work_dates),
+        "departments": departments,
+        "products": products,
+    }
+
+
 def get_daily_output_stats(target_date: date) -> dict[str, Any]:
     """Выработка сотрудников за день: по участкам, по сотрудникам, детализация по номенклатуре. Сравнение выпуск vs выработка."""
     emp_df = get_employee_output_df()
