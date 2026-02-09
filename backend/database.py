@@ -272,6 +272,12 @@ def get_daily_output_stats(target_date: date) -> dict[str, Any]:
                 release_val = d.get("total_units") if d.get("total_units") is not None else d.get("total")
                 unit = d.get("unit", "шт")
                 break
+        # ЧАЙ Сборочный цех Елино: в сравнении показываем выпуск из 1С (не нашу выработку по номенклатуре)
+        if prod_name == "ЧАЙ" and dept_name == "Сборочный цех Елино":
+            output_val = release_val
+        # ЧАЙ Купажный цех Елино: выработка в Excel в граммах — приводим к кг для сравнения с 1С
+        elif prod_name == "ЧАЙ" and dept_name == "Купажный цех Елино":
+            output_val = round(float(output_val) / 1000, 2)
         comparison.append({
             "production": prod_name,
             "department": dept_name,

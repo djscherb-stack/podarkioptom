@@ -223,7 +223,8 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard,
           </React.Fragment>
         )
       } else {
-        const brigadeId = `brigade-${idx}-${row.name}-${row.total}`
+        // Стабильный id по составу бригады и выработке, чтобы раскрытие не сбрасывалось при перерисовке
+        const brigadeId = `brigade-${row.employees.map(e => e.user).sort().join(',')}-${row.total}`
         const isBrigadeOpen = expandedBrigades.has(brigadeId)
         rows.push(
           <React.Fragment key={brigadeId}>
@@ -232,7 +233,11 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard,
                 <button
                   type="button"
                   className="nom-group-btn employee-output-brigade-btn"
-                  onClick={(e) => toggleBrigade(e, brigadeId)}
+                  onClick={(e) => {
+                    e.preventDefault()
+                    e.stopPropagation()
+                    toggleBrigade(e, brigadeId)
+                  }}
                 >
                   {isBrigadeOpen ? '▼' : '▶'} Бригада «{row.name}»
                   <span className="employee-output-brigade-meta"> — {row.employees.length} чел., {row.share_pct != null && `${row.share_pct}%`}</span>
