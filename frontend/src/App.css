@@ -270,6 +270,18 @@ body {
   background: rgba(91,143,201,0.12);
 }
 
+.app-sidebar-nav a.nav-link-main {
+  font-weight: 600;
+  color: var(--accent);
+}
+.app-sidebar-nav a.nav-link-main:hover {
+  color: var(--accent);
+  opacity: 0.9;
+}
+.app-sidebar-nav a.nav-link-main.active {
+  font-weight: 700;
+}
+
 @media (max-width: 768px) {
   .app-main {
     padding: 1rem;

@@ -56,7 +56,7 @@ function AppContent({ userInfo, onRefreshUser }) {
           <NavLink to="/month" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             По месяцу
           </NavLink>
-          <DayNavLink className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+          <DayNavLink className={({ isActive }) => `nav-link nav-link-main ${isActive ? 'active' : ''}`.trim()}>
             По дню
           </DayNavLink>
           <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>

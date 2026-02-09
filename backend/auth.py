@@ -18,6 +18,8 @@ PAVEL_USER = "pavel"
 PAVEL_PASSWORD = "Pv7k9m"
 NP_USER = "NP"
 NP_PASSWORD = "342GbfBf33"
+GUEST_USER = "Guest"
+GUEST_PASSWORD = "Pdf#$178^Hh"
 
 # token -> username
 SESSIONS: dict[str, str] = {}
@@ -67,6 +69,8 @@ def check_password(username: str, password: str) -> bool:
     if username == PAVEL_USER and password == PAVEL_PASSWORD:
         return True
     if username == NP_USER and password == NP_PASSWORD:
+        return True
+    if username == GUEST_USER and password == GUEST_PASSWORD:
         return True
     return False
 
