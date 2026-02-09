@@ -77,8 +77,8 @@ function AppContent({ userInfo, onRefreshUser }) {
       </aside>
       <div className="app-main">
         <header className="app-header">
-          <span className="site-title">Производственная аналитика</span>
           <button type="button" className="btn-mobile-menu btn-mobile-menu-header" onClick={() => setMobileMenuOpen(o => !o)} aria-label="Меню">☰</button>
+          <span className="site-title">Производственная аналитика</span>
           <div className="app-header-right">
             <button
               type="button"
