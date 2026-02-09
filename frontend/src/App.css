@@ -1171,6 +1171,8 @@ body {
 .employee-output-table th,
 .employee-output-table td { padding: 0.5rem 0.75rem; text-align: left; border-bottom: 1px solid var(--border); color: var(--text); }
 .employee-output-table th { font-weight: 600; color: var(--text-muted); }
+.employee-output-comparison-mismatch { background: rgba(184, 107, 107, 0.2); }
+.employee-output-comparison-mismatch td:first-child { border-left: 3px solid var(--negative); }
 .employee-output-by-dept { display: flex; flex-direction: column; gap: 1.25rem; }
 .employee-output-dept { padding: 0.75rem 0; border-top: 1px solid var(--border); }
 .employee-output-dept:first-of-type { border-top: none; }

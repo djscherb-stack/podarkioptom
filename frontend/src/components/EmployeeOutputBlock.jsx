@@ -22,14 +22,19 @@ export function ComparisonTable({ comparison }) {
           </tr>
         </thead>
         <tbody>
-          {comparison.map((row, i) => (
-            <tr key={`${row.production}-${row.department}-${i}`}>
-              <td>{row.production}</td>
-              <td>{row.department}</td>
-              <td>{formatQty(row.release)} {row.unit}</td>
-              <td>{formatQty(row.output)}</td>
-            </tr>
-          ))}
+          {comparison.map((row, i) => {
+            const release = Number(row.release)
+            const output = Number(row.output)
+            const mismatch = !Number.isNaN(release) && !Number.isNaN(output) && Math.abs(release - output) > 1e-6
+            return (
+              <tr key={`${row.production}-${row.department}-${i}`} className={mismatch ? 'employee-output-comparison-mismatch' : ''}>
+                <td>{row.production}</td>
+                <td>{row.department}</td>
+                <td>{formatQty(row.release)} {row.unit}</td>
+                <td>{formatQty(row.output)}</td>
+              </tr>
+            )
+          })}
         </tbody>
       </table>
     </div>
