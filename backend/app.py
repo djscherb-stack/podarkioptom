@@ -481,6 +481,28 @@ def get_employee_stats(user: str = "", date_from: str = "", date_to: str = ""):
     return db.get_employee_period_stats(user.strip(), d_from, d_to)
 
 
+@app.get("/api/departments", dependencies=[Depends(require_auth)])
+def get_departments_list():
+    """Список участков (production, department) из выработки."""
+    return {"departments": db.get_department_list()}
+
+
+@app.get("/api/departments/stats", dependencies=[Depends(require_auth)])
+def get_department_stats(production: str = "", department: str = "", date_from: str = "", date_to: str = ""):
+    """Статистика по участку за период: сотрудники, продукция, выходы по дням, часы, средний выпуск в час."""
+    from datetime import datetime
+    if not production or not department or not date_from or not date_to:
+        return {"error": "Укажите production, department, date_from и date_to (YYYY-MM-DD)"}
+    try:
+        d_from = datetime.strptime(date_from, "%Y-%m-%d").date()
+        d_to = datetime.strptime(date_to, "%Y-%m-%d").date()
+    except ValueError:
+        return {"error": "Формат дат: YYYY-MM-DD"}
+    if d_from > d_to:
+        return {"error": "Дата начала не может быть позже даты конца"}
+    return db.get_department_period_stats(production.strip(), department.strip(), d_from, d_to)
+
+
 @app.get("/api/day/{date_str}", dependencies=[Depends(require_auth)])
 def get_day_stats(date_str: str):
     """Аналитика за день (date_str: YYYY-MM-DD)."""

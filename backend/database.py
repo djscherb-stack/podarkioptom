@@ -108,6 +108,93 @@ def get_employee_period_stats(user: str, date_from: date, date_to: date) -> dict
     }
 
 
+def get_department_list() -> list[dict[str, str]]:
+    """Список участков (production, department) из выработки."""
+    emp_df = get_employee_output_df()
+    if emp_df.empty or "production" not in emp_df.columns:
+        return []
+    pairs = emp_df.groupby(["production", "department"]).size().reset_index(name="_n")[
+        ["production", "department"]
+    ]
+    return [
+        {"production": row["production"], "department": row["department"]}
+        for _, row in pairs.sort_values(["production", "department"]).iterrows()
+    ]
+
+
+def get_department_period_stats(
+    production: str, department: str, date_from: date, date_to: date
+) -> dict[str, Any]:
+    """По участку и периоду: сотрудники, продукция, выходы по дням, часы (день=12ч), средний выпуск в час и в смену."""
+    emp_df = get_employee_output_df()
+    if emp_df.empty:
+        return {
+            "employees": [],
+            "products": [],
+            "days_breakdown": [],
+            "total_days": 0,
+            "total_hours": 0,
+            "total_output": 0,
+            "avg_per_hour": 0,
+            "avg_per_shift": 0,
+        }
+    emp_df = emp_df.copy()
+    if "date_only" not in emp_df.columns:
+        emp_df["date_only"] = emp_df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+    prod_clean = (production or "").strip()
+    dept_clean = (department or "").strip()
+    mask_dept = (emp_df["production"].astype(str).str.strip() == prod_clean) & (
+        emp_df["department"].astype(str).str.strip() == dept_clean
+    )
+    mask_from = emp_df["date_only"] >= date_from
+    mask_to = emp_df["date_only"] <= date_to
+    sub = emp_df.loc[mask_dept & mask_from & mask_to]
+    if sub.empty:
+        return {
+            "employees": [],
+            "products": [],
+            "days_breakdown": [],
+            "total_days": 0,
+            "total_hours": 0,
+            "total_output": 0,
+            "avg_per_hour": 0,
+            "avg_per_shift": 0,
+        }
+    employees = sorted(sub["user"].dropna().astype(str).str.strip().unique().tolist())
+    employees = [e for e in employees if e]
+    total_output_f = float(sub["output"].sum())
+    prod_agg = sub.groupby(["nomenclature_type", "product_name"], as_index=False)["output"].sum()
+    products = [
+        {
+            "nomenclature_type": (row["nomenclature_type"] or "—").strip() or "—",
+            "product_name": (row["product_name"] or "—").strip() or "—",
+            "output": round(float(row["output"]), 2),
+        }
+        for _, row in prod_agg.iterrows()
+    ]
+    products.sort(key=lambda x: (-x["output"], x["nomenclature_type"], x["product_name"]))
+    days_count = sub.groupby("date_only")["user"].nunique()
+    work_dates = sorted(sub["date_only"].unique().tolist())
+    total_days = len(work_dates)
+    total_hours = total_days * 12
+    days_breakdown = [
+        {"date": str(d), "employees_count": int(days_count.get(d, 0))}
+        for d in work_dates
+    ]
+    avg_per_hour = round(total_output_f / total_hours, 2) if total_hours else 0
+    avg_per_shift = round(total_output_f / total_days, 2) if total_days else 0
+    return {
+        "employees": employees,
+        "products": products,
+        "days_breakdown": days_breakdown,
+        "total_days": total_days,
+        "total_hours": total_hours,
+        "total_output": round(total_output_f, 2),
+        "avg_per_hour": avg_per_hour,
+        "avg_per_shift": avg_per_shift,
+    }
+
+
 def get_daily_output_stats(target_date: date) -> dict[str, Any]:
     """Выработка сотрудников за день: по участкам, по сотрудникам, детализация по номенклатуре. Сравнение выпуск vs выработка."""
     emp_df = get_employee_output_df()

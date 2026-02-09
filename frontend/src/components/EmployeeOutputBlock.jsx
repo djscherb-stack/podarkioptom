@@ -93,9 +93,17 @@ const BRIGADE_NAMES = [
   'Крепкий орешек', 'Девятый вал', 'Огонь и вода', 'Смелые капитаны', 'Золотые руки',
 ]
 
-/** Группирует сотрудников: одинаковую выработку (2+) → бригада, иначе одиночка. Возвращает массив { type: 'single', ...emp } | { type: 'brigade', name, total, share_pct, employees }. */
-function buildEmployeeGroups(employees, totalOutput) {
-  if (!employees?.length) return []
+/** Уникальное название бригады по индексу (всегда разное). */
+function getBrigadeName(index) {
+  const n = BRIGADE_NAMES.length
+  if (index < n) return BRIGADE_NAMES[index]
+  return `${BRIGADE_NAMES[index % n]} №${Math.floor(index / n) + 1}`
+}
+
+/** Группирует сотрудников: одинаковую выработку (2+) → бригада, иначе одиночка.
+ * startBrigadeIndex — глобальный счётчик для уникальных названий. Возвращает { groups, nextBrigadeIndex }. */
+function buildEmployeeGroups(employees, totalOutput, startBrigadeIndex = 0) {
+  if (!employees?.length) return { groups: [], nextBrigadeIndex: startBrigadeIndex }
   const byTotal = {}
   employees.forEach((emp) => {
     const key = Math.round((emp.total || 0) * 100) / 100
@@ -106,7 +114,7 @@ function buildEmployeeGroups(employees, totalOutput) {
     .map(Number)
     .sort((a, b) => b - a)
   const result = []
-  let brigadeIndex = 0
+  let brigadeIndex = startBrigadeIndex
   totals.forEach((total) => {
     const group = byTotal[total]
     if (group.length >= 2) {
@@ -114,8 +122,9 @@ function buildEmployeeGroups(employees, totalOutput) {
       const sharePct = totalOutput > 0 ? Math.round((brigadeTotal / totalOutput) * 1000) / 10 : 0
       result.push({
         type: 'brigade',
-        name: BRIGADE_NAMES[brigadeIndex % BRIGADE_NAMES.length],
+        name: getBrigadeName(brigadeIndex),
         total,
+        brigade_total: brigadeTotal,
         share_pct: sharePct,
         employees: group,
       })
@@ -124,7 +133,7 @@ function buildEmployeeGroups(employees, totalOutput) {
       result.push({ type: 'single', ...group[0] })
     }
   })
-  return result
+  return { groups: result, nextBrigadeIndex: brigadeIndex }
 }
 
 function DeltaSpan({ today, yesterday, isPct = false, formatQty }) {
@@ -141,10 +150,12 @@ function DeltaSpan({ today, yesterday, isPct = false, formatQty }) {
   )
 }
 
-/** Аналитика по выработке на участке: кол-во сотрудников, средняя выработка, кнопка развернуть список с % и детализацией до наименования. summaryOnCard=true — не показывать две сводные строки (уже на карточке). */
-export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard }) {
+/** Аналитика по выработке на участке: кол-во сотрудников, средняя выработка, кнопка развернуть список с % и детализацией до наименования. summaryOnCard=true — не показывать две сводные строки (уже на карточке). brigadeIndexRefProp — общий счётчик бригад (уникальные названия на странице). */
+export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard, brigadeIndexRefProp }) {
   const [showEmployeesList, setShowEmployeesList] = useState(false)
   const [expandedUsers, setExpandedUsers] = useState(new Set())
+  const localBrigadeRef = React.useRef(0)
+  const brigadeIndexRef = brigadeIndexRefProp ?? localBrigadeRef
   const toggleUser = (e, user) => {
     e.stopPropagation()
     setExpandedUsers(prev => {
@@ -181,7 +192,8 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard 
   }
 
   const renderEmployeeRows = (list, totalOut) => {
-    const groups = buildEmployeeGroups(list, totalOut)
+    const { groups, nextBrigadeIndex } = buildEmployeeGroups(list, totalOut, brigadeIndexRef.current)
+    brigadeIndexRef.current = nextBrigadeIndex
     const rows = []
     groups.forEach((row, idx) => {
       if (row.type === 'single') {
@@ -226,7 +238,7 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard 
                   <span className="employee-output-brigade-meta"> — {row.employees.length} чел., {row.share_pct != null && `${row.share_pct}%`}</span>
                 </button>
               </td>
-              <td>{formatQty(row.total)} × {row.employees.length}</td>
+              <td>{formatQty(row.brigade_total)}</td>
             </tr>
             {isBrigadeOpen && row.employees.map((emp, i) => (
               <React.Fragment key={`${brigadeId}-${emp.user}-${i}`}>
@@ -321,7 +333,7 @@ export function DeptEmployeeAnalytics({ item, formatQty, compact, summaryOnCard 
 }
 
 /** Участок: всего выработка + аналитика (кол-во сотрудников, средняя выработка) + по кнопке список сотрудников с % и раскрытием до номенклатуры. Для Картон/Дерево Елино Гравировка — группы Сборщики и Оператор станка ЧПУ */
-export function DepartmentBlock({ item, formatQty }) {
+export function DepartmentBlock({ item, formatQty, brigadeIndexRef }) {
   return (
     <div className="employee-output-dept">
       <h4 className="employee-output-dept-title">
@@ -330,7 +342,7 @@ export function DepartmentBlock({ item, formatQty }) {
       <div className="employee-output-dept-total">
         Всего выработка: <strong>{formatQty(item.total_output)}</strong>
       </div>
-      <DeptEmployeeAnalytics item={item} formatQty={formatQty} />
+      <DeptEmployeeAnalytics item={item} formatQty={formatQty} brigadeIndexRefProp={brigadeIndexRef} />
     </div>
   )
 }
@@ -339,6 +351,7 @@ export default function EmployeeOutputBlock({ employeeOutput, expanded, onToggle
   const byDepartment = employeeOutput?.by_department || []
   const comparison = employeeOutput?.comparison || []
   const hasData = byDepartment.length > 0 || comparison.length > 0
+  const brigadeIndexRef = React.useRef(0)
 
   return (
     <section className="production-section employee-output-section" aria-label="Выработка сотрудников">
@@ -359,7 +372,7 @@ export default function EmployeeOutputBlock({ employeeOutput, expanded, onToggle
               <ComparisonTable comparison={comparison} />
               <div className="employee-output-by-dept">
                 {byDepartment.map((item, i) => (
-                  <DepartmentBlock key={`${item.production}-${item.department}-${i}`} item={item} formatQty={formatQty} />
+                  <DepartmentBlock key={`${item.production}-${item.department}-${i}`} item={item} formatQty={formatQty} brigadeIndexRef={brigadeIndexRef} />
                 ))}
               </div>
             </>
