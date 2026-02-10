@@ -371,6 +371,18 @@ def get_month_stats(year: int, month: int):
     return db.get_monthly_stats(year, month)
 
 
+@app.get("/api/weeks", dependencies=[Depends(require_auth)])
+def get_weeks():
+    """Список доступных недель (ISO-год/номер и диапазон дат)."""
+    return db.get_available_weeks()
+
+
+@app.get("/api/week/{year}/{week}", dependencies=[Depends(require_auth)])
+def get_week_stats(year: int, week: int):
+    """Аналитика за неделю (сравнение с предыдущей неделей)."""
+    return db.get_weekly_stats(year, week)
+
+
 @app.get("/api/department-daily/{year}/{month}", dependencies=[Depends(require_auth)])
 def get_department_daily(production: str, department: str, year: int, month: int):
     """Выпуск по дням для подразделения за месяц (query: production, department)."""

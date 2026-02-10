@@ -295,6 +295,110 @@ def _prev_month(year: int, month: int) -> tuple[int, int]:
     return year, month - 1
 
 
+def _get_week_range(year: int, week: int) -> tuple[date, date]:
+    """Диапазон дат (понедельник-воскресенье) для ISO-недели."""
+    start = date.fromisocalendar(year, week, 1)
+    end = start + timedelta(days=6)
+    return start, end
+
+
+def get_available_weeks() -> list[dict[str, Any]]:
+    """Список недель, для которых есть данные (ISO-год/номер + диапазон дат)."""
+    df = get_df()
+    if df.empty:
+        return []
+    dates = df["date_only"].dropna().unique().tolist()
+    weeks_set: set[tuple[int, int]] = set()
+    weeks: list[dict[str, Any]] = []
+    for d in dates:
+        iso = d.isocalendar()
+        key = (iso.year, iso.week)
+        if key in weeks_set:
+            continue
+        weeks_set.add(key)
+        start, end = _get_week_range(iso.year, iso.week)
+        label = f"Неделя {iso.week:02d} {iso.year} ({start.strftime('%d.%m')}–{end.strftime('%d.%m')})"
+        weeks.append(
+            {
+                "year": int(iso.year),
+                "week": int(iso.week),
+                "start": str(start),
+                "end": str(end),
+                "label": label,
+            }
+        )
+    weeks.sort(key=lambda w: (w["year"], w["week"]), reverse=True)
+    return weeks
+
+
+def get_weekly_stats(year: int, week: int) -> dict[str, Any]:
+    """Аналитика за неделю по производствам + сравнение с предыдущей неделей."""
+    df = get_df()
+    start, end = _get_week_range(year, week)
+    if df.empty:
+        return {"week_start": str(start), "week_end": str(end), "productions": {}}
+
+    mask = (df["date_only"] >= start) & (df["date_only"] <= end)
+    w = df[mask]
+    if w.empty:
+        return {"week_start": str(start), "week_end": str(end), "productions": {}}
+
+    productions = build_productions_stats(w)
+
+    # Сравнение с предыдущей неделей
+    prev_start = start - timedelta(days=7)
+    prev_end = end - timedelta(days=7)
+    mask_prev = (df["date_only"] >= prev_start) & (df["date_only"] <= prev_end)
+    w_prev = df[mask_prev]
+    productions_prev = build_productions_stats(w_prev) if not w_prev.empty else {}
+
+    for prod_name, prod_data in productions.items():
+        prod_prev = productions_prev.get(prod_name, {})
+        depts_prev = {d["name"]: d for d in prod_prev.get("departments", [])}
+        for dept in prod_data.get("departments", []):
+            prev_dept = depts_prev.get(dept["name"], {})
+            y = prev_dept.get("total", 0)
+            t = dept.get("total", 0)
+            use_float = dept.get("unit") == "кг"
+            y_val = round(float(y), 2) if use_float else int(y)
+            t_val = round(float(t), 2) if use_float else int(t)
+            delta = round(t_val - y_val, 2) if use_float else t_val - y_val
+            delta_pct = round((delta / y_val * 100) if y_val else 0, 1)
+            types_t = len(dept.get("nomenclature", [])) or sum(
+                len(v) for v in (dept.get("nomenclature_by_op") or {}).values()
+            )
+            types_y = len(prev_dept.get("nomenclature", [])) or sum(
+                len(v) for v in (prev_dept.get("nomenclature_by_op") or {}).values()
+            )
+            subs_comp = None
+            if dept.get("subs"):
+                subs_comp = []
+                prev_subs = {s["sub_name"]: s.get("total", 0) for s in prev_dept.get("subs", [])}
+                for s in dept["subs"]:
+                    py_val = prev_subs.get(s["sub_name"], 0)
+                    pt = s.get("total", 0)
+                    subs_comp.append(
+                        {"name": s["sub_name"], "today": pt, "yesterday": py_val, "delta": pt - py_val}
+                    )
+            comp = {
+                "yesterday": y_val,
+                "delta": delta,
+                "delta_pct": delta_pct,
+                "types_today": types_t,
+                "types_yesterday": types_y,
+                "types_delta": types_t - types_y,
+                "subs": subs_comp,
+            }
+            if dept.get("total_units") is not None:
+                u_prev = prev_dept.get("total_units", 0) or 0
+                comp["units_today"] = dept["total_units"]
+                comp["units_yesterday"] = u_prev
+                comp["units_delta"] = dept["total_units"] - u_prev
+            dept["comparison"] = comp
+
+    return {"week_start": str(start), "week_end": str(end), "productions": productions}
+
+
 def get_monthly_stats(year: int, month: int) -> dict[str, Any]:
     """Аналитика за месяц по производствам + сравнение с предыдущим месяцем."""
     df = get_df()
