@@ -27,7 +27,14 @@ export default function AdminPage() {
   const [themeError, setThemeError] = useState(false)
   const [dateRange, setDateRange] = useState(null)
   const [syncLog, setSyncLog] = useState([])
+  const [dataSources, setDataSources] = useState(null)
   const navigate = useNavigate()
+
+  const loadDataSources = () => {
+    apiFetch(`${API}/admin/data-sources`)
+      .then(setDataSources)
+      .catch(() => setDataSources({ error: 'Не удалось загрузить' }))
+  }
 
   const loadSyncLog = () => {
     apiFetch(`${API}/admin/sync-log`).then(r => setSyncLog(r.entries || [])).catch(() => setSyncLog([]))
@@ -40,6 +47,10 @@ export default function AdminPage() {
   useEffect(() => {
     loadSyncLog()
   }, [])
+
+  useEffect(() => {
+    if (!error && data) loadDataSources()
+  }, [error, data])
 
   useEffect(() => {
     fetchTheme().then(t => setTheme(t))
@@ -122,6 +133,60 @@ export default function AdminPage() {
           <SyncButton onSuccess={() => { loadSyncLog(); apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => {}) }} />
           <RefreshDataButton onSuccess={() => apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => {})} />
         </div>
+      </section>
+
+      <section className="admin-data-sources-section">
+        <h3>Источники данных</h3>
+        <p className="admin-data-sources-hint">
+          Какие файлы загружены и попали в аналитику. Обновить: <button type="button" className="admin-btn-link" onClick={loadDataSources}>↻</button>
+        </p>
+        {dataSources?.error && <p className="admin-data-sources-error">{dataSources.error}</p>}
+        {dataSources && !dataSources.error && (
+          <div className="admin-data-sources-grid">
+            {dataSources.disassembly && typeof dataSources.disassembly === 'object' && !dataSources.disassembly.error && (
+              <>
+                {['001', '002', '003', '004'].map((key) => {
+                  const d = dataSources.disassembly[key] || {}
+                  return (
+                    <div key={key} className="admin-data-source-card">
+                      <span className="admin-data-source-type">{key}</span>
+                      <span className="admin-data-source-label">{d.label || key}</span>
+                      <span className="admin-data-source-file" title={d.file || ''}>{d.file || '—'}</span>
+                      <span className="admin-data-source-stats">Строк: {d.rows ?? '—'}, дат: {d.dates ?? '—'}</span>
+                    </div>
+                  )
+                })}
+              </>
+            )}
+            {dataSources.disassembly?.error && (
+              <div className="admin-data-source-card admin-data-source-error">Разборка: {dataSources.disassembly.error}</div>
+            )}
+            {dataSources.prices && (
+              <div className="admin-data-source-card">
+                <span className="admin-data-source-type">Прайс</span>
+                <span className="admin-data-source-label">{dataSources.prices.label}</span>
+                <span className="admin-data-source-file">{dataSources.prices.file}</span>
+                <span className="admin-data-source-stats">
+                  {dataSources.prices.exists ? `Позиций: ${dataSources.prices.count}` : 'Файл не найден'}
+                </span>
+              </div>
+            )}
+            {dataSources.production && (
+              <div className="admin-data-source-card">
+                <span className="admin-data-source-type">Выпуск</span>
+                <span className="admin-data-source-label">{dataSources.production.label}</span>
+                <span className="admin-data-source-stats">Строк: {dataSources.production.rows}, дат: {dataSources.production.dates}</span>
+              </div>
+            )}
+            {dataSources.employee_output && (
+              <div className="admin-data-source-card">
+                <span className="admin-data-source-type">Выработка</span>
+                <span className="admin-data-source-label">{dataSources.employee_output.label}</span>
+                <span className="admin-data-source-stats">Строк: {dataSources.employee_output.rows}, дат: {dataSources.employee_output.dates}</span>
+              </div>
+            )}
+          </div>
+        )}
       </section>
 
       <section className="admin-sync-log-section">

@@ -166,6 +166,25 @@ async def upload_excel(file: UploadFile = File(...)):
         return {"error": f"Ошибка: {str(e)}"}
 
 
+PRICE_FILENAME = "цена поступления номенклатуры.xlsx"
+
+
+@app.post("/api/upload-prices", dependencies=[Depends(require_auth)])
+async def upload_prices(file: UploadFile = File(...)):
+    """Загрузка файла себестоимости (цена поступления номенклатуры.xlsx). Сохраняется с фиксированным именем."""
+    if not file.filename or not file.filename.lower().endswith((".xlsx", ".xls")):
+        return {"error": "Нужен файл Excel (.xlsx или .xls)"}
+    content = await file.read()
+    if len(content) > 5 * 1024 * 1024:
+        return {"error": "Файл слишком большой (макс. 5 МБ)"}
+    data_dir = db.get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    dest = data_dir / PRICE_FILENAME
+    dest.write_bytes(content)
+    db.refresh_data()
+    return {"status": "ok", "file": PRICE_FILENAME}
+
+
 def _mailparser_to_excel(body: dict) -> Optional[bytes]:
     """Преобразует данные из Mailparser webhook в Excel. Возвращает bytes или None."""
     import io
@@ -544,6 +563,12 @@ def admin_refresh():
 def admin_data_dates():
     """Диагностика: какие даты есть в данных (для отладки пропавших 1–2 января)."""
     return db.get_data_date_range()
+
+
+@app.get("/api/admin/data-sources", dependencies=[Depends(require_admin)])
+def admin_data_sources():
+    """Какие файлы 001–004, цены, выработка, выпуск загружены и выведены в аналитику (файл, строки, дат)."""
+    return db.get_data_sources_status()
 
 
 @app.get("/api/admin/login-history", dependencies=[Depends(require_admin)])

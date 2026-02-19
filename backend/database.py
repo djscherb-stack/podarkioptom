@@ -11,10 +11,11 @@ from productions import build_productions_stats, get_block_config
 
 # Разборка возвратов (склад разборки Luminarc)
 try:
-    from disassembly_parser import load_all_disassembly_data, load_nomenclature_prices
+    from disassembly_parser import load_all_disassembly_data, load_nomenclature_prices, get_disassembly_sources_info
 except ImportError:
     load_all_disassembly_data = None
     load_nomenclature_prices = None
+    get_disassembly_sources_info = None
 
 # Папка с данными. DATA_DIR из env — для persistent disk на Render (загруженные файлы сохраняются)
 _default = Path(__file__).resolve().parent.parent / "data"
@@ -1356,3 +1357,37 @@ def get_disassembly_missing_prices() -> list[str]:
         return sorted(missing)
     except Exception:
         return []
+
+
+def get_data_sources_status() -> dict[str, Any]:
+    """Статус источников данных для админки: 001–004, цены, выработка, выпуск — файл, строки, даты."""
+    refresh_data()
+    result: dict[str, Any] = {}
+    if load_all_disassembly_data and get_disassembly_sources_info:
+        try:
+            result["disassembly"] = get_disassembly_sources_info(str(DATA_DIR))
+        except Exception as e:
+            result["disassembly"] = {"error": str(e)}
+    else:
+        result["disassembly"] = {"001": {}, "002": {}, "003": {}, "004": {}}
+    price_path = DATA_DIR / "цена поступления номенклатуры.xlsx"
+    prices = (load_nomenclature_prices(str(DATA_DIR)) if load_nomenclature_prices else {}) or {}
+    result["prices"] = {
+        "file": "цена поступления номенклатуры.xlsx",
+        "exists": price_path.exists(),
+        "count": len(prices),
+        "label": "Себестоимость (прайс)",
+    }
+    df = get_df()
+    result["production"] = {
+        "rows": len(df),
+        "dates": int(df["date_only"].nunique()) if not df.empty and "date_only" in df.columns else 0,
+        "label": "Выпуск продукции",
+    }
+    emp = get_employee_output_df()
+    result["employee_output"] = {
+        "rows": len(emp),
+        "dates": int(emp["date_only"].nunique()) if not emp.empty and "date_only" in emp.columns else 0,
+        "label": "Выработка сотрудников",
+    }
+    return result

@@ -319,6 +319,81 @@ def load_all_disassembly_data(data_dir: str) -> tuple[pd.DataFrame, pd.DataFrame
     return in_df, ingredients_df, out_df, internal_df
 
 
+def get_disassembly_sources_info(data_dir: str) -> dict:
+    """
+    Возвращает по каждому типу 001–004: какой файл выбран, сколько строк и дат.
+    Для диагностики в админке (почему нет отгруженных и т.д.).
+    """
+    path = Path(data_dir)
+    if not path.exists():
+        return {"001": {"file": None, "rows": 0, "dates": 0, "error": "Папка не найдена"},
+                "002": {"file": None, "rows": 0, "dates": 0, "error": "Папка не найдена"},
+                "003": {"file": None, "rows": 0, "dates": 0, "error": "Папка не найдена"},
+                "004": {"file": None, "rows": 0, "dates": 0, "error": "Папка не найдена"}}
+
+    in_candidates: list = []
+    ingredients_candidates: list = []
+    out_candidates: list = []
+    internal_candidates: list = []
+
+    for f in path.glob("**/*.xlsx"):
+        if f.name.startswith("~$"):
+            continue
+        try:
+            mtime = f.stat().st_mtime
+            name_type = _disassembly_file_type_by_name(f)
+            if name_type == "in":
+                in_candidates.append((f, mtime))
+                continue
+            if name_type == "ingredients":
+                ingredients_candidates.append((f, mtime))
+                continue
+            if name_type == "out":
+                out_candidates.append((f, mtime))
+                continue
+            if name_type == "internal":
+                internal_candidates.append((f, mtime))
+                continue
+            if _is_movement_to_warehouse_file(f):
+                in_candidates.append((f, mtime))
+            elif _is_ingredients_after_disassembly_file(f):
+                ingredients_candidates.append((f, mtime))
+            elif _is_internal_consumption_file(f):
+                internal_candidates.append((f, mtime))
+            elif _is_movement_from_warehouse_file(f):
+                out_candidates.append((f, mtime))
+        except Exception:
+            pass
+
+    def _load_one_info(candidates: list, loader) -> tuple:
+        if not candidates:
+            return None, 0, 0
+        chosen = max(candidates, key=lambda x: x[1])[0]
+        try:
+            df = loader(chosen)
+            if df.empty:
+                return chosen.name, 0, 0
+            if "date" in df.columns:
+                df = df.copy()
+                df["date_only"] = df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+            dates = df["date_only"].nunique() if "date_only" in df.columns else 0
+            return chosen.name, len(df), int(dates)
+        except Exception:
+            return chosen.name, 0, 0
+
+    f001, r001, d001 = _load_one_info(internal_candidates, load_internal_consumption)
+    f002, r002, d002 = _load_one_info(out_candidates, load_movement_from_warehouse)
+    f003, r003, d003 = _load_one_info(in_candidates, load_movement_to_warehouse)
+    f004, r004, d004 = _load_one_info(ingredients_candidates, load_ingredients_after_disassembly)
+
+    return {
+        "001": {"file": f001, "rows": r001, "dates": d001, "label": "Внутреннее потребление (списание)"},
+        "002": {"file": f002, "rows": r002, "dates": d002, "label": "Отгрузка готовой продукции"},
+        "003": {"file": f003, "rows": r003, "dates": d003, "label": "Поступление на склад"},
+        "004": {"file": f004, "rows": r004, "dates": d004, "label": "Поступление ингредиентов после разборки"},
+    }
+
+
 def load_nomenclature_prices(data_dir: str) -> dict[str, float]:
     """
     Загружает прайс «цена поступления номенклатуры» из data_dir.

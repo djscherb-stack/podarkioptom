@@ -1896,6 +1896,19 @@ body {
 
 /* Проверка стоимости */
 .cost-check-wrap { margin-top: 1rem; }
+.controls .btn-upload-prices {
+  padding: 0.4rem 0.75rem;
+  font-size: 0.9rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+.controls .btn-upload-prices:hover:not(:disabled) { filter: brightness(1.1); }
+.controls .btn-upload-prices:disabled { opacity: 0.7; cursor: wait; }
+.cost-check-upload-msg { margin: 0.5rem 0 0; font-size: 0.9rem; color: var(--text-muted); }
+.cost-check-upload-msg.cost-check-upload-ok { color: var(--success, #22c55e); }
 .cost-check-hint { margin: 0.5rem 0 0; font-size: 0.9rem; color: var(--text-muted); }
 .cost-check-hint code { font-size: 0.85em; }
 .cost-check-ok { color: var(--text-muted); font-size: 0.95rem; }

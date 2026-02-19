@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { API, apiFetch } from '../api'
 
 const WAKING_MSG = 'Сервер загружается. Подождите минуту и обновите страницу.'
@@ -7,6 +7,9 @@ export default function CostCheckPage() {
   const [items, setItems] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [uploadingPrices, setUploadingPrices] = useState(false)
+  const [uploadPricesMsg, setUploadPricesMsg] = useState(null)
+  const priceInputRef = useRef(null)
 
   const fetchList = useCallback(() => {
     setLoading(true)
@@ -24,16 +27,58 @@ export default function CostCheckPage() {
     fetchList()
   }, [fetchList])
 
+  const handleUploadPrices = (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setUploadingPrices(true)
+    setUploadPricesMsg(null)
+    const formData = new FormData()
+    formData.append('file', file)
+    fetch(`${API}/upload-prices`, { method: 'POST', credentials: 'include', body: formData })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.error) {
+          setUploadPricesMsg(data.error)
+        } else {
+          setUploadPricesMsg('Прайс загружен.')
+          setError(null)
+          fetchList()
+        }
+      })
+      .catch((err) => setUploadPricesMsg(err.message || 'Ошибка загрузки'))
+      .finally(() => {
+        setUploadingPrices(false)
+        e.target.value = ''
+      })
+  }
+
   return (
     <div className="page">
       <div className="page-header">
         <h1>Проверка стоимости</h1>
         <div className="controls">
+          <input
+            ref={priceInputRef}
+            type="file"
+            accept=".xlsx,.xls"
+            onChange={handleUploadPrices}
+            style={{ display: 'none' }}
+          />
+          <button
+            type="button"
+            className="btn-upload-prices"
+            disabled={uploadingPrices}
+            onClick={() => priceInputRef.current?.click()}
+            title="Загрузить файл «цена поступления номенклатуры.xlsx»"
+          >
+            {uploadingPrices ? 'Загрузка…' : 'Загрузить прайс себестоимости'}
+          </button>
           <button type="button" className="btn-refresh" onClick={fetchList} title="Обновить">
             ⟳
           </button>
         </div>
       </div>
+      {uploadPricesMsg && <p className={`cost-check-upload-msg ${uploadPricesMsg.startsWith('Прайс') ? 'cost-check-upload-ok' : ''}`}>{uploadPricesMsg}</p>}
 
       <p className="page-description">
         Номенклатура из данных разборки, по которой не загружена себестоимость (нет в файле «цена поступления номенклатуры.xlsx»). Добавьте цены в прайс и положите файл в папку данных, чтобы в аналитике считалась стоимость.
