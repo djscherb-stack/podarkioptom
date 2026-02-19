@@ -8,6 +8,9 @@ import EmployeeOutputPage from './pages/EmployeeOutputPage'
 import EmployeesPage from './pages/EmployeesPage'
 import MonthsComparePage from './pages/MonthsComparePage'
 import DepartmentDetailPage from './pages/DepartmentDetailPage'
+import DisassemblyReturnsPage from './pages/DisassemblyReturnsPage'
+import DisassemblyNomenclaturePage from './pages/DisassemblyNomenclaturePage'
+import CostCheckPage from './pages/CostCheckPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import { API } from './api'
@@ -72,6 +75,15 @@ function AppContent({ userInfo, onRefreshUser }) {
           <NavLink to="/employees" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
             Сотрудники <span className="nav-beta">(бета)</span>
           </NavLink>
+          <NavLink to="/disassembly" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            Разборка возвратов
+          </NavLink>
+          <NavLink to="/disassembly-nomenclature" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            Номенклатура разборки
+          </NavLink>
+          <NavLink to="/cost-check" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+            Проверка стоимости
+          </NavLink>
           {isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Админ
@@ -108,6 +120,9 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Route path="/employee-output" element={<EmployeeOutputPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/months" element={<MonthsComparePage />} />
+          <Route path="/disassembly" element={<DisassemblyReturnsPage />} />
+          <Route path="/disassembly-nomenclature" element={<DisassemblyNomenclaturePage />} />
+          <Route path="/cost-check" element={<CostCheckPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
           </Routes>

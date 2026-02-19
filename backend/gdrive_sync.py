@@ -14,9 +14,13 @@ logger = logging.getLogger(__name__)
 # Файл для учёта уже загруженных файлов (чтобы не дублировать)
 PROCESSED_FILE = "processed_gdrive.json"
 
-# Префиксы имён файлов (одна папка — оба типа)
+# Префиксы имён файлов (одна папка — оба типа + разборка возвратов)
 PREFIX_PRODUCTION = "Выпуск продукции"
 PREFIX_EMPLOYEE_OUTPUT = "Выработка сотрудников"
+# Разборка возвратов (префиксы имён файлов в Google Drive)
+PREFIX_DISASSEMBLY_INTERNAL = "001"
+PREFIX_DISASSEMBLY_FROM_WAREHOUSE = "002"
+PREFIX_DISASSEMBLY_TO_WAREHOUSE = "003"
 
 
 def _get_processed_path() -> Path:
@@ -112,11 +116,13 @@ def sync_from_gdrive(
     prefix: str = PREFIX_PRODUCTION,
     recursive: bool = True,
     employee_prefix: Optional[str] = None,
+    disassembly_prefixes: Optional[list[str]] = None,
 ) -> dict:
     """
-    Сканирует папку Google Drive, находит новые файлы (выпуск продукции и/или выработка сотрудников),
+    Сканирует папку Google Drive, находит новые файлы (выпуск продукции, выработка, разборка возвратов),
     скачивает и сохраняет в data/. Возвращает {ok, downloaded: [...], errors: [...]}.
-    prefix — для выпуска продукции; employee_prefix — для выработки (например «Выработка сотрудников»).
+    prefix — для выпуска продукции; employee_prefix — для выработки;
+    disassembly_prefixes — список префиксов файлов разборки (на склад, со склада, внутреннее потребление).
     """
     try:
         from google.oauth2 import service_account
@@ -150,6 +156,8 @@ def sync_from_gdrive(
 
     processed = _load_processed()
     prefixes = [p.strip() for p in [prefix] + ([employee_prefix] if employee_prefix else []) if p]
+    if disassembly_prefixes:
+        prefixes.extend(p.strip() for p in disassembly_prefixes if p and p.strip())
     if not prefixes:
         prefixes = [prefix]
 
@@ -199,7 +207,17 @@ def sync_from_gdrive(
             logger.warning("gdrive sync: download failed %s: %s", name, e)
             continue
 
-        safe_name = f"gdrive_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_id[:8]}.xlsx"
+        # Сохраняем префикс 001/002/003/004 в имени файла, чтобы парсер разборки различал тип
+        type_prefix = ""
+        if name.startswith("004 "):
+            type_prefix = "004_"
+        elif name.startswith("003 "):
+            type_prefix = "003_"
+        elif name.startswith("002 "):
+            type_prefix = "002_"
+        elif name.startswith("001 "):
+            type_prefix = "001_"
+        safe_name = f"{type_prefix}gdrive_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_id[:8]}.xlsx"
         dest = data_dir / safe_name
         dest.write_bytes(content)
 

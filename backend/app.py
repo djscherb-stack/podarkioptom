@@ -327,6 +327,13 @@ def sync_from_gdrive_api(
     prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_PRODUCTION", "Выпуск продукции")
     employee_prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_EMPLOYEE_OUTPUT", "Выработка сотрудников")
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
+    disassembly_raw = os.environ.get("GOOGLE_DRIVE_PREFIXES_DISASSEMBLY", "")
+    disassembly_prefixes = [p.strip() for p in disassembly_raw.split(",") if p.strip()] if disassembly_raw else [
+        "001 Внутреннее потребление со склада разборки",
+        "002 Перемещение готовой продукции с возвратов",
+        "003 Поступление возвратов на склад разборки",
+        "004 Поступление ингредиентов после разборки",
+    ]
     if not folder_id or not credentials:
         res = {
             "ok": False,
@@ -348,6 +355,7 @@ def sync_from_gdrive_api(
         prefix=prefix.strip(),
         recursive=recursive,
         employee_prefix=employee_prefix.strip() or None,
+        disassembly_prefixes=disassembly_prefixes,
     )
     sync_log.log_sync("cron", res)
     return res
@@ -390,6 +398,71 @@ def get_department_daily(production: str, department: str, year: int, month: int
     return db.get_department_daily_stats(unquote(production), unquote(department), year, month)
 
 
+@app.get("/api/disassembly/stats", dependencies=[Depends(require_auth)])
+def get_disassembly_stats_api(group_by: str = "day", date_from: Optional[str] = None, date_to: Optional[str] = None):
+    """Аналитика разборки возвратов: по дням / неделям / месяцам."""
+    from datetime import datetime as dt
+    d_from = None
+    d_to = None
+    if date_from:
+        try:
+            d_from = dt.strptime(date_from, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    if date_to:
+        try:
+            d_to = dt.strptime(date_to, "%Y-%m-%d").date()
+        except ValueError:
+            pass
+    if group_by not in ("day", "week", "month"):
+        group_by = "day"
+    return db.get_disassembly_stats(group_by=group_by, date_from=d_from, date_to=d_to)
+
+
+@app.get("/api/disassembly/summary", dependencies=[Depends(require_auth)])
+def get_disassembly_summary_api(period: str = "month", top_in: int = 5, top_internal: int = 15, top_out: int = 15):
+    """Сводка разборки: топ поступлений, списаний, отгрузок за период (неделя / месяц / всё время)."""
+    if period not in ("week", "month", "all"):
+        period = "month"
+    return db.get_disassembly_summary(period=period, top_in=top_in, top_internal=top_internal, top_out=top_out)
+
+
+@app.get("/api/disassembly/detail", dependencies=[Depends(require_auth)])
+def get_disassembly_detail_api(date_str: str, flow: str = "in", detail_type: str = "nomenclature"):
+    """Детализация разборки за дату: по номенклатуре, по документам, по статьям списания (для internal)."""
+    if flow not in ("in", "ingredients", "out", "internal"):
+        return {"error": "flow: in | ingredients | out | internal", "items": []}
+    if detail_type not in ("nomenclature", "documents", "articles"):
+        if not (flow == "internal" and detail_type == "articles"):
+            detail_type = "nomenclature"
+    return db.get_disassembly_detail_by_date(date_str, detail_type=detail_type, flow=flow)
+
+
+@app.get("/api/disassembly/nomenclature", dependencies=[Depends(require_auth)])
+def get_disassembly_nomenclature_api():
+    """Список всех наименований номенклатуры из разборки (для копирования в 1С)."""
+    return {"items": db.get_disassembly_nomenclature_list()}
+
+
+@app.get("/api/disassembly/missing-prices", dependencies=[Depends(require_auth)])
+def get_disassembly_missing_prices_api():
+    """Номенклатура без загруженной себестоимости (для страницы «Проверка стоимости»). Всегда JSON."""
+    try:
+        items = db.get_disassembly_missing_prices()
+        return {"items": items}
+    except Exception as e:
+        return JSONResponse(
+            {"items": [], "error": str(e)},
+            status_code=200,
+        )
+
+
+@app.get("/api/disassembly/full-detail", dependencies=[Depends(require_auth)])
+def get_disassembly_full_detail_api(date_str: str):
+    """Полная детализация за день: остаток на начало, поступление на склад, после разборки, списание, отгрузка — по номенклатуре (штуки и рубли)."""
+    return db.get_disassembly_full_detail_by_date(date_str)
+
+
 @app.get("/api/theme")
 def api_get_theme():
     """Текущая цветовая схема (для всех пользователей)."""
@@ -419,6 +492,13 @@ def admin_sync_from_gdrive():
     prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_PRODUCTION", "Выпуск продукции")
     employee_prefix = os.environ.get("GOOGLE_DRIVE_PREFIX_EMPLOYEE_OUTPUT", "Выработка сотрудников")
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
+    disassembly_raw = os.environ.get("GOOGLE_DRIVE_PREFIXES_DISASSEMBLY", "")
+    disassembly_prefixes = [p.strip() for p in disassembly_raw.split(",") if p.strip()] if disassembly_raw else [
+        "001 Внутреннее потребление со склада разборки",
+        "002 Перемещение готовой продукции с возвратов",
+        "003 Поступление возвратов на склад разборки",
+        "004 Поступление ингредиентов после разборки",
+    ]
     if not folder_id or not credentials:
         res = {
             "ok": False,
@@ -440,6 +520,7 @@ def admin_sync_from_gdrive():
         prefix=prefix.strip(),
         recursive=recursive,
         employee_prefix=employee_prefix.strip() or None,
+        disassembly_prefixes=disassembly_prefixes,
     )
     sync_log.log_sync("admin", res)
     return res

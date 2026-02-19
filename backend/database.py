@@ -9,6 +9,13 @@ import pandas as pd
 from parser import load_all_data, load_all_employee_output_data
 from productions import build_productions_stats, get_block_config
 
+# Разборка возвратов (склад разборки Luminarc)
+try:
+    from disassembly_parser import load_all_disassembly_data, load_nomenclature_prices
+except ImportError:
+    load_all_disassembly_data = None
+    load_nomenclature_prices = None
+
 # Папка с данными. DATA_DIR из env — для persistent disk на Render (загруженные файлы сохраняются)
 _default = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR = Path(os.environ.get("DATA_DIR", _default))
@@ -16,6 +23,12 @@ ROOT_DIR = Path(__file__).resolve().parent.parent
 
 _df: Optional[pd.DataFrame] = None
 _df_employee: Optional[pd.DataFrame] = None
+_df_in_warehouse: Optional[pd.DataFrame] = None
+_df_ingredients: Optional[pd.DataFrame] = None
+_df_out_warehouse: Optional[pd.DataFrame] = None
+_df_internal_consumption: Optional[pd.DataFrame] = None
+_nomenclature_prices: Optional[dict[str, float]] = None
+_nomenclature_prices_lower: Optional[dict[str, float]] = None  # ключ в нижнем регистре для поиска без учёта регистра
 
 
 def get_data_dir() -> Path:
@@ -28,18 +41,55 @@ def ensure_data_dir():
     DATA_DIR.mkdir(parents=True, exist_ok=True)
 
 
+def _empty_disassembly_dfs():
+    """Пустые датафреймы разборки (приложение не падает при ошибке загрузки)."""
+    return (
+        pd.DataFrame(columns=["date", "document", "nomenclature", "quantity", "date_only"]),
+        pd.DataFrame(columns=["date", "document", "nomenclature", "quantity", "date_only"]),
+        pd.DataFrame(columns=["date", "document", "nomenclature", "quantity", "date_only"]),
+        pd.DataFrame(columns=["date", "document", "nomenclature", "article", "quantity", "date_only"]),
+    )
+
+
 def refresh_data():
-    """Перезагрузить данные из файлов (продукция + выработка сотрудников)."""
-    global _df, _df_employee
+    """Перезагрузить данные из файлов (продукция + выработка сотрудников + разборка возвратов). Не роняет приложение при ошибке."""
+    global _df, _df_employee, _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption, _nomenclature_prices, _nomenclature_prices_lower
     ensure_data_dir()
-    _df = load_all_data(str(DATA_DIR))
-    _df["year_month"] = _df["date"].dt.to_period("M")
-    _df["date_only"] = _df["date"].dt.date
-    _df_employee = load_all_employee_output_data(str(DATA_DIR))
-    if not _df_employee.empty:
-        _df_employee["date_only"] = _df_employee["date"].apply(
-            lambda x: x.date() if hasattr(x, "date") else x
-        )
+    try:
+        _df = load_all_data(str(DATA_DIR))
+        if not _df.empty and "date" in _df.columns:
+            _df["year_month"] = _df["date"].dt.to_period("M")
+            _df["date_only"] = _df["date"].dt.date
+        elif _df.empty:
+            _df["year_month"] = pd.Series(dtype=object)
+            _df["date_only"] = pd.Series(dtype=object)
+    except Exception:
+        _df = pd.DataFrame(columns=["article", "nomenclature_type", "product_name", "quantity", "date", "department", "year_month", "date_only"])
+    try:
+        _df_employee = load_all_employee_output_data(str(DATA_DIR))
+        if not _df_employee.empty and "date" in _df_employee.columns:
+            _df_employee["date_only"] = _df_employee["date"].apply(
+                lambda x: x.date() if hasattr(x, "date") else x
+            )
+    except Exception:
+        _df_employee = pd.DataFrame(columns=["date", "date_only"])
+    if load_all_disassembly_data:
+        try:
+            _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption = load_all_disassembly_data(str(DATA_DIR))
+        except Exception:
+            _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption = _empty_disassembly_dfs()
+    else:
+        _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption = _empty_disassembly_dfs()
+    if load_nomenclature_prices:
+        try:
+            _nomenclature_prices = load_nomenclature_prices(str(DATA_DIR))
+            _nomenclature_prices_lower = {str(k).strip().lower(): v for k, v in (_nomenclature_prices or {}).items()}
+        except Exception:
+            _nomenclature_prices = {}
+            _nomenclature_prices_lower = {}
+    else:
+        _nomenclature_prices = {}
+        _nomenclature_prices_lower = {}
 
 
 def get_df() -> pd.DataFrame:
@@ -777,3 +827,532 @@ def get_months_comparison() -> dict[str, Any]:
 def _month_name(month: int) -> str:
     names = ["", "Янв", "Фев", "Мар", "Апр", "Май", "Июн", "Июл", "Авг", "Сен", "Окт", "Ноя", "Дек"]
     return names[month] if 1 <= month <= 12 else str(month)
+
+
+# --- Разборка возвратов (склад разборки Luminarc) ---
+
+
+def get_disassembly_dfs() -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Возвращает (поступление наборов на склад, поступление ингредиентов после разборки, отгрузка, внутреннее потребление)."""
+    global _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption
+    if _df_in_warehouse is None:
+        refresh_data()
+    return _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption
+
+
+def get_disassembly_stats(
+    group_by: str = "day",
+    date_from: Optional[date] = None,
+    date_to: Optional[date] = None,
+) -> dict[str, Any]:
+    """
+    Агрегированная аналитика разборки возвратов.
+    group_by: "day" | "week" | "month"
+    Возвращает строки с датой/неделей/месяцем, поступление (qty), отгрузка (qty), списание (qty), проценты.
+    """
+    in_df, ingredients_df, out_df, internal_df = get_disassembly_dfs()
+    global _nomenclature_prices
+    if _nomenclature_prices is None:
+        refresh_data()
+    prices = _nomenclature_prices or {}
+    prices_lower = _nomenclature_prices_lower or {}
+
+    def _get_price(nom: str) -> float:
+        n = (nom or "").strip()
+        if n in prices:
+            return prices[n]
+        return prices_lower.get(n.lower(), 0.0)
+
+    rows: list[dict[str, Any]] = []
+    if in_df.empty and ingredients_df.empty and out_df.empty and internal_df.empty:
+        return {"group_by": group_by, "rows": [], "totals": {"in_qty": 0, "ingredients_qty": 0, "out_qty": 0, "internal_qty": 0, "in_cost": 0, "ingredients_cost": 0, "internal_cost": 0, "out_cost": 0, "balance_start": 0, "balance_end": 0, "balance_start_cost": 0, "balance_end_cost": 0}}
+
+    all_dates: set[date] = set()
+    if "date_only" in in_df.columns:
+        all_dates.update(in_df["date_only"].dropna().tolist())
+    if "date_only" in ingredients_df.columns:
+        all_dates.update(ingredients_df["date_only"].dropna().tolist())
+    if "date_only" in out_df.columns:
+        all_dates.update(out_df["date_only"].dropna().tolist())
+    if "date_only" in internal_df.columns:
+        all_dates.update(internal_df["date_only"].dropna().tolist())
+
+    if not all_dates:
+        return {"group_by": group_by, "rows": [], "totals": {"in_qty": 0, "ingredients_qty": 0, "out_qty": 0, "internal_qty": 0, "in_cost": 0, "ingredients_cost": 0, "internal_cost": 0, "out_cost": 0, "balance_start": 0, "balance_end": 0, "balance_start_cost": 0, "balance_end_cost": 0}}
+
+    # Даты в хронологическом порядке для расчёта переноса остатков
+    sorted_dates = sorted(d for d in all_dates if (not date_from or d >= date_from) and (not date_to or d <= date_to))
+
+    def _cost_for_date(df: pd.DataFrame, d: date) -> float:
+        if df.empty or "date_only" not in df.columns or "nomenclature" not in df.columns or "quantity" not in df.columns:
+            return 0.0
+        sub = df[df["date_only"] == d]
+        total = 0.0
+        for _, row in sub.iterrows():
+            nom = (row.get("nomenclature") or "")
+            if isinstance(nom, str):
+                nom = nom.strip()
+            else:
+                nom = str(nom).strip()
+            qty = float(row.get("quantity") or 0)
+            total += qty * _get_price(nom)
+        return total
+
+    def _qty_by_nom_for_date(df: pd.DataFrame, d: date) -> dict[str, float]:
+        if df.empty or "date_only" not in df.columns or "nomenclature" not in df.columns:
+            return {}
+        sub = df[df["date_only"] == d]
+        out: dict[str, float] = {}
+        for _, row in sub.iterrows():
+            nom = (row.get("nomenclature") or "")
+            nom = nom.strip() if isinstance(nom, str) else str(nom).strip()
+            qty = float(row.get("quantity") or 0)
+            out[nom] = out.get(nom, 0) + qty
+        return out
+
+    def _balance_cost(balance_by_nom: dict[str, float]) -> float:
+        """Стоимость остатка = сумма (остаток × цена) только по позициям с положительным остатком (что реально лежит на складе). Отрицательные позиции (недостача) в стоимость не входят."""
+        return sum(qty * _get_price(nom) for nom, qty in balance_by_nom.items() if qty > 0)
+
+    # Остаток на складе: только поступило после разборки (ingredients) минус списано (internal) минус отгружено (out).
+    # «Поступило на склад» (in) — информационная строка (что поступило на разбор), в остаток не входит.
+    # Стоимость остатка = оценка по текущим ценам (остаток × цена по каждой номенклатуре), чтобы при плюсе в штуках не было минуса в рублях.
+    balance_by_nom: dict[str, float] = {}
+    daily_rows: list[dict[str, Any]] = []
+    for d in sorted_dates:
+        in_qty = 0
+        if not in_df.empty and "date_only" in in_df.columns:
+            in_qty = float(in_df.loc[in_df["date_only"] == d, "quantity"].sum())
+        ingredients_qty = 0
+        if not ingredients_df.empty and "date_only" in ingredients_df.columns:
+            ingredients_qty = float(ingredients_df.loc[ingredients_df["date_only"] == d, "quantity"].sum())
+        out_qty = 0
+        if not out_df.empty and "date_only" in out_df.columns:
+            out_qty = float(out_df.loc[out_df["date_only"] == d, "quantity"].sum())
+        internal_qty = 0
+        if not internal_df.empty and "date_only" in internal_df.columns:
+            internal_qty = float(internal_df.loc[internal_df["date_only"] == d, "quantity"].sum())
+        in_cost = _cost_for_date(in_df, d)
+        ingredients_cost = _cost_for_date(ingredients_df, d)
+        internal_cost = _cost_for_date(internal_df, d)
+        out_cost = _cost_for_date(out_df, d)
+        balance_start = sum(balance_by_nom.values())
+        balance_start_cost = _balance_cost(balance_by_nom)
+        for nom, qty in _qty_by_nom_for_date(ingredients_df, d).items():
+            balance_by_nom[nom] = balance_by_nom.get(nom, 0) + qty
+        for nom, qty in _qty_by_nom_for_date(internal_df, d).items():
+            balance_by_nom[nom] = balance_by_nom.get(nom, 0) - qty
+        for nom, qty in _qty_by_nom_for_date(out_df, d).items():
+            balance_by_nom[nom] = balance_by_nom.get(nom, 0) - qty
+        balance_by_nom = {k: v for k, v in balance_by_nom.items() if v != 0}
+        balance_end = sum(balance_by_nom.values())
+        balance_end_cost = _balance_cost(balance_by_nom)
+        daily_rows.append({
+            "date": str(d),
+            "in_qty": round(in_qty, 2),
+            "ingredients_qty": round(ingredients_qty, 2),
+            "out_qty": round(out_qty, 2),
+            "internal_qty": round(internal_qty, 2),
+            "in_cost": round(in_cost, 2),
+            "ingredients_cost": round(ingredients_cost, 2),
+            "internal_cost": round(internal_cost, 2),
+            "out_cost": round(out_cost, 2),
+            "balance_start": round(balance_start, 2),
+            "balance_end": round(balance_end, 2),
+            "balance_start_cost": round(balance_start_cost, 2),
+            "balance_end_cost": round(balance_end_cost, 2),
+        })
+
+    if group_by == "day":
+        rows = daily_rows
+        rows.sort(key=lambda r: r["date"], reverse=True)
+    elif group_by == "week":
+        # Группировка по ISO-неделе; остаток на начало недели = конец предыдущей, на конец = по последнему дню недели
+        week_agg: dict[tuple[int, int], dict] = {}
+        for r in daily_rows:
+            d = datetime.strptime(r["date"], "%Y-%m-%d").date()
+            iso = d.isocalendar()
+            key = (iso.year, iso.week)
+            if key not in week_agg:
+                start = date.fromisocalendar(iso.year, iso.week, 1)
+                end = start + timedelta(days=6)
+                week_agg[key] = {
+                    "year": iso.year,
+                    "week": iso.week,
+                    "label": f"Неделя {iso.week:02d} ({start.strftime('%d.%m')}–{end.strftime('%d.%m')})",
+                    "in_qty": 0,
+                    "ingredients_qty": 0,
+                    "out_qty": 0,
+                    "internal_qty": 0,
+                    "in_cost": 0,
+                    "ingredients_cost": 0,
+                    "internal_cost": 0,
+                    "out_cost": 0,
+                    "balance_start": r["balance_start"],
+                    "balance_end": r["balance_end"],
+                    "balance_start_cost": r.get("balance_start_cost", 0),
+                    "balance_end_cost": r.get("balance_end_cost", 0),
+                }
+            week_agg[key]["in_qty"] += r["in_qty"]
+            week_agg[key]["ingredients_qty"] += r["ingredients_qty"]
+            week_agg[key]["out_qty"] += r["out_qty"]
+            week_agg[key]["internal_qty"] += r["internal_qty"]
+            week_agg[key]["in_cost"] += r.get("in_cost", 0)
+            week_agg[key]["ingredients_cost"] += r.get("ingredients_cost", 0)
+            week_agg[key]["internal_cost"] += r.get("internal_cost", 0)
+            week_agg[key]["out_cost"] += r.get("out_cost", 0)
+            week_agg[key]["balance_end"] = r["balance_end"]
+            week_agg[key]["balance_end_cost"] = r.get("balance_end_cost", 0)
+        rows = [{"date": f"{v['year']}-W{v['week']:02d}", **v} for v in sorted(week_agg.values(), key=lambda x: (x["year"], x["week"]), reverse=True)]
+    elif group_by == "month":
+        month_agg: dict[tuple[int, int], dict] = {}
+        for r in daily_rows:
+            d = datetime.strptime(r["date"], "%Y-%m-%d").date()
+            key = (d.year, d.month)
+            if key not in month_agg:
+                month_agg[key] = {
+                    "year": d.year,
+                    "month": d.month,
+                    "label": f"{_month_name(d.month)} {d.year}",
+                    "in_qty": 0,
+                    "ingredients_qty": 0,
+                    "out_qty": 0,
+                    "internal_qty": 0,
+                    "in_cost": 0,
+                    "ingredients_cost": 0,
+                    "internal_cost": 0,
+                    "out_cost": 0,
+                    "balance_start": r["balance_start"],
+                    "balance_end": r["balance_end"],
+                    "balance_start_cost": r.get("balance_start_cost", 0),
+                    "balance_end_cost": r.get("balance_end_cost", 0),
+                }
+            month_agg[key]["in_qty"] += r["in_qty"]
+            month_agg[key]["ingredients_qty"] += r["ingredients_qty"]
+            month_agg[key]["out_qty"] += r["out_qty"]
+            month_agg[key]["internal_qty"] += r["internal_qty"]
+            month_agg[key]["in_cost"] += r.get("in_cost", 0)
+            month_agg[key]["ingredients_cost"] += r.get("ingredients_cost", 0)
+            month_agg[key]["internal_cost"] += r.get("internal_cost", 0)
+            month_agg[key]["out_cost"] += r.get("out_cost", 0)
+            month_agg[key]["balance_end"] = r["balance_end"]
+            month_agg[key]["balance_end_cost"] = r.get("balance_end_cost", 0)
+        rows = [{"date": f"{v['year']}-{v['month']:02d}", **v} for v in sorted(month_agg.values(), key=lambda x: (x["year"], x["month"]), reverse=True)]
+
+    total_in = sum(r["in_qty"] for r in rows)
+    total_ingredients = sum(r["ingredients_qty"] for r in rows)
+    total_out = sum(r["out_qty"] for r in rows)
+    total_internal = sum(r["internal_qty"] for r in rows)
+    total_in_cost = sum(r.get("in_cost", 0) for r in rows)
+    total_ingredients_cost = sum(r.get("ingredients_cost", 0) for r in rows)
+    total_internal_cost = sum(r.get("internal_cost", 0) for r in rows)
+    total_out_cost = sum(r.get("out_cost", 0) for r in rows)
+    # 100% = поступило после разборки (ингредиенты). Проценты списано и отгружено — от этой базы.
+    for r in rows:
+        ing_q = r["ingredients_qty"]
+        if ing_q and ing_q > 0:
+            r["internal_pct"] = round((r["internal_qty"] / ing_q * 100), 1)
+            r["out_pct"] = round((r["out_qty"] / ing_q * 100), 1)
+        else:
+            r["internal_pct"] = None
+            r["out_pct"] = None
+        # Проверка по остатку на конец (с учётом переноса)
+        balance_end = r.get("balance_end", 0)
+        r["check_balance"] = round(balance_end, 2)
+        if balance_end < 0:
+            r["check_status"] = "не хватает"
+            r["check_message"] = f"Не хватает {abs(round(balance_end, 0))}"
+        elif balance_end > 0:
+            r["check_status"] = "остаток"
+            r["check_message"] = f"Остаток {round(balance_end, 0)}"
+        else:
+            r["check_status"] = "ok"
+            r["check_message"] = "Сходится"
+
+    total_internal_pct = round((total_internal / total_ingredients * 100), 1) if total_ingredients and total_ingredients > 0 else None
+    total_out_pct = round((total_out / total_ingredients * 100), 1) if total_ingredients and total_ingredients > 0 else None
+    # Итоговый остаток = остаток на конец последнего периода (первая строка при сортировке по убыванию даты)
+    total_balance_end = rows[0]["balance_end"] if rows else 0
+    if total_balance_end < 0:
+        total_check_status, total_check_message = "не хватает", f"Не хватает {abs(round(total_balance_end, 0))}"
+    elif total_balance_end > 0:
+        total_check_status, total_check_message = "остаток", f"Остаток {round(total_balance_end, 0)}"
+    else:
+        total_check_status, total_check_message = "ok", "Сходится"
+
+    return {
+        "group_by": group_by,
+        "rows": rows,
+        "totals": {
+            "in_qty": round(total_in, 2),
+            "ingredients_qty": round(total_ingredients, 2),
+            "out_qty": round(total_out, 2),
+            "internal_qty": round(total_internal, 2),
+            "in_cost": round(total_in_cost, 2),
+            "ingredients_cost": round(total_ingredients_cost, 2),
+            "internal_cost": round(total_internal_cost, 2),
+            "out_cost": round(total_out_cost, 2),
+            "balance_start": round(rows[-1]["balance_start"], 2) if rows else 0,
+            "balance_end": round(total_balance_end, 2),
+            "balance_start_cost": round(rows[-1].get("balance_start_cost", 0), 2) if rows else 0,
+            "balance_end_cost": round(rows[0].get("balance_end_cost", 0), 2) if rows else 0,
+            "internal_pct": total_internal_pct,
+            "out_pct": total_out_pct,
+            "check_balance": round(total_balance_end, 2),
+            "check_status": total_check_status,
+            "check_message": total_check_message,
+        },
+    }
+
+
+def get_disassembly_summary(
+    period: str = "month",
+    top_in: int = 5,
+    top_internal: int = 15,
+    top_out: int = 15,
+) -> dict[str, Any]:
+    """
+    Сводка для инфографики: топ по номенклатуре за период (неделя / месяц / всё время).
+    period: "week" | "month" | "all"
+    """
+    in_df, ingredients_df, out_df, internal_df = get_disassembly_dfs()
+    today = date.today()
+    if period == "week":
+        date_from = today - timedelta(days=7)
+    elif period == "month":
+        date_from = today - timedelta(days=31)
+    else:
+        date_from = None
+    date_to = today
+
+    def _filter_df(df: pd.DataFrame):
+        if df.empty or "date_only" not in df.columns:
+            return df
+        mask = df["date_only"] <= date_to
+        if date_from:
+            mask = mask & (df["date_only"] >= date_from)
+        return df[mask]
+
+    def _top_n(df: pd.DataFrame, n: int) -> list[dict]:
+        if df.empty or "nomenclature" not in df.columns:
+            return []
+        agg = df.groupby("nomenclature", as_index=False)["quantity"].sum()
+        agg = agg.sort_values("quantity", ascending=False).head(n)
+        return [
+            {"name": row["nomenclature"], "quantity": int(round(float(row["quantity"])))}
+            for _, row in agg.iterrows()
+        ]
+
+    in_f = _filter_df(in_df)
+    out_f = _filter_df(out_df)
+    internal_f = _filter_df(internal_df)
+
+    return {
+        "period": period,
+        "date_from": str(date_from) if date_from else None,
+        "date_to": str(date_to),
+        "top_received": _top_n(in_f, top_in),
+        "top_internal": _top_n(internal_f, top_internal),
+        "top_out": _top_n(out_f, top_out),
+    }
+
+
+def get_disassembly_detail_by_date(
+    target_date: str,
+    detail_type: str,
+    flow: str,
+) -> dict[str, Any]:
+    """
+    Детализация за дату.
+    flow: "in" | "out" | "internal"
+    detail_type: "nomenclature" | "documents"
+    Для internal дополнительно detail_type: "articles"
+    Каждый item: name, quantity, cost (сумма в рублях по прайсу).
+    """
+    global _nomenclature_prices, _nomenclature_prices_lower
+    if _nomenclature_prices is None:
+        refresh_data()
+    prices = _nomenclature_prices or {}
+    prices_lower = _nomenclature_prices_lower or {}
+
+    def _get_price(nom: str) -> float:
+        n = (nom or "").strip()
+        if n in prices:
+            return prices[n]
+        return prices_lower.get(n.lower(), 0.0)
+
+    in_df, ingredients_df, out_df, internal_df = get_disassembly_dfs()
+    try:
+        d = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        return {"error": "Неверный формат даты YYYY-MM-DD", "items": []}
+
+    if flow == "in":
+        df = in_df
+    elif flow == "ingredients":
+        df = ingredients_df
+    elif flow == "out":
+        df = out_df
+    else:
+        df = internal_df
+
+    if df.empty or "date_only" not in df.columns:
+        return {"date": target_date, "flow": flow, "detail_type": detail_type, "items": []}
+
+    sub = df[df["date_only"] == d].copy()
+    if sub.empty:
+        return {"date": target_date, "flow": flow, "detail_type": detail_type, "items": []}
+
+    def _row_cost(row: pd.Series) -> float:
+        nom = (row.get("nomenclature") or "")
+        if isinstance(nom, str):
+            nom = nom.strip()
+        else:
+            nom = str(nom).strip()
+        qty = float(row.get("quantity") or 0)
+        return qty * _get_price(nom)
+
+    if detail_type == "nomenclature":
+        agg = sub.groupby("nomenclature", as_index=False)["quantity"].sum()
+        items = []
+        for _, row in agg.iterrows():
+            nom = row["nomenclature"]
+            qty = round(float(row["quantity"]), 2)
+            cost = qty * _get_price((nom or "").strip() if isinstance(nom, str) else str(nom).strip())
+            items.append({"name": nom, "quantity": qty, "cost": round(cost, 2)})
+        items.sort(key=lambda x: (-x["quantity"], x["name"]))
+    elif detail_type == "documents":
+        sub["_cost"] = sub.apply(_row_cost, axis=1)
+        agg = sub.groupby("document", as_index=False).agg({"quantity": "sum", "_cost": "sum"})
+        items = [
+            {"name": row["document"], "quantity": round(float(row["quantity"]), 2), "cost": round(float(row["_cost"]), 2)}
+            for _, row in agg.iterrows()
+        ]
+        items.sort(key=lambda x: (-x["quantity"], x["name"]))
+    elif detail_type == "articles" and flow == "internal" and "article" in sub.columns:
+        sub["_cost"] = sub.apply(_row_cost, axis=1)
+        agg = sub.groupby("article", as_index=False).agg({"quantity": "sum", "_cost": "sum"})
+        items = [
+            {"name": row["article"], "quantity": round(float(row["quantity"]), 2), "cost": round(float(row["_cost"]), 2)}
+            for _, row in agg.iterrows()
+        ]
+        items.sort(key=lambda x: (-x["quantity"], x["name"]))
+    else:
+        items = []
+
+    return {"date": target_date, "flow": flow, "detail_type": detail_type, "items": items}
+
+
+def get_disassembly_full_detail_by_date(target_date: str) -> dict[str, Any]:
+    """
+    Полная детализация за день: остаток на начало, поступило на склад, после разборки, списано, отгружено —
+    всё в разрезе номенклатуры (наименование, количество, сумма в рублях).
+    """
+    global _nomenclature_prices, _nomenclature_prices_lower
+    if _nomenclature_prices is None:
+        refresh_data()
+    prices = _nomenclature_prices or {}
+    prices_lower = _nomenclature_prices_lower or {}
+
+    def _get_price(nom: str) -> float:
+        n = (nom or "").strip()
+        if n in prices:
+            return prices[n]
+        return prices_lower.get(n.lower(), 0.0)
+
+    in_df, ingredients_df, out_df, internal_df = get_disassembly_dfs()
+    try:
+        d_target = datetime.strptime(target_date, "%Y-%m-%d").date()
+    except ValueError:
+        return {"error": "Неверный формат даты YYYY-MM-DD", "date": target_date}
+
+    all_dates: set[date] = set()
+    for df in (in_df, ingredients_df, out_df, internal_df):
+        if not df.empty and "date_only" in df.columns:
+            all_dates.update(df["date_only"].dropna().tolist())
+    sorted_dates = sorted(all_dates)
+
+    def _qty_by_nom_for_date(df: pd.DataFrame, d: date) -> dict[str, float]:
+        if df.empty or "date_only" not in df.columns or "nomenclature" not in df.columns:
+            return {}
+        sub = df[df["date_only"] == d]
+        out: dict[str, float] = {}
+        for _, row in sub.iterrows():
+            nom = (row.get("nomenclature") or "")
+            nom = nom.strip() if isinstance(nom, str) else str(nom).strip()
+            qty = float(row.get("quantity") or 0)
+            out[nom] = out.get(nom, 0) + qty
+        return out
+
+    # Остаток: только ingredients − internal − out; «поступило на склад» (in) не входит в остаток
+    balance_by_nom: dict[str, float] = {}
+    for d in sorted_dates:
+        if d >= d_target:
+            break
+        for nom, qty in _qty_by_nom_for_date(ingredients_df, d).items():
+            balance_by_nom[nom] = balance_by_nom.get(nom, 0) + qty
+        for nom, qty in _qty_by_nom_for_date(internal_df, d).items():
+            balance_by_nom[nom] = balance_by_nom.get(nom, 0) - qty
+        for nom, qty in _qty_by_nom_for_date(out_df, d).items():
+            balance_by_nom[nom] = balance_by_nom.get(nom, 0) - qty
+        balance_by_nom = {k: v for k, v in balance_by_nom.items() if v != 0}
+
+    in_qty = _qty_by_nom_for_date(in_df, d_target)
+    ingredients_qty = _qty_by_nom_for_date(ingredients_df, d_target)
+    internal_qty = _qty_by_nom_for_date(internal_df, d_target)
+    out_qty = _qty_by_nom_for_date(out_df, d_target)
+    all_noms = set(balance_by_nom) | set(in_qty) | set(ingredients_qty) | set(internal_qty) | set(out_qty)
+
+    rows: list[dict[str, Any]] = []
+    for nom in sorted(all_noms):
+        bal_start = balance_by_nom.get(nom, 0.0)
+        in_q = in_qty.get(nom, 0.0)
+        ing_q = ingredients_qty.get(nom, 0.0)
+        int_q = internal_qty.get(nom, 0.0)
+        out_q = out_qty.get(nom, 0.0)
+        bal_end = bal_start + ing_q - int_q - out_q
+        price = _get_price(nom)
+        # Стоимость остатка только по положительному остатку (что лежит на складе)
+        rows.append({
+            "name": nom,
+            "balance_start": round(bal_start, 2),
+            "balance_start_cost": round(max(0.0, bal_start) * price, 2),
+            "in_qty": round(in_q, 2),
+            "in_cost": round(in_q * price, 2),
+            "ingredients_qty": round(ing_q, 2),
+            "ingredients_cost": round(ing_q * price, 2),
+            "internal_qty": round(int_q, 2),
+            "internal_cost": round(int_q * price, 2),
+            "out_qty": round(out_q, 2),
+            "out_cost": round(out_q * price, 2),
+            "balance_end": round(bal_end, 2),
+            "balance_end_cost": round(max(0.0, bal_end) * price, 2),
+        })
+    return {"date": target_date, "rows": rows}
+
+
+def get_disassembly_nomenclature_list() -> list[str]:
+    """Все уникальные наименования номенклатуры из данных разборки (как в таблицах — для копирования в 1С)."""
+    in_df, ingredients_df, out_df, internal_df = get_disassembly_dfs()
+    seen: set[str] = set()
+    for df in (in_df, ingredients_df, out_df, internal_df):
+        if df.empty or "nomenclature" not in df.columns:
+            continue
+        for v in df["nomenclature"].dropna().astype(str).str.strip():
+            if v:
+                seen.add(v)
+    return sorted(seen)
+
+
+def get_disassembly_missing_prices() -> list[str]:
+    """Номенклатура из данных разборки, по которой не загружена себестоимость (нет в прайсе)."""
+    try:
+        global _nomenclature_prices, _nomenclature_prices_lower
+        if _nomenclature_prices is None:
+            refresh_data()
+        prices_lower = (_nomenclature_prices_lower or {}).copy()
+        all_names = set(get_disassembly_nomenclature_list())
+        missing = [n for n in all_names if (n or "").strip().lower() not in prices_lower]
+        return sorted(missing)
+    except Exception:
+        return []

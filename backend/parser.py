@@ -118,6 +118,24 @@ def _is_employee_file(filepath: Path) -> bool:
         return False
 
 
+def _is_disassembly_file(filepath: Path) -> bool:
+    """Файл разборки возвратов (перемещение на/со склада, внутреннее потребление) — не выпуск продукции."""
+    try:
+        df = pd.read_excel(filepath, header=0, nrows=1)
+        cols = " ".join(str(c).lower() for c in df.columns)
+        if "перемещение товаров" in cols and "номенклатура" in cols and "единицах хранения" in cols:
+            return True
+        if "внутреннее потребление" in cols and "статья списания" in cols and "номенклатура" in cols:
+            return True
+        if "перемещение" in cols and "номенклатура" in cols and ("количество" in cols or "единицах хранения" in cols) and "перемещение товаров" not in cols:
+            return True
+        if "движение продукции" in cols and "номенклатура" in cols and "количество" in cols:
+            return True
+    except Exception:
+        pass
+    return False
+
+
 # Операция сканирования → (производство, участок)
 SCAN_OPERATION_MAPPING = {
     "гравировочный цех елино": ("ГРАВИРОВКА", "Гравировочный цех Елино"),
@@ -277,6 +295,8 @@ def load_all_data(data_dir: str) -> pd.DataFrame:
             return
         if _is_employee_file(f):
             return  # выработка сотрудников — отдельный парсер
+        if _is_disassembly_file(f):
+            return  # разборка возвратов — отдельный парсер
         key = str(f.resolve())
         if key in seen:
             return
