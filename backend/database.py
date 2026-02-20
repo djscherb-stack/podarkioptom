@@ -1,5 +1,6 @@
 """Кэш данных и бизнес-логика аналитики."""
 
+import json
 import os
 from pathlib import Path
 from datetime import datetime, date, timedelta
@@ -21,6 +22,8 @@ except ImportError:
 _default = Path(__file__).resolve().parent.parent / "data"
 DATA_DIR = Path(os.environ.get("DATA_DIR", _default))
 ROOT_DIR = Path(__file__).resolve().parent.parent
+# Файл кэша объединённых цен: сохраняем слияние прайса, чтобы при повторной загрузке/рестарте старые цены не пропадали
+NOMENCLATURE_PRICES_CACHE = "nomenclature_prices_cache.json"
 
 _df: Optional[pd.DataFrame] = None
 _df_employee: Optional[pd.DataFrame] = None
@@ -84,10 +87,35 @@ def refresh_data():
     if load_nomenclature_prices:
         try:
             new_prices = load_nomenclature_prices(str(DATA_DIR)) or {}
-            # Обновляем при повторной загрузке; позиции, которых нет в новом файле, не удаляем
-            existing = _nomenclature_prices if _nomenclature_prices is not None else {}
+            # Берём уже накопленные цены: из кэша на диске (переживает рестарт) или из памяти
+            cache_path = DATA_DIR / NOMENCLATURE_PRICES_CACHE
+            existing = {}
+            if cache_path.exists():
+                try:
+                    with open(cache_path, "r", encoding="utf-8") as f:
+                        data = json.load(f)
+                    if isinstance(data, dict):
+                        existing = {}
+                        for k, v in data.items():
+                            try:
+                                x = float(v)
+                                if x == x and abs(x) != float("inf"):
+                                    existing[str(k)] = x
+                            except (TypeError, ValueError):
+                                pass
+                except Exception:
+                    pass
+            if not existing and _nomenclature_prices is not None:
+                existing = _nomenclature_prices
+            # Новые/обновлённые из файла перекрывают старые; позиции, которых нет в файле, остаются
             _nomenclature_prices = {**existing, **new_prices}
             _nomenclature_prices_lower = {str(k).strip().lower(): v for k, v in _nomenclature_prices.items()}
+            # Сохраняем объединённый прайс на диск, чтобы после рестарта цены не пропадали
+            try:
+                with open(cache_path, "w", encoding="utf-8") as f:
+                    json.dump(_nomenclature_prices, f, ensure_ascii=False, indent=0)
+            except Exception:
+                pass
         except Exception:
             if _nomenclature_prices is None:
                 _nomenclature_prices = {}
@@ -967,7 +995,7 @@ def get_disassembly_stats(
             "balance_start_cost": round(balance_start_cost, 2),
             "balance_end_cost": round(balance_end_cost, 2),
         }
-        # Корректировка на 18 февраля: остаток на начало 4 999 штук, остаток на конец — из данных
+        # Корректировка на 18 февраля: остаток на начало 4 999 штук, остаток на конец — из данных. С этой даты считаем по новой.
         _CORRECTION_DATE = date(2026, 2, 18)
         _CORRECTION_BALANCE_START = 4999
         if d == _CORRECTION_DATE:
@@ -980,6 +1008,13 @@ def get_disassembly_stats(
                 row["balance_end_cost"] = round((corr_end / balance_end) * balance_end_cost, 2)
             row["is_correction"] = True
             row["correction_note"] = f"Корректировка: остаток на начало — 4 999 штук, остаток на конец — {int(round(corr_end, 0))} штук"
+            # Приводим баланс по номенклатуре к исправленному итогу, чтобы с 19 февраля остаток на начало был равен остатку на конец 18-го
+            _cur_sum = sum(balance_by_nom.values())
+            if abs(_cur_sum) > 1e-9:
+                _factor = corr_end / _cur_sum
+                balance_by_nom = {k: v * _factor for k, v in balance_by_nom.items()}
+            else:
+                balance_by_nom = {"Корректировка": corr_end}
         daily_rows.append(row)
 
     if group_by == "day":
