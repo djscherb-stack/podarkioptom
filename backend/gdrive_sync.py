@@ -185,14 +185,7 @@ def sync_from_gdrive(
         prev = processed.get(str(file_id))
         if prev and prev.get("modified_time") == modified_time:
             continue
-        if prev and prev.get("saved_as"):
-            old_path = data_dir / prev["saved_as"]
-            if old_path.exists():
-                try:
-                    old_path.unlink()
-                    logger.info("gdrive sync: removed outdated %s", prev["saved_as"])
-                except Exception as e:
-                    logger.warning("gdrive sync: could not remove %s: %s", prev["saved_as"], e)
+        # Новую версию сохраняем с новым именем (с датой/временем). Старые файлы не удаляем — данные хранятся на диске.
 
         try:
             request = service.files().get_media(fileId=file_id)
@@ -209,13 +202,14 @@ def sync_from_gdrive(
 
         # Сохраняем префикс 001/002/003/004 в имени файла, чтобы парсер разборки различал тип
         type_prefix = ""
-        if name.startswith("004 "):
+        name_lower = name.lower()
+        if name_lower.startswith("004"):
             type_prefix = "004_"
-        elif name.startswith("003 "):
+        elif name_lower.startswith("003"):
             type_prefix = "003_"
-        elif name.startswith("002 "):
+        elif name_lower.startswith("002"):
             type_prefix = "002_"
-        elif name.startswith("001 "):
+        elif name_lower.startswith("001"):
             type_prefix = "001_"
         safe_name = f"{type_prefix}gdrive_{datetime.now().strftime('%Y%m%d_%H%M%S')}_{file_id[:8]}.xlsx"
         dest = data_dir / safe_name

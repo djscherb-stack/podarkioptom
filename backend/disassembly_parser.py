@@ -229,64 +229,85 @@ def _disassembly_file_type_by_name(filepath: Path) -> Optional[str]:
 def load_all_disassembly_data(data_dir: str) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
     Загружает все четыре типа файлов разборки из data_dir.
-    По каждому типу (001–004) берётся только один файл — с самой поздней датой изменения,
-    чтобы не дублировать данные при нескольких выгрузках в папке.
+    По аналогии с выпуском продукции и выработкой сотрудников: по каждому типу (001–004)
+    читаются все подходящие файлы, данные объединяются; для одного ключа (дата, документ, номенклатура)
+    берётся max(quantity), чтобы повторная выгрузка не удваивала данные.
     Возвращает (in_to_warehouse, ingredients_after_disassembly, out_from_warehouse, internal_consumption).
     """
     path = Path(data_dir)
     if not path.exists():
         path.mkdir(parents=True, exist_ok=True)
 
-    # По каждому типу собираем кандидатов (path, mtime), затем берём один файл — самый свежий
-    in_candidates: list[tuple[Path, float]] = []
-    ingredients_candidates: list[tuple[Path, float]] = []
-    out_candidates: list[tuple[Path, float]] = []
-    internal_candidates: list[tuple[Path, float]] = []
+    # По каждому типу собираем все подходящие файлы (path)
+    in_candidates: list[Path] = []
+    ingredients_candidates: list[Path] = []
+    out_candidates: list[Path] = []
+    internal_candidates: list[Path] = []
 
     for f in path.glob("**/*.xlsx"):
         if f.name.startswith("~$"):
             continue
         try:
-            mtime = f.stat().st_mtime
             name_type = _disassembly_file_type_by_name(f)
             if name_type == "in":
-                in_candidates.append((f, mtime))
+                in_candidates.append(f)
                 continue
             if name_type == "ingredients":
-                ingredients_candidates.append((f, mtime))
+                ingredients_candidates.append(f)
                 continue
             if name_type == "out":
-                out_candidates.append((f, mtime))
+                out_candidates.append(f)
                 continue
             if name_type == "internal":
-                internal_candidates.append((f, mtime))
+                internal_candidates.append(f)
                 continue
             # Определение по содержимому для файлов без префикса
             if _is_movement_to_warehouse_file(f):
-                in_candidates.append((f, mtime))
+                in_candidates.append(f)
             elif _is_ingredients_after_disassembly_file(f):
-                ingredients_candidates.append((f, mtime))
+                ingredients_candidates.append(f)
             elif _is_internal_consumption_file(f):
-                internal_candidates.append((f, mtime))
+                internal_candidates.append(f)
             elif _is_movement_from_warehouse_file(f):
-                out_candidates.append((f, mtime))
+                out_candidates.append(f)
         except Exception as e:
             print(f"Ошибка разборки {f}: {e}")
 
-    def _load_one(candidates: list, loader, columns: list) -> pd.DataFrame:
+    def _load_all_and_merge(candidates: list, loader, columns: list) -> pd.DataFrame:
+        """Загружает все файлы типа; внутри файла — sum(quantity), между файлами — max (как выпуск/выработка)."""
         if not candidates:
             return pd.DataFrame(columns=columns)
-        chosen = max(candidates, key=lambda x: x[1])[0]
-        try:
-            return loader(chosen)
-        except Exception as e:
-            print(f"Ошибка загрузки {chosen}: {e}")
+        aggregated_per_file = []
+        for fp in candidates:
+            try:
+                df = loader(fp)
+                if df.empty or "date" not in df.columns:
+                    continue
+                df = df.copy()
+                df["date_only"] = df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
+                df["_norm_doc"] = df["document"].astype(str).apply(_normalize_document)
+                group_cols = ["date_only", "_norm_doc", "nomenclature"]
+                if "article" in df.columns:
+                    group_cols.append("article")
+                agg_df = df.groupby(group_cols, as_index=False).agg({"quantity": "sum", "document": "first"})
+                aggregated_per_file.append(agg_df)
+            except Exception as e:
+                print(f"Ошибка загрузки {fp}: {e}")
+        if not aggregated_per_file:
             return pd.DataFrame(columns=columns)
+        combined = pd.concat(aggregated_per_file, ignore_index=True)
+        group_cols = ["date_only", "_norm_doc", "nomenclature"]
+        if "article" in combined.columns:
+            group_cols.append("article")
+        merged = combined.groupby(group_cols, as_index=False).agg({"quantity": "max", "document": "first"})
+        merged["date"] = pd.to_datetime(merged["date_only"])
+        merged = merged.drop(columns=["_norm_doc"], errors="ignore")
+        return merged
 
-    in_df = _load_one(in_candidates, load_movement_to_warehouse, ["date", "document", "nomenclature", "quantity"])
-    ingredients_df = _load_one(ingredients_candidates, load_ingredients_after_disassembly, ["date", "document", "nomenclature", "quantity"])
-    out_df = _load_one(out_candidates, load_movement_from_warehouse, ["date", "document", "nomenclature", "quantity"])
-    internal_df = _load_one(internal_candidates, load_internal_consumption, ["date", "document", "nomenclature", "article", "quantity"])
+    in_df = _load_all_and_merge(in_candidates, load_movement_to_warehouse, ["date", "document", "nomenclature", "quantity"])
+    ingredients_df = _load_all_and_merge(ingredients_candidates, load_ingredients_after_disassembly, ["date", "document", "nomenclature", "quantity"])
+    out_df = _load_all_and_merge(out_candidates, load_movement_from_warehouse, ["date", "document", "nomenclature", "quantity"])
+    internal_df = _load_all_and_merge(internal_candidates, load_internal_consumption, ["date", "document", "nomenclature", "article", "quantity"])
 
     # Группировка по (дата, документ, номенклатура): суммируем quantity, т.к. в одном документе может быть несколько строк с одной номенклатурой.
     # Раньше стояло "max" — это занижало итоги (учитывалась только одна строка вместо суммы).
@@ -331,60 +352,66 @@ def get_disassembly_sources_info(data_dir: str) -> dict:
                 "003": {"file": None, "rows": 0, "dates": 0, "error": "Папка не найдена"},
                 "004": {"file": None, "rows": 0, "dates": 0, "error": "Папка не найдена"}}
 
-    in_candidates: list = []
-    ingredients_candidates: list = []
-    out_candidates: list = []
-    internal_candidates: list = []
+    in_candidates: list[Path] = []
+    ingredients_candidates: list[Path] = []
+    out_candidates: list[Path] = []
+    internal_candidates: list[Path] = []
 
     for f in path.glob("**/*.xlsx"):
         if f.name.startswith("~$"):
             continue
         try:
-            mtime = f.stat().st_mtime
             name_type = _disassembly_file_type_by_name(f)
             if name_type == "in":
-                in_candidates.append((f, mtime))
+                in_candidates.append(f)
                 continue
             if name_type == "ingredients":
-                ingredients_candidates.append((f, mtime))
+                ingredients_candidates.append(f)
                 continue
             if name_type == "out":
-                out_candidates.append((f, mtime))
+                out_candidates.append(f)
                 continue
             if name_type == "internal":
-                internal_candidates.append((f, mtime))
+                internal_candidates.append(f)
                 continue
             if _is_movement_to_warehouse_file(f):
-                in_candidates.append((f, mtime))
+                in_candidates.append(f)
             elif _is_ingredients_after_disassembly_file(f):
-                ingredients_candidates.append((f, mtime))
+                ingredients_candidates.append(f)
             elif _is_internal_consumption_file(f):
-                internal_candidates.append((f, mtime))
+                internal_candidates.append(f)
             elif _is_movement_from_warehouse_file(f):
-                out_candidates.append((f, mtime))
+                out_candidates.append(f)
         except Exception:
             pass
 
-    def _load_one_info(candidates: list, loader) -> tuple:
+    def _load_all_info(candidates: list, loader) -> tuple:
+        """По аналогии с загрузкой: все файлы типа объединяются, возвращаем (описание, строк, дат)."""
         if not candidates:
-            return None, 0, 0
-        chosen = max(candidates, key=lambda x: x[1])[0]
+            return "—", 0, 0
+        n_files = len(candidates)
         try:
-            df = loader(chosen)
-            if df.empty:
-                return chosen.name, 0, 0
-            if "date" in df.columns:
+            frames = []
+            for fp in candidates:
+                df = loader(fp)
+                if df.empty or "date" not in df.columns:
+                    continue
                 df = df.copy()
                 df["date_only"] = df["date"].apply(lambda x: x.date() if hasattr(x, "date") else x)
-            dates = df["date_only"].nunique() if "date_only" in df.columns else 0
-            return chosen.name, len(df), int(dates)
+                frames.append(df)
+            if not frames:
+                return f"{n_files} файл(ов)", 0, 0
+            combined = pd.concat(frames, ignore_index=True)
+            rows = len(combined)
+            dates = int(combined["date_only"].nunique()) if "date_only" in combined.columns else 0
+            return f"{n_files} файл(ов)", rows, dates
         except Exception:
-            return chosen.name, 0, 0
+            return f"{n_files} файл(ов)", 0, 0
 
-    f001, r001, d001 = _load_one_info(internal_candidates, load_internal_consumption)
-    f002, r002, d002 = _load_one_info(out_candidates, load_movement_from_warehouse)
-    f003, r003, d003 = _load_one_info(in_candidates, load_movement_to_warehouse)
-    f004, r004, d004 = _load_one_info(ingredients_candidates, load_ingredients_after_disassembly)
+    f001, r001, d001 = _load_all_info(internal_candidates, load_internal_consumption)
+    f002, r002, d002 = _load_all_info(out_candidates, load_movement_from_warehouse)
+    f003, r003, d003 = _load_all_info(in_candidates, load_movement_to_warehouse)
+    f004, r004, d004 = _load_all_info(ingredients_candidates, load_ingredients_after_disassembly)
 
     return {
         "001": {"file": f001, "rows": r001, "dates": d001, "label": "Внутреннее потребление (списание)"},

@@ -348,6 +348,7 @@ def sync_from_gdrive_api(
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
     disassembly_raw = os.environ.get("GOOGLE_DRIVE_PREFIXES_DISASSEMBLY", "")
     disassembly_prefixes = [p.strip() for p in disassembly_raw.split(",") if p.strip()] if disassembly_raw else [
+        "001", "002", "003", "004",
         "001 Внутреннее потребление со склада разборки",
         "002 Перемещение готовой продукции с возвратов",
         "003 Поступление возвратов на склад разборки",
@@ -513,6 +514,7 @@ def admin_sync_from_gdrive():
     recursive = os.environ.get("GOOGLE_DRIVE_RECURSIVE", "true").lower() in ("1", "true", "yes")
     disassembly_raw = os.environ.get("GOOGLE_DRIVE_PREFIXES_DISASSEMBLY", "")
     disassembly_prefixes = [p.strip() for p in disassembly_raw.split(",") if p.strip()] if disassembly_raw else [
+        "001", "002", "003", "004",
         "001 Внутреннее потребление со склада разборки",
         "002 Перемещение готовой продукции с возвратов",
         "003 Поступление возвратов на склад разборки",

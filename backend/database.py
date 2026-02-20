@@ -53,7 +53,7 @@ def _empty_disassembly_dfs():
 
 
 def refresh_data():
-    """Перезагрузить данные из файлов (продукция + выработка сотрудников + разборка возвратов). Не роняет приложение при ошибке."""
+    """Перезагрузить данные из файлов (продукция + выработка сотрудников + разборка возвратов). Прайс: при повторной загрузке обновляются/добавляются позиции из файла, отсутствующие в новом файле не удаляются. Не роняет приложение при ошибке."""
     global _df, _df_employee, _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption, _nomenclature_prices, _nomenclature_prices_lower
     ensure_data_dir()
     try:
@@ -83,11 +83,15 @@ def refresh_data():
         _df_in_warehouse, _df_ingredients, _df_out_warehouse, _df_internal_consumption = _empty_disassembly_dfs()
     if load_nomenclature_prices:
         try:
-            _nomenclature_prices = load_nomenclature_prices(str(DATA_DIR))
-            _nomenclature_prices_lower = {str(k).strip().lower(): v for k, v in (_nomenclature_prices or {}).items()}
+            new_prices = load_nomenclature_prices(str(DATA_DIR)) or {}
+            # Обновляем при повторной загрузке; позиции, которых нет в новом файле, не удаляем
+            existing = _nomenclature_prices if _nomenclature_prices is not None else {}
+            _nomenclature_prices = {**existing, **new_prices}
+            _nomenclature_prices_lower = {str(k).strip().lower(): v for k, v in _nomenclature_prices.items()}
         except Exception:
-            _nomenclature_prices = {}
-            _nomenclature_prices_lower = {}
+            if _nomenclature_prices is None:
+                _nomenclature_prices = {}
+                _nomenclature_prices_lower = {}
     else:
         _nomenclature_prices = {}
         _nomenclature_prices_lower = {}

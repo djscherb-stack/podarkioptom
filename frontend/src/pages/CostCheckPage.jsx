@@ -9,6 +9,7 @@ export default function CostCheckPage() {
   const [error, setError] = useState(null)
   const [uploadingPrices, setUploadingPrices] = useState(false)
   const [uploadPricesMsg, setUploadPricesMsg] = useState(null)
+  const [copied, setCopied] = useState(false)
   const priceInputRef = useRef(null)
 
   const fetchList = useCallback(() => {
@@ -52,6 +53,15 @@ export default function CostCheckPage() {
       })
   }
 
+  const copyTo1C = () => {
+    const text = items.join('\n')
+    if (!text) return
+    navigator.clipboard.writeText(text).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 2000)
+    }).catch(() => setCopied(false))
+  }
+
   return (
     <div className="page">
       <div className="page-header">
@@ -72,6 +82,15 @@ export default function CostCheckPage() {
             title="Загрузить файл «цена поступления номенклатуры.xlsx»"
           >
             {uploadingPrices ? 'Загрузка…' : 'Загрузить прайс себестоимости'}
+          </button>
+          <button
+            type="button"
+            className="btn-copy-nomenclature"
+            onClick={copyTo1C}
+            disabled={loading || items.length === 0}
+            title="Скопировать наименования без цены (по одному на строку) для вставки в 1С"
+          >
+            {copied ? 'Скопировано' : 'Скопировать в 1С'}
           </button>
           <button type="button" className="btn-refresh" onClick={fetchList} title="Обновить">
             ⟳
