@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { apiFetch, API } from '../api'
 import { fetchTheme, saveTheme, applyTheme, THEME_OPTIONS } from '../theme'
@@ -28,7 +28,20 @@ export default function AdminPage() {
   const [dateRange, setDateRange] = useState(null)
   const [syncLog, setSyncLog] = useState([])
   const [dataSources, setDataSources] = useState(null)
+  const [replaceDisassemblyStep, setReplaceDisassemblyStep] = useState(null)
+  const [replaceDisassemblyFiles, setReplaceDisassemblyFiles] = useState({})
+  const [replaceDisassemblyMsg, setReplaceDisassemblyMsg] = useState(null)
+  const [replaceDisassemblyLoading, setReplaceDisassemblyLoading] = useState(false)
+  const [replaceDisassemblyLog, setReplaceDisassemblyLog] = useState([])
+  const [replaceDisassemblyProgress, setReplaceDisassemblyProgress] = useState(null)
+  const [replaceDisassemblyModalOpen, setReplaceDisassemblyModalOpen] = useState(false)
+  const replaceLogEndRef = useRef(null)
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (replaceDisassemblyModalOpen && replaceLogEndRef.current)
+      replaceLogEndRef.current.scrollIntoView({ behavior: 'smooth' })
+  }, [replaceDisassemblyModalOpen, replaceDisassemblyLog])
 
   const loadDataSources = () => {
     apiFetch(`${API}/admin/data-sources`)
@@ -122,6 +135,64 @@ export default function AdminPage() {
     }
   }
 
+  const replaceDisassemblyStart = () => {
+    if (!window.confirm('Внимание, эта кнопка перепишет все данные по разбору возвратов. Продолжить?')) return
+    setReplaceDisassemblyMsg(null)
+    setReplaceDisassemblyFiles({})
+    setReplaceDisassemblyStep('select')
+  }
+
+  const replaceDisassemblySetFile = (prefix, file) => {
+    setReplaceDisassemblyFiles(prev => ({ ...prev, [prefix]: file || null }))
+  }
+
+  const replaceDisassemblySubmit = async () => {
+    const files = ['001', '002', '003', '004'].map(p => replaceDisassemblyFiles[p])
+    if (files.some(f => !f)) {
+      setReplaceDisassemblyMsg('Выберите все 4 файла (001, 002, 003, 004).')
+      return
+    }
+    if (!window.confirm('Сейчас будут удалены все старые данные разборки и загружены данные из выбранных четырёх файлов. Точно хотите?')) return
+    setReplaceDisassemblyMsg(null)
+    setReplaceDisassemblyLoading(true)
+    setReplaceDisassemblyLog(['Подготовка...', 'Отправка 4 файлов на сервер...'])
+    setReplaceDisassemblyProgress(null)
+    setReplaceDisassemblyModalOpen(true)
+    try {
+      const form = new FormData()
+      form.append('file_001', files[0])
+      form.append('file_002', files[1])
+      form.append('file_003', files[2])
+      form.append('file_004', files[3])
+      const r = await fetch(`${API}/admin/replace-disassembly`, { method: 'POST', credentials: 'include', body: form })
+      const data = await r.json().catch(() => ({}))
+      const serverLog = Array.isArray(data.log) ? data.log : []
+      setReplaceDisassemblyLog(prev => [...prev, '', 'Ответ сервера:', ...serverLog])
+      setReplaceDisassemblyProgress(100)
+      if (!r.ok) {
+        setReplaceDisassemblyMsg(data.error || 'Ошибка загрузки')
+        return
+      }
+      setReplaceDisassemblyMsg('Данные разборки перезагружены.')
+      setReplaceDisassemblyStep(null)
+      setReplaceDisassemblyFiles({})
+      loadDataSources()
+      apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => {})
+    } catch (e) {
+      setReplaceDisassemblyLog(prev => [...prev, '', `Ошибка: ${e.message || 'Ошибка сети'}`])
+      setReplaceDisassemblyProgress(100)
+      setReplaceDisassemblyMsg(e.message || 'Ошибка сети')
+    } finally {
+      setReplaceDisassemblyLoading(false)
+    }
+  }
+
+  const closeReplaceDisassemblyModal = () => {
+    setReplaceDisassemblyModalOpen(false)
+    setReplaceDisassemblyLog([])
+    setReplaceDisassemblyProgress(null)
+  }
+
   return (
     <div className="admin-page">
       <h2>Админ-панель</h2>
@@ -134,6 +205,76 @@ export default function AdminPage() {
           <RefreshDataButton onSuccess={() => apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => {})} />
         </div>
       </section>
+
+      <section className="admin-replace-disassembly-section">
+        <h3>Перезагрузка данных разборки</h3>
+        <p className="admin-replace-disassembly-hint">
+          Удалить все текущие файлы разборки (001–004) и заменить их четырьмя выбранными файлами. Используйте для исправления исходных данных. Дальнейшая загрузка идёт по расписанию из Google Drive.
+        </p>
+        {replaceDisassemblyStep !== 'select' && (
+          <button
+            type="button"
+            className="admin-btn-replace-disassembly"
+            onClick={replaceDisassemblyStart}
+            disabled={replaceDisassemblyLoading}
+          >
+            Перезагрузить данные разборки
+          </button>
+        )}
+        {replaceDisassemblyStep === 'select' && (
+          <div className="admin-replace-disassembly-files">
+            <p className="admin-replace-disassembly-select-hint">Выберите 4 файла Excel в порядке 001, 002, 003, 004:</p>
+            {['001', '002', '003', '004'].map(prefix => (
+              <label key={prefix} className="admin-replace-disassembly-row">
+                <span className="admin-replace-disassembly-label">{prefix}:</span>
+                <input
+                  type="file"
+                  accept=".xlsx,.xls"
+                  onChange={e => replaceDisassemblySetFile(prefix, e.target.files?.[0])}
+                />
+                <span className="admin-replace-disassembly-filename">{replaceDisassemblyFiles[prefix]?.name || '—'}</span>
+              </label>
+            ))}
+            <div className="admin-replace-disassembly-actions">
+              <button type="button" className="admin-btn-secondary" onClick={() => { setReplaceDisassemblyStep(null); setReplaceDisassemblyFiles({}); setReplaceDisassemblyMsg(null) }}>
+                Отмена
+              </button>
+              <button type="button" className="admin-btn-replace-disassembly-submit" onClick={replaceDisassemblySubmit} disabled={replaceDisassemblyLoading}>
+                {replaceDisassemblyLoading ? 'Загрузка…' : 'Удалить старые и загрузить эти 4 файла'}
+              </button>
+            </div>
+          </div>
+        )}
+        {replaceDisassemblyMsg && <p className={`admin-replace-disassembly-msg ${replaceDisassemblyMsg.includes('перезагружены') ? 'admin-replace-disassembly-msg-ok' : 'admin-replace-disassembly-msg-error'}`}>{replaceDisassemblyMsg}</p>}
+      </section>
+
+      {replaceDisassemblyModalOpen && (
+        <div className="admin-replace-modal-overlay" role="dialog" aria-labelledby="replace-modal-title">
+          <div className="admin-replace-modal">
+            <h3 id="replace-modal-title" className="admin-replace-modal-title">Перезагрузка данных разборки</h3>
+            <div className="admin-replace-modal-progress-wrap">
+              <div
+                className={`admin-replace-modal-progress-bar ${replaceDisassemblyProgress === null ? 'indeterminate' : ''}`}
+                style={replaceDisassemblyProgress !== null ? { width: `${replaceDisassemblyProgress}%` } : undefined}
+              />
+            </div>
+            <p className="admin-replace-modal-progress-label">
+              {replaceDisassemblyProgress === null ? 'Выполняется…' : replaceDisassemblyProgress === 100 ? 'Завершено' : `${replaceDisassemblyProgress}%`}
+            </p>
+            <div className="admin-replace-modal-log" role="log">
+              {replaceDisassemblyLog.map((line, i) => (
+                <div key={i} className="admin-replace-modal-log-line">{line || '\u00A0'}</div>
+              ))}
+              <div ref={replaceLogEndRef} />
+            </div>
+            <div className="admin-replace-modal-actions">
+              <button type="button" className="admin-btn-replace-modal-close" onClick={closeReplaceDisassemblyModal}>
+                {replaceDisassemblyProgress === 100 ? 'Закрыть' : 'Закрыть (операция может продолжаться)'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       <section className="admin-data-sources-section">
         <h3>Источники данных</h3>

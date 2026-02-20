@@ -232,6 +232,225 @@
   font-size: 0.8rem;
 }
 
+.admin-replace-disassembly-section {
+  margin-bottom: 2rem;
+  padding: 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.admin-replace-disassembly-hint {
+  margin: 0.25rem 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text-muted);
+}
+
+.admin-btn-replace-disassembly {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  background: #c53030;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.admin-btn-replace-disassembly:hover:not(:disabled) {
+  background: #e53e3e;
+}
+
+.admin-btn-replace-disassembly:disabled {
+  opacity: 0.7;
+  cursor: not-allowed;
+}
+
+.admin-replace-disassembly-files {
+  margin-top: 0.75rem;
+}
+
+.admin-replace-disassembly-select-hint {
+  margin: 0 0 0.5rem;
+  font-size: 0.9rem;
+  color: var(--text);
+}
+
+.admin-replace-disassembly-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  font-size: 0.9rem;
+}
+
+.admin-replace-disassembly-label {
+  min-width: 2.5rem;
+  font-weight: 600;
+}
+
+.admin-replace-disassembly-row input[type="file"] {
+  max-width: 220px;
+}
+
+.admin-replace-disassembly-filename {
+  color: var(--text-muted);
+  font-size: 0.85rem;
+}
+
+.admin-replace-disassembly-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+  flex-wrap: wrap;
+}
+
+.admin-btn-secondary {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.admin-btn-secondary:hover {
+  background: var(--bg-card-hover);
+}
+
+.admin-btn-replace-disassembly-submit {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  background: #c53030;
+  color: #fff;
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.admin-btn-replace-disassembly-submit:hover:not(:disabled) {
+  background: #e53e3e;
+}
+
+.admin-btn-replace-disassembly-submit:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}
+
+.admin-replace-disassembly-msg {
+  margin: 0.5rem 0 0;
+  font-size: 0.9rem;
+}
+
+.admin-replace-disassembly-msg-ok {
+  color: var(--success, #22c55e);
+}
+
+.admin-replace-disassembly-msg-error {
+  color: var(--negative, #e53e3e);
+}
+
+/* Модальное окно логов перезагрузки разборки */
+.admin-replace-modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: 1rem;
+}
+
+.admin-replace-modal {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  max-width: 560px;
+  width: 100%;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.admin-replace-modal-title {
+  margin: 0;
+  padding: 1rem 1rem 0.5rem;
+  font-size: 1.1rem;
+}
+
+.admin-replace-modal-progress-wrap {
+  height: 8px;
+  background: var(--bg);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.5rem 1rem 0;
+}
+
+.admin-replace-modal-progress-bar {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.3s ease;
+}
+
+.admin-replace-modal-progress-bar.indeterminate {
+  width: 40% !important;
+  animation: admin-replace-progress-indeterminate 1.2s ease-in-out infinite;
+}
+
+@keyframes admin-replace-progress-indeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+.admin-replace-modal-progress-label {
+  margin: 0.25rem 1rem 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+
+.admin-replace-modal-log {
+  flex: 1;
+  overflow: auto;
+  margin: 0.75rem 1rem;
+  padding: 0.75rem;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  max-height: 280px;
+}
+
+.admin-replace-modal-log-line {
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.admin-replace-modal-actions {
+  padding: 0.75rem 1rem 1rem;
+  border-top: 1px solid var(--border);
+}
+
+.admin-btn-replace-modal-close {
+  padding: 0.5rem 1rem;
+  font-size: 0.9rem;
+  background: var(--accent);
+  color: var(--bg);
+  border: none;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.admin-btn-replace-modal-close:hover {
+  opacity: 0.9;
+}
+
 .admin-dates-section {
   margin-bottom: 2rem;
   padding: 1rem;

@@ -202,27 +202,30 @@ def load_ingredients_after_disassembly(filepath: Path) -> pd.DataFrame:
 
 # Префиксы имён файлов (как в Google Drive) — при совпадении тип файла определяем по имени, а не по колонкам.
 # В 1С оба отчёта (поступление и отгрузка) могут иметь колонку "Перемещение товаров", поэтому без префикса
-# файл отгрузки ошибочно распознавался бы как поступление.
-_FNAME_PREFIX_INTERNAL = "001"
-_FNAME_PREFIX_OUT = "002"
-_FNAME_PREFIX_IN = "003"
+# 001 — перемещение возвратов на склад разборки (in)
+# 002 — поступление ингредиентов после разбора на склад (ingredients)
+# 003 — списание битой посуды со склада (internal)
+# 004 — перемещение со склада разборки на основной склад (out)
+_FNAME_PREFIX_IN = "001"
+_FNAME_PREFIX_INGREDIENTS = "002"
+_FNAME_PREFIX_INTERNAL = "003"
+_FNAME_PREFIX_OUT = "004"
 
 
 def _disassembly_file_type_by_name(filepath: Path) -> Optional[str]:
-    """По префиксу имени файла возвращает 'in' | 'out' | 'internal' или None (определять по содержимому)."""
+    """По префиксу имени файла возвращает 'in' | 'out' | 'internal' | 'ingredients' или None."""
     name = filepath.name
     if not name or not name.strip():
         return None
-    # Файлы с Google Drive сохраняются как 001_gdrive_..., 002_gdrive_..., 003_gdrive_...
-    # Локальные/загруженные вручную могут быть «003 Поступление возвратов...» и т.д.
-    if name.startswith("003_") or name.startswith("003 Поступление возвратов") or name.startswith("003 ") or name.lower().startswith("003"):
+    name_lower = name.lower()
+    if name.startswith("001_") or name.startswith("001 ") or name_lower.startswith("001"):
         return "in"
-    if name.startswith("002_") or name.startswith("002 Перемещение готовой продукции") or name.startswith("002 ") or name.lower().startswith("002"):
-        return "out"
-    if name.startswith("001_") or name.startswith("001 Внутреннее потребление") or name.startswith("001 ") or name.lower().startswith("001"):
-        return "internal"
-    if name.startswith("004_") or name.startswith("004 Поступление ингредиентов") or name.startswith("004 ") or name.lower().startswith("004"):
+    if name.startswith("002_") or name.startswith("002 ") or name_lower.startswith("002"):
         return "ingredients"
+    if name.startswith("003_") or name.startswith("003 ") or name_lower.startswith("003"):
+        return "internal"
+    if name.startswith("004_") or name.startswith("004 ") or name_lower.startswith("004"):
+        return "out"
     return None
 
 
@@ -340,6 +343,26 @@ def load_all_disassembly_data(data_dir: str) -> tuple[pd.DataFrame, pd.DataFrame
     return in_df, ingredients_df, out_df, internal_df
 
 
+def list_disassembly_file_paths(data_dir: str) -> list:
+    """Список путей к файлам, которые считаются файлами разборки (001–004). Для удаления при перезагрузке."""
+    path = Path(data_dir)
+    if not path.exists():
+        return []
+    result = []
+    for f in path.glob("**/*.xlsx"):
+        if f.name.startswith("~$"):
+            continue
+        try:
+            if _disassembly_file_type_by_name(f) is not None:
+                result.append(f)
+                continue
+            if _is_movement_to_warehouse_file(f) or _is_ingredients_after_disassembly_file(f) or _is_internal_consumption_file(f) or _is_movement_from_warehouse_file(f):
+                result.append(f)
+        except Exception:
+            pass
+    return result
+
+
 def get_disassembly_sources_info(data_dir: str) -> dict:
     """
     Возвращает по каждому типу 001–004: какой файл выбран, сколько строк и дат.
@@ -408,16 +431,16 @@ def get_disassembly_sources_info(data_dir: str) -> dict:
         except Exception:
             return f"{n_files} файл(ов)", 0, 0
 
-    f001, r001, d001 = _load_all_info(internal_candidates, load_internal_consumption)
-    f002, r002, d002 = _load_all_info(out_candidates, load_movement_from_warehouse)
-    f003, r003, d003 = _load_all_info(in_candidates, load_movement_to_warehouse)
-    f004, r004, d004 = _load_all_info(ingredients_candidates, load_ingredients_after_disassembly)
+    f001, r001, d001 = _load_all_info(in_candidates, load_movement_to_warehouse)
+    f002, r002, d002 = _load_all_info(ingredients_candidates, load_ingredients_after_disassembly)
+    f003, r003, d003 = _load_all_info(internal_candidates, load_internal_consumption)
+    f004, r004, d004 = _load_all_info(out_candidates, load_movement_from_warehouse)
 
     return {
-        "001": {"file": f001, "rows": r001, "dates": d001, "label": "Внутреннее потребление (списание)"},
-        "002": {"file": f002, "rows": r002, "dates": d002, "label": "Отгрузка готовой продукции"},
-        "003": {"file": f003, "rows": r003, "dates": d003, "label": "Поступление на склад"},
-        "004": {"file": f004, "rows": r004, "dates": d004, "label": "Поступление ингредиентов после разборки"},
+        "001": {"file": f001, "rows": r001, "dates": d001, "label": "Перемещение возвратов на склад разборки LUMINARC"},
+        "002": {"file": f002, "rows": r002, "dates": d002, "label": "Поступление ингредиентов после разбора на склад разборки LUMINARC"},
+        "003": {"file": f003, "rows": r003, "dates": d003, "label": "Списание битой посуды со склада LUMINARC"},
+        "004": {"file": f004, "rows": r004, "dates": d004, "label": "Перемещение со склада разборки LUMINARC на основной склад"},
     }
 
 

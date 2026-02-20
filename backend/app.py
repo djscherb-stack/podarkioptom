@@ -349,10 +349,10 @@ def sync_from_gdrive_api(
     disassembly_raw = os.environ.get("GOOGLE_DRIVE_PREFIXES_DISASSEMBLY", "")
     disassembly_prefixes = [p.strip() for p in disassembly_raw.split(",") if p.strip()] if disassembly_raw else [
         "001", "002", "003", "004",
-        "001 Внутреннее потребление со склада разборки",
-        "002 Перемещение готовой продукции с возвратов",
-        "003 Поступление возвратов на склад разборки",
-        "004 Поступление ингредиентов после разборки",
+        "001 Перемещение возвратов на склад разборки LUMINARC",
+        "002 Поступление ингредиентов после разбора на склад разборки LUMINARC",
+        "003 Списание битой посуды со склада LUMINARC",
+        "004 Перемещение со склада разборки LUMINARC на основной склад",
     ]
     if not folder_id or not credentials:
         res = {
@@ -515,10 +515,10 @@ def admin_sync_from_gdrive():
     disassembly_raw = os.environ.get("GOOGLE_DRIVE_PREFIXES_DISASSEMBLY", "")
     disassembly_prefixes = [p.strip() for p in disassembly_raw.split(",") if p.strip()] if disassembly_raw else [
         "001", "002", "003", "004",
-        "001 Внутреннее потребление со склада разборки",
-        "002 Перемещение готовой продукции с возвратов",
-        "003 Поступление возвратов на склад разборки",
-        "004 Поступление ингредиентов после разборки",
+        "001 Перемещение возвратов на склад разборки LUMINARC",
+        "002 Поступление ингредиентов после разбора на склад разборки LUMINARC",
+        "003 Списание битой посуды со склада LUMINARC",
+        "004 Перемещение со склада разборки LUMINARC на основной склад",
     ]
     if not folder_id or not credentials:
         res = {
@@ -559,6 +559,62 @@ def admin_refresh():
     """Пересчитать данные из файлов по новым правилам (только для admin)."""
     db.refresh_data()
     return {"status": "ok"}
+
+
+@app.post("/api/admin/replace-disassembly", dependencies=[Depends(require_admin)])
+async def admin_replace_disassembly(
+    file_001: UploadFile = File(..., description="001 — Перемещение возвратов на склад разборки"),
+    file_002: UploadFile = File(..., description="002 — Поступление ингредиентов после разбора"),
+    file_003: UploadFile = File(..., description="003 — Списание битой посуды"),
+    file_004: UploadFile = File(..., description="004 — Перемещение на основной склад"),
+):
+    """
+    Перезаписать все данные разборки возвратов четырьмя файлами.
+    Удаляются все текущие файлы разборки (001–004), затем сохраняются загруженные 4 файла.
+    Возвращает log — список сообщений для отображения в окне логов.
+    """
+    from datetime import datetime
+    log = []
+    try:
+        from disassembly_parser import list_disassembly_file_paths
+    except ImportError:
+        return JSONResponse({"error": "Модуль разборки недоступен", "log": log}, status_code=500)
+    data_dir = db.get_data_dir()
+    data_dir.mkdir(parents=True, exist_ok=True)
+    for f in (file_001, file_002, file_003, file_004):
+        if not f.filename or not f.filename.lower().endswith((".xlsx", ".xls")):
+            log.append("Ошибка: все 4 файла должны быть Excel (.xlsx или .xls)")
+            return {"error": "Все 4 файла должны быть Excel (.xlsx или .xls)", "log": log}
+    log.append("Удаление старых файлов разборки...")
+    to_delete = list_disassembly_file_paths(str(data_dir))
+    if not to_delete:
+        log.append("  Файлов разборки не найдено.")
+    for p in to_delete:
+        try:
+            p.unlink()
+            log.append(f"  Удалено: {p.name}")
+        except Exception as e:
+            log.append(f"  Ошибка удаления {p.name}: {e}")
+            return {"error": f"Не удалось удалить {p.name}: {e}", "log": log}
+    log.append(f"Удалено файлов: {len(to_delete)}")
+    ts = datetime.now().strftime("%Y%m%d_%H%M%S")
+    log.append("Загрузка новых файлов...")
+    try:
+        for prefix, upl in [("001", file_001), ("002", file_002), ("003", file_003), ("004", file_004)]:
+            content = await upl.read()
+            if len(content) > 50 * 1024 * 1024:
+                log.append(f"  Файл {prefix}: слишком большой (макс. 50 МБ)")
+                return {"error": f"Файл {prefix} слишком большой (макс. 50 МБ)", "log": log}
+            fname = f"{prefix}_reload_{ts}.xlsx"
+            (data_dir / fname).write_bytes(content)
+            log.append(f"  Сохранён: {fname} ({len(content) // 1024} КБ)")
+    except Exception as e:
+        log.append(f"  Ошибка: {e}")
+        return {"error": str(e), "log": log}
+    log.append("Пересчёт данных (refresh_data)...")
+    db.refresh_data()
+    log.append("Готово. Данные разборки перезагружены.")
+    return {"status": "ok", "message": "Данные разборки перезагружены", "log": log}
 
 
 @app.get("/api/admin/data-dates", dependencies=[Depends(require_admin)])
