@@ -52,10 +52,13 @@ export default function DisassemblyReturnsPage() {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
-  const [expanded, setExpanded] = useState(null)
-  const [detailPanelOpen, setDetailPanelOpen] = useState(null)
+  /** По какой строке раскрыт подпункт детализации: { [dateStr]: "flow:type" } */
+  const [expanded, setExpanded] = useState({})
+  /** Множество дат, у которых открыта панель детализации (можно открыть несколько) */
+  const [detailPanelOpen, setDetailPanelOpen] = useState(() => new Set())
   const [detailCache, setDetailCache] = useState({})
-  const [fullDetailOpen, setFullDetailOpen] = useState(null)
+  /** Множество дат, у которых открыта полная детализация */
+  const [fullDetailOpen, setFullDetailOpen] = useState(() => new Set())
   const [fullDetailCache, setFullDetailCache] = useState({})
   const [fullDetailLoading, setFullDetailLoading] = useState(false)
   const [summaryOpen, setSummaryOpen] = useState(false)
@@ -63,9 +66,19 @@ export default function DisassemblyReturnsPage() {
   const [summaryData, setSummaryData] = useState(null)
   const [summaryLoading, setSummaryLoading] = useState(false)
   const [summaryError, setSummaryError] = useState(null)
+  /** Сортировка внутри блоков детализации: { [detailKey]: { by: 'quantity'|'cost', dir: 'asc'|'desc' } } */
+  const [detailSort, setDetailSort] = useState({})
   /** Выбор диапазона: колонка + диапазон строк (для суммирования сверху) */
   const [selection, setSelection] = useState(null)
   const isSelectingRef = useRef(false)
+
+  const setDetailSortForKey = (key, by) => {
+    setDetailSort(prev => {
+      const cur = prev[key]
+      const nextDir = cur?.by === by ? (cur.dir === 'asc' ? 'desc' : 'asc') : 'desc'
+      return { ...prev, [key]: { by, dir: nextDir } }
+    })
+  }
 
   const fetchStats = useCallback(() => {
     setLoading(true)
@@ -91,24 +104,41 @@ export default function DisassemblyReturnsPage() {
   }
 
   const toggleExpand = (dateStr, flow, detailType) => {
-    const key = `${dateStr}-${flow}-${detailType}`
-    setExpanded(prev => (prev === key ? null : key))
-    if (!detailCache[key]) fetchDetail(dateStr, flow, detailType)
+    const key = `${flow}-${detailType}`
+    setExpanded(prev => {
+      const next = { ...prev }
+      if (next[dateStr] === key) {
+        delete next[dateStr]
+      } else {
+        next[dateStr] = key
+      }
+      return next
+    })
+    const cacheKey = `${dateStr}-${flow}-${detailType}`
+    if (!detailCache[cacheKey]) fetchDetail(dateStr, flow, detailType)
   }
 
   const toggleDetailPanel = (dateStr) => {
     setDetailPanelOpen(prev => {
-      if (prev === dateStr) {
-        setExpanded(prevEx => (prevEx && prevEx.startsWith(dateStr) ? null : prevEx))
-        setFullDetailOpen(null)
-        return null
+      const next = new Set(prev)
+      if (next.has(dateStr)) {
+        next.delete(dateStr)
+        setExpanded(prevEx => { const o = { ...prevEx }; delete o[dateStr]; return o })
+        setFullDetailOpen(prevF => { const s = new Set(prevF); s.delete(dateStr); return s })
+      } else {
+        next.add(dateStr)
       }
-      return dateStr
+      return next
     })
   }
 
   const requestFullDetail = (dateStr) => {
-    setFullDetailOpen(prev => (prev === dateStr ? null : dateStr))
+    setFullDetailOpen(prev => {
+      const next = new Set(prev)
+      if (next.has(dateStr)) next.delete(dateStr)
+      else next.add(dateStr)
+      return next
+    })
     if (fullDetailCache[dateStr]) return
     setFullDetailLoading(true)
     apiFetch(`${API}/disassembly/full-detail?date_str=${encodeURIComponent(dateStr)}`)
@@ -344,6 +374,8 @@ export default function DisassemblyReturnsPage() {
                     fullDetailData={fullDetailCache[row.date]}
                     fullDetailLoading={fullDetailLoading}
                     detailCache={detailCache}
+                    detailSort={detailSort}
+                    onDetailSort={setDetailSortForKey}
                     selection={selection}
                     selectionRowIndices={selectionRowIndices}
                     onCellMouseDown={handleCellMouseDown}
@@ -460,13 +492,13 @@ function FullDetailTable({ rows, formatCostRubles, formatQty }) {
   )
 }
 
-function DisassemblyRow({ row, rowIndex, groupBy, isDateRow, expanded, detailPanelOpen, fullDetailOpen, fullDetailData, fullDetailLoading, detailCache, selection, selectionRowIndices, onCellMouseDown, onCellMouseEnter, onToggleExpand, onToggleDetailPanel, onRequestFullDetail }) {
+function DisassemblyRow({ row, rowIndex, groupBy, isDateRow, expanded, detailPanelOpen, fullDetailOpen, fullDetailData, fullDetailLoading, detailCache, detailSort, onDetailSort, selection, selectionRowIndices, onCellMouseDown, onCellMouseEnter, onToggleExpand, onToggleDetailPanel, onRequestFullDetail }) {
   const dateStr = row.date
   const detailKey = (flow, type) => `${dateStr}-${flow}-${type}`
-  const isExpanded = (flow, type) => expanded === detailKey(flow, type)
+  const isExpanded = (flow, type) => (expanded && expanded[dateStr] === `${flow}-${type}`)
   const items = (flow, type) => detailCache[detailKey(flow, type)] || []
-  const panelOpen = isDateRow && detailPanelOpen === dateStr
-  const fullDetailVisible = panelOpen && fullDetailOpen === dateStr
+  const panelOpen = isDateRow && (detailPanelOpen && detailPanelOpen.has && detailPanelOpen.has(dateStr))
+  const fullDetailVisible = panelOpen && (fullDetailOpen && fullDetailOpen.has && fullDetailOpen.has(dateStr))
   const sel = (colIndex) => {
     const selected = selection && selection.colIndex === colIndex && selectionRowIndices.includes(rowIndex)
     return {
@@ -486,8 +518,13 @@ function DisassemblyRow({ row, rowIndex, groupBy, isDateRow, expanded, detailPan
 
   return (
     <>
-      <tr>
-        <td className="disassembly-cell-period">{formatPeriod(row, groupBy)}</td>
+      <tr className={row.is_correction ? 'disassembly-row-correction' : ''}>
+        <td className="disassembly-cell-period">
+          {formatPeriod(row, groupBy)}
+          {row.is_correction && row.correction_note && (
+            <div className="disassembly-correction-note" title={row.correction_note}>{row.correction_note}</div>
+          )}
+        </td>
         <td {...sel(1)}>
           <div>{formatQty(row.balance_start ?? 0)}</div>
           <div className="disassembly-cost">{(formatCostRubles(row.balance_start_cost) || '0')} ₽</div>
@@ -569,31 +606,51 @@ function DisassemblyRow({ row, rowIndex, groupBy, isDateRow, expanded, detailPan
                 ['internal', 'nomenclature'], ['internal', 'documents'], ['internal', 'articles'],
               ].map(([flow, type]) => {
                 const key = detailKey(flow, type)
-                if (expanded !== key) return null
-                const list = items(flow, type)
+                if ((expanded && expanded[dateStr]) !== `${flow}-${type}`) return null
+                const rawList = items(flow, type)
+                const sortState = detailSort && detailSort[key]
+                const list = rawList.length === 0 ? [] : [...rawList].sort((a, b) => {
+                  if (!sortState) return 0
+                  const mul = sortState.dir === 'asc' ? 1 : -1
+                  if (sortState.by === 'quantity') {
+                    return mul * ((Number(a.quantity) ?? 0) - (Number(b.quantity) ?? 0))
+                  }
+                  return mul * ((Number(a.cost) ?? 0) - (Number(b.cost) ?? 0))
+                })
                 return (
                   <div key={key} className="disassembly-detail-block">
                     <strong>{flow === 'in' ? 'Поступление' : flow === 'ingredients' ? 'Поступление после разборки' : flow === 'out' ? 'Отгрузка' : 'Списание'} — {type === 'nomenclature' ? 'номенклатура' : type === 'documents' ? 'документы' : 'статьи списания'}</strong>
-                    {list.length === 0 && <div className="loading-inline">Загрузка...</div>}
-                    {list.length > 0 && (
-                      <table className="disassembly-detail-table">
-                        <thead>
-                          <tr>
-                            <th>Наименование</th>
-                            <th className="disassembly-detail-th-qty">Количество</th>
-                            <th className="disassembly-detail-th-cost">Сумма, ₽</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {list.map((item, i) => (
-                            <tr key={i}>
-                              <td className="detail-name">{item.name}</td>
-                              <td className="disassembly-detail-td-qty">{formatQty(item.quantity)}</td>
-                              <td className="disassembly-detail-td-cost">{formatCostRubles(item.cost) || '0'} ₽</td>
+                    {rawList.length === 0 && <div className="loading-inline">Загрузка...</div>}
+                    {rawList.length > 0 && (
+                      <>
+                        <div className="disassembly-detail-sort">
+                          <span className="disassembly-detail-sort-label">Сортировка:</span>
+                          <button type="button" className={`btn-detail-sort ${sortState?.by === 'quantity' ? 'active' : ''}`} onClick={() => onDetailSort?.(key, 'quantity')} title={sortState?.by === 'quantity' ? (sortState.dir === 'desc' ? 'По убыванию (клик — по возрастанию)' : 'По возрастанию (клик — по убыванию)') : 'По количеству'}>
+                            По количеству{sortState?.by === 'quantity' ? (sortState.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                          </button>
+                          <button type="button" className={`btn-detail-sort ${sortState?.by === 'cost' ? 'active' : ''}`} onClick={() => onDetailSort?.(key, 'cost')} title={sortState?.by === 'cost' ? (sortState.dir === 'desc' ? 'По убыванию' : 'По возрастанию') : 'По сумме'}>
+                            По сумме{sortState?.by === 'cost' ? (sortState.dir === 'desc' ? ' ↓' : ' ↑') : ''}
+                          </button>
+                        </div>
+                        <table className="disassembly-detail-table">
+                          <thead>
+                            <tr>
+                              <th>Наименование</th>
+                              <th className="disassembly-detail-th-qty">Количество</th>
+                              <th className="disassembly-detail-th-cost">Сумма, ₽</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody>
+                            {list.map((item, i) => (
+                              <tr key={i}>
+                                <td className="detail-name">{item.name}</td>
+                                <td className="disassembly-detail-td-qty">{formatQty(item.quantity)}</td>
+                                <td className="disassembly-detail-td-cost">{formatCostRubles(item.cost) || '0'} ₽</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </>
                     )}
                   </div>
                 )

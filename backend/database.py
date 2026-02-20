@@ -916,8 +916,8 @@ def get_disassembly_stats(
         return out
 
     def _balance_cost(balance_by_nom: dict[str, float]) -> float:
-        """Стоимость остатка = сумма (остаток × цена) только по позициям с положительным остатком (что реально лежит на складе). Отрицательные позиции (недостача) в стоимость не входят."""
-        return sum(qty * _get_price(nom) for nom, qty in balance_by_nom.items() if qty > 0)
+        """Стоимость остатка = сумма (остаток × цена) по всем позициям. При недостаче (отрицательный остаток) стоимость тоже отрицательная."""
+        return sum(qty * _get_price(nom) for nom, qty in balance_by_nom.items())
 
     # Остаток на складе: только поступило после разборки (ingredients) минус списано (internal) минус отгружено (out).
     # «Поступило на склад» (in) — информационная строка (что поступило на разбор), в остаток не входит.
@@ -952,7 +952,7 @@ def get_disassembly_stats(
         balance_by_nom = {k: v for k, v in balance_by_nom.items() if v != 0}
         balance_end = sum(balance_by_nom.values())
         balance_end_cost = _balance_cost(balance_by_nom)
-        daily_rows.append({
+        row = {
             "date": str(d),
             "in_qty": round(in_qty, 2),
             "ingredients_qty": round(ingredients_qty, 2),
@@ -966,7 +966,21 @@ def get_disassembly_stats(
             "balance_end": round(balance_end, 2),
             "balance_start_cost": round(balance_start_cost, 2),
             "balance_end_cost": round(balance_end_cost, 2),
-        })
+        }
+        # Корректировка на 18 февраля: остаток на начало 4 999 штук, остаток на конец — из данных
+        _CORRECTION_DATE = date(2026, 2, 18)
+        _CORRECTION_BALANCE_START = 4999
+        if d == _CORRECTION_DATE:
+            corr_end = _CORRECTION_BALANCE_START + ingredients_qty - internal_qty - out_qty
+            row["balance_start"] = _CORRECTION_BALANCE_START
+            row["balance_end"] = round(corr_end, 2)
+            if balance_start != 0:
+                row["balance_start_cost"] = round((_CORRECTION_BALANCE_START / balance_start) * balance_start_cost, 2)
+            if balance_end != 0:
+                row["balance_end_cost"] = round((corr_end / balance_end) * balance_end_cost, 2)
+            row["is_correction"] = True
+            row["correction_note"] = f"Корректировка: остаток на начало — 4 999 штук, остаток на конец — {int(round(corr_end, 0))} штук"
+        daily_rows.append(row)
 
     if group_by == "day":
         rows = daily_rows
@@ -1321,7 +1335,7 @@ def get_disassembly_full_detail_by_date(target_date: str) -> dict[str, Any]:
         rows.append({
             "name": nom,
             "balance_start": round(bal_start, 2),
-            "balance_start_cost": round(max(0.0, bal_start) * price, 2),
+            "balance_start_cost": round(bal_start * price, 2),
             "in_qty": round(in_q, 2),
             "in_cost": round(in_q * price, 2),
             "ingredients_qty": round(ing_q, 2),
@@ -1331,7 +1345,7 @@ def get_disassembly_full_detail_by_date(target_date: str) -> dict[str, Any]:
             "out_qty": round(out_q, 2),
             "out_cost": round(out_q * price, 2),
             "balance_end": round(bal_end, 2),
-            "balance_end_cost": round(max(0.0, bal_end) * price, 2),
+            "balance_end_cost": round(bal_end * price, 2),
         })
     return {"date": target_date, "rows": rows}
 

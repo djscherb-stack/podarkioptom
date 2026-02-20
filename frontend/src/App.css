@@ -1553,6 +1553,9 @@ body {
 .disassembly-table .disassembly-cell-qty-cost > div { line-height: 1.3; }
 .disassembly-table .disassembly-cost { font-size: 0.85em; color: var(--text-muted); margin-top: 0.15rem; }
 .disassembly-table tbody tr:hover { background: var(--bg-card-hover); }
+.disassembly-table tbody tr.disassembly-row-correction { background: rgba(255, 235, 59, 0.35); }
+.disassembly-table tbody tr.disassembly-row-correction:hover { background: rgba(255, 235, 59, 0.5); }
+.disassembly-table .disassembly-correction-note { font-size: 0.8rem; color: var(--text-muted); margin-top: 0.25rem; white-space: normal; }
 .disassembly-table .totals-row {
   font-weight: 600;
   background: var(--bg);
@@ -1643,6 +1646,25 @@ body {
 .disassembly-full-detail-table th.th-nomenclature,
 .disassembly-full-detail-table td.disassembly-cell-nomenclature { text-align: left; }
 .disassembly-detail-block { margin-top: 0.75rem; }
+.disassembly-detail-sort {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.disassembly-detail-sort-label { font-size: 0.85rem; color: var(--text-muted); }
+.btn-detail-sort {
+  padding: 0.25rem 0.5rem;
+  font-size: 0.8rem;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+.btn-detail-sort:hover { background: var(--bg-card-hover); }
+.btn-detail-sort.active { border-color: var(--accent); background: var(--bg-card); }
 .disassembly-detail-panel-row.detail-row td { padding: 0.75rem 1rem; vertical-align: top; }
 .disassembly-detail-table {
   width: 100%;
