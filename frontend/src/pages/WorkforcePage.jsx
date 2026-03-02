@@ -2262,12 +2262,14 @@ function MatrixAnalyticsTab({ year, month }) {
   // Состояние развёрнутости для каждого производства (по умолчанию все свёрнуты)
   const [expanded, setExpanded] = useState({ tea: false, engraving: false, luminarc: false })
 
-  useEffect(() => {
+  const loadData = useCallback(() => {
     setLoading(true)
     apiFetch(`${API}/workforce/analytics/${year}/${month}`)
       .then(d => { setData(d); setLoading(false) })
       .catch(() => setLoading(false))
   }, [year, month])
+
+  useEffect(() => { loadData() }, [loadData])
 
   const toggle = (prod) => setExpanded(e => ({ ...e, [prod]: !e[prod] }))
   const allExpanded = Object.values(expanded).every(Boolean)
@@ -2286,9 +2288,14 @@ function MatrixAnalyticsTab({ year, month }) {
     <div className="wf-analytics">
       <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'0.5rem', marginBottom:'0.5rem'}}>
         <h3 style={{margin:0}}>Матричная аналитика: {MONTH_NAMES[month - 1]} {year}</h3>
-        <button className="wf-btn wf-btn-secondary wf-btn-sm" onClick={toggleAll}>
-          {allExpanded ? '▲ Свернуть все' : '▼ Развернуть все'}
-        </button>
+        <div style={{display:'flex', gap:'0.5rem', alignItems:'center'}}>
+          <button className="wf-btn wf-btn-primary wf-btn-sm" onClick={loadData} disabled={loading} title="Подтянуть актуальные данные после изменений в табелях">
+            {loading ? 'Загрузка…' : '🔄 Обновить'}
+          </button>
+          <button className="wf-btn wf-btn-secondary wf-btn-sm" onClick={toggleAll}>
+            {allExpanded ? '▲ Свернуть все' : '▼ Развернуть все'}
+          </button>
+        </div>
       </div>
       <p style={{fontSize:'0.78rem', color:'var(--text-muted)', margin:'0 0 0.75rem'}}>
         Нажмите на строку производства (▶) чтобы развернуть разбивку по статусам.

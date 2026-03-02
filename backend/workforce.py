@@ -333,6 +333,7 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                 st_total_plan_cost[status] = 0.0
                 st_total_fact_cost[status] = 0.0
 
+            # 1) Запланированные дни (план + факт по табелю)
             for day_str, planned_h in working_days.items():
                 cost = planned_h * rate
                 # Итого по производству
@@ -356,6 +357,27 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                     total_actual_cost                        += actual_cost
                     total_actual_hours                       += actual_h
                     st_total_fact_cost[status]               += actual_cost
+
+            # 2) Внеплановые дни: в табеле есть часы, но дня нет в графике — учитываем в факте
+            for day_str, actual_h in ts_emp.items():
+                if day_str in working_days:
+                    continue  # уже учтено выше
+                if actual_h is None or actual_h <= 0:
+                    continue
+                try:
+                    d = int(day_str)
+                    if d < 1 or d > num_days:
+                        continue  # день вне месяца
+                except (ValueError, TypeError):
+                    continue
+                actual_cost = actual_h * rate
+                daily_actual[day_str]               += 1
+                daily_actual_cost[day_str]            += actual_cost
+                st_daily_actual[status][day_str]     += 1
+                st_daily_fact_cost[status][day_str]  += actual_cost
+                total_actual_cost                     += actual_cost
+                total_actual_hours                    += actual_h
+                st_total_fact_cost[status]            += actual_cost
 
         result[prod] = {
             "name": PRODUCTIONS[prod],
