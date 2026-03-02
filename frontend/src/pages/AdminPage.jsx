@@ -17,6 +17,9 @@ function formatDate(iso) {
   }
 }
 
+const PROD_LABELS = { tea: 'ЧАЙ', engraving: 'ГРАВИРОВКА', luminarc: 'ЛЮМИНАРК' }
+const MONTH_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
+
 export default function AdminPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -28,6 +31,7 @@ export default function AdminPage() {
   const [dateRange, setDateRange] = useState(null)
   const [syncLog, setSyncLog] = useState([])
   const [dataSources, setDataSources] = useState(null)
+  const [wfChangelog, setWfChangelog] = useState(null)
   const [replaceDisassemblyStep, setReplaceDisassemblyStep] = useState(null)
   const [replaceDisassemblyFiles, setReplaceDisassemblyFiles] = useState({})
   const [replaceDisassemblyMsg, setReplaceDisassemblyMsg] = useState(null)
@@ -55,6 +59,12 @@ export default function AdminPage() {
 
   useEffect(() => {
     apiFetch(`${API}/admin/data-dates`).then(setDateRange).catch(() => setDateRange({ dates: [] }))
+  }, [])
+
+  useEffect(() => {
+    apiFetch(`${API}/workforce/changelog?limit=300`)
+      .then(r => setWfChangelog(r.entries || []))
+      .catch(() => setWfChangelog([]))
   }, [])
 
   useEffect(() => {
@@ -452,6 +462,42 @@ export default function AdminPage() {
             ))}
           </tbody>
         </table>
+      </section>
+
+      <section className="admin-upload-section">
+        <h3>История редактирования графиков и табелей</h3>
+        {wfChangelog === null ? (
+          <p style={{color:'var(--text-muted)', fontSize:'0.85rem'}}>Загрузка...</p>
+        ) : wfChangelog.length === 0 ? (
+          <p style={{color:'var(--text-muted)', fontSize:'0.85rem'}}>Изменений ещё не было.</p>
+        ) : (
+          <table className="admin-table" style={{fontSize:'0.82rem'}}>
+            <thead>
+              <tr>
+                <th>Дата и время</th>
+                <th>Пользователь</th>
+                <th>Действие</th>
+                <th>Производство</th>
+                <th>Период</th>
+                <th>Детали</th>
+              </tr>
+            </thead>
+            <tbody>
+              {wfChangelog.map((e, i) => (
+                <tr key={i}>
+                  <td style={{whiteSpace:'nowrap'}}>{formatDate(e.at)}</td>
+                  <td><strong>{e.username}</strong></td>
+                  <td>{e.action}</td>
+                  <td>{e.production ? (PROD_LABELS[e.production] || e.production) : '—'}</td>
+                  <td style={{whiteSpace:'nowrap'}}>
+                    {e.year && e.month ? `${MONTH_SHORT[e.month - 1]} ${e.year}` : '—'}
+                  </td>
+                  <td style={{color:'var(--text-muted)'}}>{e.details || ''}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
       </section>
     </div>
   )

@@ -117,8 +117,15 @@ def logout(request: Request):
 
 @app.get("/api/me")
 def get_me(username: str = Depends(require_auth)):
-    """Проверка авторизации. Возвращает username и is_admin."""
-    return {"ok": True, "username": username, "is_admin": auth.is_admin(username)}
+    """Проверка авторизации. Возвращает username, is_admin и доступ к графикам/табелям."""
+    access = auth.get_schedule_access(username)
+    return {
+        "ok": True,
+        "username": username,
+        "is_admin": auth.is_admin(username),
+        "schedule_role": access["role"],
+        "schedule_production": access["production"],
+    }
 
 
 @app.get("/api/version", dependencies=[Depends(require_auth)])
@@ -724,6 +731,338 @@ def get_day_ai_analytics(date_str: str, debug: Optional[str] = None):
         if debug:
             out["debug_error_type"] = type(e).__name__
         return out
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Модуль «Графики и табели» (workforce)
+# ─────────────────────────────────────────────────────────────────────────────
+import workforce as wf
+
+
+def _require_schedule_access(request: Request, production: Optional[str] = None) -> dict:
+    """Проверяет, что пользователь имеет доступ к графикам/табелям.
+    production — конкретное производство, к которому нужен доступ.
+    Возвращает dict с role и production.
+    """
+    token = request.cookies.get("analytics_session")
+    username = auth.get_username(token)
+    if not username:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    access = auth.get_schedule_access(username)
+    if access["role"] is None:
+        raise HTTPException(status_code=403, detail="Нет доступа к модулю графиков")
+    if production and access["production"] != "all" and access["production"] != production:
+        raise HTTPException(status_code=403, detail="Нет доступа к данному производству")
+    return access
+
+
+# ── Справочник ────────────────────────────────────────────────────────────────
+
+@app.get("/api/workforce/reference")
+def wf_get_reference(request: Request):
+    _require_schedule_access(request)
+    return wf.get_reference()
+
+
+def _get_request_username(request: Request) -> str:
+    token = request.cookies.get("analytics_session")
+    return auth.get_username(token) or "unknown"
+
+
+@app.put("/api/workforce/reference")
+async def wf_save_reference(request: Request):
+    access = _require_schedule_access(request)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    body = await request.json()
+    entries = body if isinstance(body, list) else body.get("entries", [])
+    wf.save_reference(entries)
+    wf.log_change(_get_request_username(request), "справочник: сохранение", None, None, None, f"{len(entries)} записей")
+    return {"ok": True, "count": len(entries)}
+
+
+@app.post("/api/workforce/reference/import")
+async def wf_import_reference(request: Request):
+    """Импорт справочника из вставленного TSV (Google Таблицы)."""
+    access = _require_schedule_access(request)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    body = await request.json()
+    tsv = body.get("tsv", "")
+    if not tsv.strip():
+        raise HTTPException(status_code=400, detail="Нет данных для импорта")
+    entries = wf.import_reference_from_tsv(tsv)
+    if not entries:
+        raise HTTPException(status_code=400, detail="Не удалось распознать данные. Проверьте формат.")
+    wf.save_reference(entries)
+    wf.log_change(_get_request_username(request), "справочник: импорт", None, None, None, f"{len(entries)} записей")
+    return {"ok": True, "count": len(entries), "entries": entries}
+
+
+# ── График ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/workforce/schedule/{production}/{year}/{month}")
+def wf_get_schedule(production: str, year: int, month: int, request: Request):
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    _require_schedule_access(request, production)
+    return wf.get_schedule(production, year, month)
+
+
+@app.put("/api/workforce/schedule/{production}/{year}/{month}")
+async def wf_save_schedule(production: str, year: int, month: int, request: Request):
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    data = await request.json()
+    emp_count = len(data.get("employees", []))
+    wf.save_schedule(production, year, month, data)
+    wf.log_change(_get_request_username(request), "график: сохранение", production, year, month, f"{emp_count} сотрудников")
+    return {"ok": True}
+
+
+@app.post("/api/workforce/schedule/{production}/{year}/{month}/import")
+async def wf_import_schedule(production: str, year: int, month: int, request: Request):
+    """Импорт графика из TSV (Google Таблицы)."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    body = await request.json()
+    tsv = body.get("tsv", "")
+    if not tsv.strip():
+        raise HTTPException(status_code=400, detail="Нет данных для импорта")
+    schedule = wf.import_schedule_from_tsv(production, year, month, tsv)
+    if not schedule.get("employees"):
+        raise HTTPException(status_code=400, detail="Не удалось распознать данные. Проверьте формат.")
+    wf.save_schedule(production, year, month, schedule)
+    added = wf.merge_employees_from_schedule(production, schedule)
+    wf.log_change(_get_request_username(request), "график: импорт", production, year, month, f"{len(schedule['employees'])} сотрудников, +{added} в список")
+    return {"ok": True, "count": len(schedule["employees"]), "new_employees": added, "schedule": schedule}
+
+
+# ── Табель ────────────────────────────────────────────────────────────────────
+
+@app.get("/api/workforce/timesheet/{production}/{year}/{month}")
+def wf_get_timesheet(production: str, year: int, month: int, request: Request):
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    _require_schedule_access(request, production)
+    return wf.get_timesheet(production, year, month)
+
+
+@app.put("/api/workforce/timesheet/{production}/{year}/{month}")
+async def wf_save_timesheet(production: str, year: int, month: int, request: Request):
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    _require_schedule_access(request, production)
+    data = await request.json()
+    wf.save_timesheet(production, year, month, data)
+    wf.log_change(_get_request_username(request), "табель: сохранение", production, year, month, "")
+    return {"ok": True}
+
+
+@app.patch("/api/workforce/timesheet/{production}/{year}/{month}/cell")
+async def wf_update_timesheet_cell(production: str, year: int, month: int, request: Request):
+    """Обновить одну ячейку табеля."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    _require_schedule_access(request, production)
+    body = await request.json()
+    emp_id = body.get("employee_id")
+    day = str(body.get("day", ""))
+    hours = body.get("hours")  # None = очистить
+    if not emp_id or not day:
+        raise HTTPException(status_code=400, detail="employee_id и day обязательны")
+    ts = wf.update_timesheet_cell(production, year, month, emp_id, day, hours)
+    # Логируем: находим ФИО сотрудника из графика
+    try:
+        sched = wf.get_schedule(production, year, month)
+        emp = next((e for e in sched.get("employees", []) if e["id"] == emp_id), None)
+        emp_name = emp["full_name"] if emp else emp_id[:8]
+    except Exception:
+        emp_name = emp_id[:8]
+    val_str = f"{hours}ч" if hours is not None else "очищено"
+    wf.log_change(_get_request_username(request), "табель: ячейка", production, year, month,
+                  f"{emp_name}, день {day}: {val_str}")
+    return {"ok": True, "records": ts.get("records", {})}
+
+
+# ── Комбинированный импорт График + Табель ───────────────────────────────────
+
+@app.post("/api/workforce/combined-import/{production}/{year}/{month}")
+async def wf_combined_import(production: str, year: int, month: int, request: Request):
+    """
+    Импорт графика И табеля одновременно из одной таблицы Google Sheets.
+    Формат: ФИО | Должность | Статус | план_д1 | факт_д1 | план_д2 | факт_д2 | ...
+    """
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+
+    body = await request.json()
+    tsv = body.get("tsv", "")
+    if not tsv.strip():
+        raise HTTPException(status_code=400, detail="Нет данных для импорта")
+
+    schedule, timesheet = wf.import_combined_from_tsv(production, year, month, tsv)
+
+    if schedule is None or not schedule.get("employees"):
+        raise HTTPException(
+            status_code=400,
+            detail="Не удалось распознать данные. Проверьте формат: строка заголовка должна содержать числа дней (1, 2, 3…), а данные — парами (план | факт) для каждого дня."
+        )
+
+    wf.save_schedule(production, year, month, schedule)
+    wf.save_timesheet(production, year, month, timesheet)
+    added = wf.merge_employees_from_schedule(production, schedule)
+    wf.log_change(_get_request_username(request), "импорт график+табель", production, year, month,
+                  f"{len(schedule['employees'])} сотрудников, +{added} в список")
+
+    ts_filled = sum(1 for v in timesheet.get("records", {}).values() if v)
+    return {
+        "ok": True,
+        "employees": len(schedule["employees"]),
+        "timesheet_filled": ts_filled,
+        "schedule": schedule,
+        "timesheet": timesheet,
+    }
+
+
+# ── Список сотрудников производства ──────────────────────────────────────────
+
+@app.get("/api/workforce/employees/{production}")
+def wf_get_employees(production: str, request: Request):
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    _require_schedule_access(request, production)
+    return wf.get_employees(production)
+
+
+@app.put("/api/workforce/employees/{production}")
+async def wf_save_employees(production: str, request: Request):
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    data = await request.json()
+    employees = data if isinstance(data, list) else data.get("employees", [])
+    wf.save_employees(production, employees)
+    return {"ok": True, "count": len(employees)}
+
+
+@app.post("/api/workforce/employees/{production}/import")
+async def wf_import_employees(production: str, request: Request):
+    """Импорт списка сотрудников из TSV (Google Таблицы): ФИО | Должность | Статус."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    body = await request.json()
+    tsv = body.get("tsv", "")
+    if not tsv.strip():
+        raise HTTPException(status_code=400, detail="Нет данных для импорта")
+    employees = wf.import_employees_from_tsv(production, tsv)
+    if not employees:
+        raise HTTPException(status_code=400, detail="Не удалось распознать данные. Проверьте формат.")
+    # Можно добавить к существующим или заменить — режим передаётся в теле
+    mode = body.get("mode", "replace")  # "replace" или "append"
+    if mode == "append":
+        existing = wf.get_employees(production)
+        employees = existing + employees
+    wf.save_employees(production, employees)
+    return {"ok": True, "count": len(employees), "employees": employees}
+
+
+@app.delete("/api/workforce/employees/{production}/{employee_id}")
+def wf_delete_employee(production: str, employee_id: str, request: Request):
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    employees = wf.get_employees(production)
+    updated = [e for e in employees if e.get("id") != employee_id]
+    wf.save_employees(production, updated)
+    return {"ok": True, "count": len(updated)}
+
+
+@app.patch("/api/workforce/employees/{production}/{employee_id}/fire")
+async def wf_fire_employee(production: str, employee_id: str, request: Request):
+    """Уволить сотрудника: пометить дату и удалить из будущих графиков."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    from datetime import date
+    body = await request.json()
+    fired_at = body.get("fired_at", date.today().isoformat())
+    result = wf.fire_employee(production, employee_id, fired_at)
+    wf.log_change(_get_request_username(request), "сотрудник: увольнение", production, None, None,
+                  f"{result.get('emp_name', employee_id)} с {fired_at}")
+    return result
+
+
+@app.patch("/api/workforce/employees/{production}/{employee_id}/reinstate")
+def wf_reinstate_employee(production: str, employee_id: str, request: Request):
+    """Восстановить уволенного сотрудника."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    result = wf.reinstate_employee(production, employee_id)
+    wf.log_change(_get_request_username(request), "сотрудник: восстановление", production, None, None,
+                  employee_id[:12])
+    return result
+
+
+# ── Журнал изменений ─────────────────────────────────────────────────────────
+
+@app.get("/api/workforce/changelog")
+def wf_changelog(request: Request, limit: int = 200):
+    """Журнал изменений графиков и табелей. Только для администратора."""
+    token = request.cookies.get("analytics_session")
+    username = auth.get_username(token)
+    if not username:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    if not auth.is_admin(username):
+        raise HTTPException(status_code=403, detail="Только для администратора")
+    return {"entries": wf.get_changelog(limit)}
+
+
+# ── Аналитика ─────────────────────────────────────────────────────────────────
+
+@app.get("/api/workforce/analytics/{year}/{month}")
+def wf_analytics(year: int, month: int, request: Request):
+    """Сводная аналитика по всем производствам за месяц. Только admin."""
+    token = request.cookies.get("analytics_session")
+    username = auth.get_username(token)
+    if not username:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    if not auth.is_admin(username):
+        raise HTTPException(status_code=403, detail="Только для администратора")
+    return wf.get_monthly_analytics(year, month)
+
+
+@app.get("/api/workforce/analytics/{year}/{month}/{day}")
+def wf_day_analytics(year: int, month: int, day: int, request: Request):
+    """Аналитика за конкретный день. Только admin."""
+    token = request.cookies.get("analytics_session")
+    username = auth.get_username(token)
+    if not username:
+        raise HTTPException(status_code=401, detail="Требуется авторизация")
+    if not auth.is_admin(username):
+        raise HTTPException(status_code=403, detail="Только для администратора")
+    return wf.get_day_analytics(year, month, day)
 
 
 # Раздача статики React (после сборки)

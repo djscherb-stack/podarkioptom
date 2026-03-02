@@ -13,6 +13,7 @@ import DisassemblyNomenclaturePage from './pages/DisassemblyNomenclaturePage'
 import CostCheckPage from './pages/CostCheckPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
+import WorkforcePage from './pages/WorkforcePage'
 import { API } from './api'
 import './App.css'
 
@@ -41,6 +42,7 @@ function DayNavLink(props) {
 
 function AppContent({ userInfo, onRefreshUser }) {
   const isAdmin = userInfo?.is_admin === true
+  const hasWorkforceAccess = userInfo?.schedule_role != null && userInfo?.schedule_role !== 'none'
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -84,6 +86,11 @@ function AppContent({ userInfo, onRefreshUser }) {
           <NavLink to="/cost-check" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
             Проверка стоимости
           </NavLink>
+          {hasWorkforceAccess && (
+            <NavLink to="/workforce" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Графики и табели
+            </NavLink>
+          )}
           {isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Админ
@@ -125,6 +132,7 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Route path="/cost-check" element={<CostCheckPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
+          <Route path="/workforce" element={<WorkforcePage userInfo={userInfo} />} />
           </Routes>
         </main>
       </div>
@@ -145,7 +153,7 @@ function App() {
       .then(async (r) => {
         if (r.ok) {
           const d = await r.json()
-          setUserInfo({ username: d.username, is_admin: d.is_admin })
+          setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production })
           setAuthStatus('ok')
         } else {
           setAuthStatus('fail')
@@ -171,8 +179,8 @@ function App() {
           if (r.ok) {
             const d = await r.json()
             setUserInfo(prev => {
-              const next = { username: d.username, is_admin: d.is_admin }
-              if (prev?.is_admin !== next.is_admin || prev?.username !== next.username) return next
+              const next = { username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production }
+              if (JSON.stringify(prev) !== JSON.stringify(next)) return next
               return prev
             })
           }

@@ -21,6 +21,18 @@ NP_PASSWORD = "342GbfBf33"
 GUEST_USER = "Guest"
 GUEST_PASSWORD = "Pdf#$178^Hh"
 
+# Пользователи модуля «Графики и табели»
+# role: "manager" — начальник (график + табель), "brigadier" — бригадир (только табель)
+# production: "tea" | "engraving" | "luminarc"
+WORKFORCE_USERS: dict[str, dict] = {
+    "tea_head":            {"password": "TeaHead2026",  "role": "manager",   "production": "tea"},
+    "tea_brigadier":       {"password": "TeaBrig2026",  "role": "brigadier", "production": "tea"},
+    "engraving_head":      {"password": "EngHead2026",  "role": "manager",   "production": "engraving"},
+    "engraving_brigadier": {"password": "EngBrig2026",  "role": "brigadier", "production": "engraving"},
+    "luminarc_head":       {"password": "LumHead2026",  "role": "manager",   "production": "luminarc"},
+    "luminarc_brigadier":  {"password": "LumBrig2026",  "role": "brigadier", "production": "luminarc"},
+}
+
 # token -> username
 SESSIONS: dict[str, str] = {}
 
@@ -72,12 +84,27 @@ def check_password(username: str, password: str) -> bool:
         return True
     if username == GUEST_USER and password == GUEST_PASSWORD:
         return True
+    if username in WORKFORCE_USERS and WORKFORCE_USERS[username]["password"] == password:
+        return True
     return False
 
 
 def is_admin(username: str) -> bool:
     """Только admin имеет доступ к админ-странице."""
     return username == ADMIN_USER
+
+
+def get_schedule_access(username: str) -> dict:
+    """Возвращает доступ пользователя к модулю графиков/табелей.
+    role: 'admin' | 'manager' | 'brigadier' | None
+    production: 'tea' | 'engraving' | 'luminarc' | 'all' | None
+    """
+    if is_admin(username):
+        return {"role": "admin", "production": "all"}
+    if username in WORKFORCE_USERS:
+        u = WORKFORCE_USERS[username]
+        return {"role": u["role"], "production": u["production"]}
+    return {"role": None, "production": None}
 
 
 def create_session(username: str) -> str:
