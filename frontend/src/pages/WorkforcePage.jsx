@@ -872,7 +872,9 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [showImport, setShowImport] = useState(false)
   const [addingEmployee, setAddingEmployee] = useState(false)
   const [newEmp, setNewEmp] = useState({ full_name: '', position: '', status: '' })
-  const [editCell, setEditCell] = useState(null) // {empIdx, day}
+  const [editCell, setEditCell] = useState(null)       // {empIdx, day} — ячейка дня
+  const [editingEmpId, setEditingEmpId] = useState(null) // id строки сотрудника
+  const [editEmpBuf, setEditEmpBuf] = useState({})
   const numDays = getDaysInMonth(year, month)
 
   // Карта увольнений по ФИО (lowercase)
@@ -962,8 +964,26 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
   }
 
   const handleDeleteEmployee = (empIdx) => {
+    if (!confirm(`Удалить «${schedule.employees[empIdx]?.full_name}» из графика этого месяца?`)) return
     const updated = { ...schedule, employees: schedule.employees.filter((_, i) => i !== empIdx) }
     saveSchedule(updated)
+  }
+
+  const handleEditEmpStart = (emp) => {
+    setEditingEmpId(emp.id)
+    setEditEmpBuf({ full_name: emp.full_name, position: emp.position, status: emp.status })
+  }
+
+  const handleEditEmpSave = () => {
+    if (!editEmpBuf.full_name?.trim()) return
+    const updated = {
+      ...schedule,
+      employees: schedule.employees.map(e =>
+        e.id === editingEmpId ? { ...e, ...editEmpBuf, full_name: editEmpBuf.full_name.trim() } : e
+      ),
+    }
+    saveSchedule(updated)
+    setEditingEmpId(null)
   }
 
   const handleAddEmployee = () => {
@@ -1084,6 +1104,7 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
         <table className="wf-schedule-table">
           <thead>
             <tr>
+              {canEdit && <th className="wf-col-actions-left"></th>}
               <th className="wf-col-name">ФИО</th>
               <th className="wf-col-pos">Должность</th>
               <th className="wf-col-status">Статус</th>
@@ -1094,7 +1115,6 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
                 </th>
               ))}
               <th className="wf-col-total">Итого</th>
-              {canEdit && <th className="wf-col-del"></th>}
             </tr>
           </thead>
           <tbody>
@@ -1104,27 +1124,89 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
               const firedAt   = getFiredAt(emp.full_name)
               const firedBeforeThisMonth = isFiredBeforeThisMonth(firedAt)
               const firedThisMonth = firedAt && !firedBeforeThisMonth
+              const isEditingRow = editingEmpId === emp.id
               return (
                 <tr key={emp.id} className={firedThisMonth ? 'wf-sched-fired-row' : firedBeforeThisMonth ? 'wf-sched-fired-prev-row' : ''}>
+                  {/* Кнопки действий — слева */}
+                  {canEdit && (
+                    <td className="wf-col-actions-left">
+                      {isEditingRow ? (
+                        <span className="wf-sched-actions">
+                          <button className="wf-btn-icon wf-btn-save" onClick={handleEditEmpSave} title="Сохранить">✓</button>
+                          <button className="wf-btn-icon wf-btn-cancel" onClick={() => setEditingEmpId(null)} title="Отмена">✕</button>
+                        </span>
+                      ) : (
+                        <span className="wf-sched-actions">
+                          <button className="wf-btn-icon" onClick={() => handleEditEmpStart(emp)} title="Редактировать сотрудника">✎</button>
+                          <button className="wf-btn-icon wf-btn-danger" onClick={() => handleDeleteEmployee(empIdx)} title="Удалить из графика">🗑</button>
+                        </span>
+                      )}
+                    </td>
+                  )}
+
+                  {/* ФИО */}
                   <td className="wf-col-name">
-                    {emp.full_name}
-                    {firedThisMonth && (
-                      <span className="wf-fired-badge" style={{marginLeft:'4px'}}>
-                        Уволен с {fmtFireDate(firedAt)}
-                      </span>
+                    {isEditingRow ? (
+                      <input
+                        className="wf-cell-input"
+                        value={editEmpBuf.full_name || ''}
+                        autoFocus
+                        onChange={e => setEditEmpBuf(b => ({...b, full_name: e.target.value}))}
+                        onKeyDown={e => { if (e.key === 'Enter') handleEditEmpSave(); if (e.key === 'Escape') setEditingEmpId(null) }}
+                        style={{width:'100%', minWidth:'130px'}}
+                      />
+                    ) : (
+                      <>
+                        {emp.full_name}
+                        {firedThisMonth && (
+                          <span className="wf-fired-badge" style={{marginLeft:'4px'}}>
+                            Уволен с {fmtFireDate(firedAt)}
+                          </span>
+                        )}
+                      </>
                     )}
                   </td>
-                  <td className="wf-col-pos">{emp.position}</td>
-                  <td className="wf-col-status"><span className="wf-status-badge">{emp.status}</span></td>
+
+                  {/* Должность */}
+                  <td className="wf-col-pos">
+                    {isEditingRow ? (
+                      <select
+                        className="wf-cell-input"
+                        value={editEmpBuf.position || ''}
+                        onChange={e => setEditEmpBuf(b => ({...b, position: e.target.value, status: ''}))}
+                        style={{width:'100%'}}
+                      >
+                        <option value="">— Должность —</option>
+                        {positions.map(p => <option key={p} value={p}>{p}</option>)}
+                      </select>
+                    ) : emp.position}
+                  </td>
+
+                  {/* Статус */}
+                  <td className="wf-col-status">
+                    {isEditingRow ? (
+                      <select
+                        className="wf-cell-input"
+                        value={editEmpBuf.status || ''}
+                        onChange={e => setEditEmpBuf(b => ({...b, status: e.target.value}))}
+                        style={{width:'100%'}}
+                      >
+                        <option value="">— Статус —</option>
+                        {statusesByPosition(editEmpBuf.position).map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    ) : <span className="wf-status-badge">{emp.status}</span>}
+                  </td>
+
+                  {/* Ячейки дней */}
                   {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
                     const dayStr = String(d)
                     const hours = emp.working_days[dayStr]
-                    const isEditing = editCell?.empIdx === empIdx && editCell?.day === d
+                    const isEditing = !isEditingRow && editCell?.empIdx === empIdx && editCell?.day === d
                     return (
                       <td
                         key={d}
-                        className={`wf-day-cell ${hours !== undefined ? 'wf-day-on' : ''} ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${canEdit ? 'wf-editable' : ''}`}
-                        onClick={() => !isEditing && handleCellClick(empIdx, d)}
+                        className={`wf-day-cell ${hours !== undefined ? 'wf-day-on' : ''} ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${canEdit && !isEditingRow ? 'wf-editable' : ''}`}
+                        onClick={() => !isEditing && !isEditingRow && handleCellClick(empIdx, d)}
                       >
                         {isEditing ? (
                           <input
@@ -1147,15 +1229,11 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
                       </td>
                     )
                   })}
+
                   <td className="wf-col-total">
                     <span className="wf-total-days">{totalDays}д</span>
                     <span className="wf-total-hours">{totalHours}ч</span>
                   </td>
-                  {canEdit && (
-                    <td className="wf-col-del">
-                      <button className="wf-btn-icon wf-btn-danger" onClick={() => handleDeleteEmployee(empIdx)} title="Удалить">🗑</button>
-                    </td>
-                  )}
                 </tr>
               )
             })}
@@ -1163,6 +1241,7 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
             {/* Строка добавления */}
             {addingEmployee && (
               <tr className="wf-new-row">
+                {canEdit && <td className="wf-col-actions-left"></td>}
                 <td>
                   <input
                     className="wf-cell-input"
@@ -1194,6 +1273,7 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
 
             {/* Итоговая строка */}
             <tr className="wf-totals-row">
+              {canEdit && <td></td>}
               <td colSpan={3} className="wf-totals-label">Всего по дням:</td>
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
                 <td key={d} className={`wf-day-total ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>
@@ -1201,7 +1281,6 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
                 </td>
               ))}
               <td className="wf-col-total">{totalPlannedDays}д</td>
-              {canEdit && <td></td>}
             </tr>
           </tbody>
         </table>

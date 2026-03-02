@@ -386,6 +386,26 @@
 .wf-col-total { min-width: 55px; font-size: 0.78rem; }
 .wf-col-del  { width: 30px; }
 
+/* Левый столбец с кнопками в графике */
+.wf-col-actions-left {
+  width: 52px;
+  min-width: 52px;
+  padding: 0.1rem 0.25rem !important;
+  text-align: center;
+  vertical-align: middle;
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  background: var(--bg-card);
+}
+.wf-sched-actions {
+  display: flex;
+  gap: 0.15rem;
+  align-items: center;
+  justify-content: center;
+}
+.wf-sched-fired-row .wf-col-actions-left { background: rgba(180,50,50,0.07) !important; }
+
 .wf-dow {
   font-size: 0.65rem;
   color: var(--text-muted);
