@@ -665,11 +665,17 @@
   margin: 0.75rem 0 0.4rem;
 }
 
+/* Обёртка для горизонтальной прокрутки */
+.wf-am-scroll-wrap {
+  overflow-x: auto;
+  /* Важно: overflow-y должен быть visible чтобы sticky работало корректно */
+}
+
 .wf-analytics-matrix {
   border-collapse: collapse;
   font-size: 0.78rem;
-  min-width: 100%;
   white-space: nowrap;
+  /* НЕ задаём min-width здесь — таблица сама растягивается */
 }
 
 .wf-analytics-matrix th,
@@ -680,11 +686,10 @@
   vertical-align: middle;
 }
 
+/* Первый sticky столбец — «Производство» */
 .wf-am-col-group {
-  min-width: 130px;
-  max-width: 180px;
-  white-space: normal;
-  word-break: break-word;
+  min-width: 140px;
+  width: 140px;
   text-align: left !important;
   font-weight: 600;
   color: var(--text);
@@ -693,19 +698,52 @@
   left: 0;
   z-index: 2;
   background: var(--bg-card);
+  box-shadow: 2px 0 4px rgba(0,0,0,0.08);
 }
 
+/* Второй sticky столбец — «Статус» */
 .wf-am-col-sub {
-  min-width: 90px;
+  min-width: 85px;
+  width: 85px;
   text-align: left !important;
-  padding-left: 1rem !important;
+  padding-left: 0.5rem !important;
   font-style: italic;
   color: var(--text-muted);
   font-size: 0.75rem;
   position: sticky;
-  left: 130px;
+  left: 140px;
   z-index: 2;
   background: var(--bg-card);
+  box-shadow: 2px 0 4px rgba(0,0,0,0.06);
+}
+
+/* Sticky в thead — нужен более высокий z-index чтобы перекрывать td при прокрутке */
+.wf-am-sticky-head {
+  z-index: 4 !important;
+  background: var(--bg) !important;
+}
+
+.wf-am-sticky2 {
+  left: 140px !important;
+  z-index: 4 !important;
+  background: var(--bg) !important;
+}
+
+/* Sticky td для первой колонки */
+.wf-am-sticky-td {
+  position: sticky !important;
+  left: 0 !important;
+  z-index: 1 !important;
+  background: inherit;
+}
+
+/* Sticky td для второй колонки */
+.wf-am-sticky2-td {
+  position: sticky !important;
+  left: 140px !important;
+  z-index: 1 !important;
+  background: inherit;
+  box-shadow: 2px 0 4px rgba(0,0,0,0.06);
 }
 
 .wf-am-day-header {
@@ -739,6 +777,22 @@
 
 .wf-am-under { color: var(--negative) !important; }
 
+/* Иконка разворота ▶ / ▼ */
+.wf-am-toggle {
+  display: inline-block;
+  width: 14px;
+  font-size: 0.7rem;
+  color: var(--accent);
+  transition: transform 0.15s;
+}
+
+.wf-am-prod-sticky {
+  font-weight: 700 !important;
+  color: var(--accent) !important;
+}
+
+.wf-am-prod-row:hover td { opacity: 0.85; }
+
 /* Строки */
 .wf-am-grand-row td {
   background: var(--bg) !important;
@@ -756,17 +810,15 @@
 }
 
 .wf-am-prod-row td {
-  background: rgba(91, 143, 201, 0.06) !important;
+  background: rgba(91, 143, 201, 0.07);
   font-weight: 600;
 }
 
-.wf-am-prod-row .wf-am-col-group {
-  background: rgba(91, 143, 201, 0.06) !important;
-  color: var(--accent);
-}
-
-.wf-am-status-row td { background: transparent; }
+.wf-am-status-row td { background: var(--bg-card); }
 .wf-am-status-row:hover td { background: var(--bg-card-hover) !important; }
+
+/* Grand row sticky фон */
+.wf-am-grand-row .wf-am-sticky-td { background: var(--bg) !important; }
 
 /* Итоги за месяц */
 .wf-am-totals-grid {

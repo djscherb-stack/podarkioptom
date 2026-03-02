@@ -2020,32 +2020,153 @@ function buildPrintHTML(data) {  // eslint-disable-line no-unused-vars
 
 
 // ─── Аналитика ────────────────────────────────────────────────────────────────
-const n0 = (v) => v > 0 ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v) : ''
+const n0  = (v) => v > 0 ? new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v) : ''
 const n0z = (v) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v || 0)
 
-function DailyMatrixTable({ prods, days, year, month, mode }) {
-  // mode: 'people' | 'money'
-  const prodKeys = Object.keys(prods)
+// ─── Старая аналитика (карточки + день-сетка) ─────────────────────────────────
+function AnalyticsTab({ year, month }) {
+  const [data, setData] = useState(null)
+  const [loading, setLoading] = useState(true)
+  const [selectedDay, setSelectedDay] = useState(null)
+  const [dayData, setDayData] = useState(null)
+  const numDays = getDaysInMonth(year, month)
 
-  // Итого по всем производствам за день
+  useEffect(() => {
+    setLoading(true)
+    apiFetch(`${API}/workforce/analytics/${year}/${month}`)
+      .then(d => { setData(d); setLoading(false) })
+      .catch(() => setLoading(false))
+  }, [year, month])
+
+  const handleDayClick = async (day) => {
+    setSelectedDay(day)
+    try {
+      const d = await apiFetch(`${API}/workforce/analytics/${year}/${month}/${day}`)
+      setDayData(d)
+    } catch { setDayData(null) }
+  }
+
+  if (loading) return <div className="wf-loading">Загрузка аналитики...</div>
+  if (!data) return <div className="wf-error">Ошибка загрузки аналитики</div>
+
+  const prods = data.productions || {}
+  const totalEmployees  = Object.values(prods).reduce((s, p) => s + p.total_employees, 0)
+  const totalPlannedCost = Object.values(prods).reduce((s, p) => s + p.total_planned_cost, 0)
+  const totalActualCost  = Object.values(prods).reduce((s, p) => s + p.total_actual_cost, 0)
+
+  return (
+    <div className="wf-analytics">
+      <h3>Аналитика: {MONTH_NAMES[month - 1]} {year}</h3>
+      <div className="wf-analytics-cards">
+        <div className="wf-card"><div className="wf-card-label">Всего сотрудников</div><div className="wf-card-value">{totalEmployees}</div></div>
+        <div className="wf-card wf-card-plan"><div className="wf-card-label">ФОТ план (месяц)</div><div className="wf-card-value">{fmtCost(totalPlannedCost)}</div></div>
+        <div className="wf-card wf-card-fact"><div className="wf-card-label">ФОТ факт (месяц)</div><div className="wf-card-value">{fmtCost(totalActualCost)}</div></div>
+        {totalPlannedCost > 0 && (
+          <div className={`wf-card ${totalActualCost <= totalPlannedCost ? 'wf-card-pos' : 'wf-card-neg'}`}>
+            <div className="wf-card-label">Отклонение</div>
+            <div className="wf-card-value">{fmtCost(totalActualCost - totalPlannedCost)}</div>
+          </div>
+        )}
+      </div>
+
+      <div className="wf-analytics-prods">
+        {Object.entries(prods).map(([prod, p]) => (
+          <div key={prod} className="wf-analytics-prod-card">
+            <h4>{p.name}</h4>
+            <div className="wf-analytics-prod-stats">
+              <div className="wf-stat-row"><span>Сотрудников:</span><strong>{p.total_employees}</strong></div>
+              {Object.entries(p.status_counts).map(([status, cnt]) => (
+                <div key={status} className="wf-stat-row wf-stat-sub">
+                  <span><span className="wf-status-badge wf-status-badge-sm">{status}</span></span>
+                  <strong>{cnt}</strong>
+                </div>
+              ))}
+              <div className="wf-stat-divider"></div>
+              <div className="wf-stat-row"><span>ФОТ план:</span><strong>{fmtCost(p.total_planned_cost)}</strong></div>
+              <div className="wf-stat-row"><span>ФОТ факт:</span><strong>{p.total_actual_cost > 0 ? fmtCost(p.total_actual_cost) : '—'}</strong></div>
+              <div className="wf-stat-row"><span>Часы план:</span><strong>{p.total_planned_hours}</strong></div>
+              <div className="wf-stat-row"><span>Часы факт:</span><strong>{p.total_actual_hours > 0 ? p.total_actual_hours : '—'}</strong></div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="wf-analytics-daily">
+        <h4>По дням — нажмите на день для подробностей</h4>
+        <div className="wf-daily-grid">
+          {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
+            const totalPlanned = Object.values(prods).reduce((s, p) => s + (p.daily_planned[String(d)] || 0), 0)
+            const totalActual  = Object.values(prods).reduce((s, p) => s + (p.daily_actual[String(d)]  || 0), 0)
+            const hasData  = totalPlanned > 0
+            const isToday  = new Date().getFullYear() === year && new Date().getMonth()+1 === month && new Date().getDate() === d
+            return (
+              <div key={d}
+                className={`wf-day-card ${hasData ? 'wf-day-card-active' : ''} ${selectedDay === d ? 'wf-day-card-selected' : ''} ${isWeekend(year, month, d) ? 'wf-day-card-weekend' : ''} ${isToday ? 'wf-day-card-today' : ''}`}
+                onClick={() => hasData && handleDayClick(d)}
+              >
+                <div className="wf-day-num">{d}</div>
+                <div className="wf-day-dow">{DAY_NAMES[getDayOfWeek(year, month, d)]}</div>
+                {hasData && <>
+                  <div className="wf-day-plan">{totalPlanned}</div>
+                  {totalActual > 0 && <div className={`wf-day-fact ${totalActual < totalPlanned ? 'wf-neg' : ''}`}>{totalActual}</div>}
+                </>}
+              </div>
+            )
+          })}
+        </div>
+        <div className="wf-daily-legend">
+          <span><span className="wf-legend-plan"></span>Синее — план</span>
+          <span><span className="wf-legend-fact"></span>Зелёное/красное — факт</span>
+        </div>
+      </div>
+
+      {selectedDay && dayData && (
+        <div className="wf-day-detail">
+          <h4>{selectedDay} {MONTH_NAMES[month - 1]} {year} — детали по производствам</h4>
+          <div className="wf-day-detail-grid">
+            {Object.entries(dayData.productions).map(([prod, dp]) => (
+              <div key={prod} className="wf-day-detail-card">
+                <div className="wf-day-detail-name">{dp.name}</div>
+                <div className="wf-day-detail-row"><span>План (чел.):</span><strong>{dp.planned_count}</strong></div>
+                <div className="wf-day-detail-row"><span>Факт (чел.):</span><strong className={dp.actual_count < dp.planned_count ? 'wf-neg' : ''}>{dp.actual_count}</strong></div>
+                <div className="wf-day-detail-row"><span>ФОТ план:</span><strong>{fmtCost(dp.planned_cost)}</strong></div>
+                <div className="wf-day-detail-row"><span>ФОТ факт:</span><strong>{dp.actual_cost > 0 ? fmtCost(dp.actual_cost) : '—'}</strong></div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Матричная аналитика ──────────────────────────────────────────────────────
+
+function MatrixSection({ prods, days, year, month, mode, expanded, onToggle }) {
+  const prodKeys = Object.keys(prods)
   const grandPlan = (d) => prodKeys.reduce((s, k) =>
     s + (mode === 'people' ? (prods[k].daily_planned[d] || 0) : (prods[k].daily_planned_cost[d] || 0)), 0)
   const grandFact = (d) => prodKeys.reduce((s, k) =>
     s + (mode === 'people' ? (prods[k].daily_actual[d] || 0) : (prods[k].daily_actual_cost[d] || 0)), 0)
 
-  const today = new Date()
-  const todayDay = (today.getFullYear() === year && today.getMonth() + 1 === parseInt(days[0]?.month || 0)) ? today.getDate() : null
+  const pf = (plan, fact, wknd = false) => (
+    <>
+      <td className={`wf-am-pf wf-am-plan${wknd ? ' wf-weekend' : ''}`}>{n0(plan)}</td>
+      <td className={`wf-am-pf wf-am-fact${wknd ? ' wf-weekend' : ''}${fact > 0 && fact < plan ? ' wf-am-under' : ''}`}>{n0(fact)}</td>
+    </>
+  )
 
   return (
-    <div className="wf-table-scroll">
+    <div className="wf-am-scroll-wrap">
       <table className="wf-analytics-matrix">
         <thead>
           <tr>
-            <th className="wf-am-col-group" rowSpan={2}></th>
-            <th className="wf-am-col-sub" rowSpan={2}></th>
+            <th className="wf-am-col-group wf-am-sticky-head" rowSpan={2}>
+              {mode === 'people' ? 'Вышло сотрудников' : 'Потрачено денег, ₽'}
+            </th>
+            <th className="wf-am-col-sub wf-am-sticky-head wf-am-sticky2" rowSpan={2}>Статус</th>
             {days.map(d => (
-              <th key={d} colSpan={2}
-                className={`wf-am-day-header ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>
+              <th key={d} colSpan={2} className={`wf-am-day-header${isWeekend(year, month, d) ? ' wf-weekend' : ''}${new Date().getDate() === d && new Date().getMonth()+1 === month && new Date().getFullYear() === year ? ' wf-today' : ''}`}>
                 {d}
               </th>
             ))}
@@ -2053,99 +2174,57 @@ function DailyMatrixTable({ prods, days, year, month, mode }) {
           </tr>
           <tr>
             {days.map(d => (
-              <> 
-                <th key={`${d}-p`} className={`wf-am-pf wf-am-plan ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>план</th>
-                <th key={`${d}-f`} className={`wf-am-pf wf-am-fact ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>факт</th>
+              <>
+                <th key={`${d}-p`} className={`wf-am-pf wf-am-plan${isWeekend(year, month, d) ? ' wf-weekend' : ''}`}>пл</th>
+                <th key={`${d}-f`} className={`wf-am-pf wf-am-fact${isWeekend(year, month, d) ? ' wf-weekend' : ''}`}>фк</th>
               </>
             ))}
-            <th className="wf-am-pf wf-am-plan">план</th>
-            <th className="wf-am-pf wf-am-fact">факт</th>
+            <th className="wf-am-pf wf-am-plan">пл</th>
+            <th className="wf-am-pf wf-am-fact">фк</th>
           </tr>
         </thead>
         <tbody>
-          {/* Строка ИТОГО по всем производствам */}
+          {/* Итого ВСЕГО */}
           <tr className="wf-am-grand-row">
-            <td className="wf-am-col-group" colSpan={2}>
-              {mode === 'people' ? 'Вышло сотрудников' : 'Потрачено денег, ₽'}
-            </td>
-            {days.map(d => {
-              const ds = String(d)
-              const plan = grandPlan(ds), fact = grandFact(ds)
-              return (
-                <>
-                  <td key={`${d}-p`} className="wf-am-pf wf-am-plan">{n0(plan)}</td>
-                  <td key={`${d}-f`} className={`wf-am-pf wf-am-fact ${fact < plan && fact > 0 ? 'wf-am-under' : ''}`}>
-                    {n0(fact)}
-                  </td>
-                </>
-              )
-            })}
-            <td className="wf-am-pf wf-am-plan">
-              {n0(days.reduce((s, d) => s + grandPlan(String(d)), 0))}
-            </td>
-            <td className="wf-am-pf wf-am-fact">
-              {n0(days.reduce((s, d) => s + grandFact(String(d)), 0))}
-            </td>
+            <td className="wf-am-col-group wf-am-sticky-td" colSpan={2}>Итого</td>
+            {days.map(d => { const ds = String(d); return pf(grandPlan(ds), grandFact(ds), isWeekend(year, month, d)) })}
+            {pf(days.reduce((s,d)=>s+grandPlan(String(d)),0), days.reduce((s,d)=>s+grandFact(String(d)),0))}
           </tr>
 
-          {/* По каждому производству */}
-          {prodKeys.map(prodKey => {
-            const p = prods[prodKey]
+          {prodKeys.map(pk => {
+            const p = prods[pk]
+            const isExp = expanded[pk]
             const statuses = Object.keys(p.status_employee_count || {})
-            const getProdPlan = (d) => mode === 'people' ? (p.daily_planned[d] || 0) : (p.daily_planned_cost[d] || 0)
-            const getProdFact = (d) => mode === 'people' ? (p.daily_actual[d] || 0) : (p.daily_actual_cost[d] || 0)
-            const totalPlan = days.reduce((s, d) => s + getProdPlan(String(d)), 0)
-            const totalFact = days.reduce((s, d) => s + getProdFact(String(d)), 0)
-
+            const getPlan = (d) => mode === 'people' ? (p.daily_planned[d] || 0) : (p.daily_planned_cost[d] || 0)
+            const getFact = (d) => mode === 'people' ? (p.daily_actual[d]  || 0) : (p.daily_actual_cost[d]  || 0)
+            const totPlan = days.reduce((s,d)=>s+getPlan(String(d)),0)
+            const totFact = days.reduce((s,d)=>s+getFact(String(d)),0)
             return (
               <>
-                {/* Строка производства */}
-                <tr key={prodKey} className="wf-am-prod-row">
-                  <td className="wf-am-col-group" colSpan={2}>{p.name}</td>
-                  {days.map(d => {
-                    const ds = String(d)
-                    const plan = getProdPlan(ds), fact = getProdFact(ds)
-                    return (
-                      <>
-                        <td key={`${d}-p`} className={`wf-am-pf wf-am-plan ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>{n0(plan)}</td>
-                        <td key={`${d}-f`} className={`wf-am-pf wf-am-fact ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${fact < plan && fact > 0 ? 'wf-am-under' : ''}`}>{n0(fact)}</td>
-                      </>
-                    )
-                  })}
-                  <td className="wf-am-pf wf-am-plan">{n0(totalPlan)}</td>
-                  <td className={`wf-am-pf wf-am-fact ${totalFact < totalPlan && totalFact > 0 ? 'wf-am-under' : ''}`}>{n0(totalFact)}</td>
+                {/* Строка производства — кликабельная */}
+                <tr key={pk} className="wf-am-prod-row" onClick={() => onToggle(pk)} style={{cursor:'pointer'}}>
+                  <td className="wf-am-col-group wf-am-sticky-td wf-am-prod-sticky">
+                    <span className="wf-am-toggle">{isExp ? '▼' : '▶'}</span> {p.name}
+                  </td>
+                  <td className="wf-am-col-sub wf-am-sticky2-td" style={{fontStyle:'italic', color:'var(--text-muted)', fontSize:'0.72rem'}}>
+                    {isExp ? 'свернуть' : `${p.total_employees} чел.`}
+                  </td>
+                  {days.map(d => { const ds=String(d); return pf(getPlan(ds),getFact(ds),isWeekend(year,month,d)) })}
+                  {pf(totPlan, totFact)}
                 </tr>
 
-                {/* Строки по статусам */}
-                {statuses.map(st => {
-                  const stPlan = (d) => mode === 'people'
-                    ? (p.status_daily_planned?.[st]?.[d] || 0)
-                    : (p.status_daily_plan_cost?.[st]?.[d] || 0)
-                  const stFact = (d) => mode === 'people'
-                    ? (p.status_daily_actual?.[st]?.[d] || 0)
-                    : (p.status_daily_fact_cost?.[st]?.[d] || 0)
-                  const stTotalPlan = mode === 'people'
-                    ? days.reduce((s, d) => s + stPlan(String(d)), 0)
-                    : (p.status_total_plan_cost?.[st] || 0)
-                  const stTotalFact = mode === 'people'
-                    ? days.reduce((s, d) => s + stFact(String(d)), 0)
-                    : (p.status_total_fact_cost?.[st] || 0)
+                {/* Строки статусов — видны только когда развёрнуто */}
+                {isExp && statuses.map(st => {
+                  const stPlan = (d) => mode==='people' ? (p.status_daily_planned?.[st]?.[d]||0) : (p.status_daily_plan_cost?.[st]?.[d]||0)
+                  const stFact = (d) => mode==='people' ? (p.status_daily_actual?.[st]?.[d]||0) : (p.status_daily_fact_cost?.[st]?.[d]||0)
+                  const stTP   = mode==='people' ? days.reduce((s,d)=>s+stPlan(String(d)),0) : (p.status_total_plan_cost?.[st]||0)
+                  const stTF   = mode==='people' ? days.reduce((s,d)=>s+stFact(String(d)),0) : (p.status_total_fact_cost?.[st]||0)
                   return (
-                    <tr key={`${prodKey}-${st}`} className="wf-am-status-row">
-                      <td className="wf-am-col-group"></td>
-                      <td className="wf-am-col-sub">{st}</td>
-                      {days.map(d => {
-                        const ds = String(d)
-                        const plan = stPlan(ds), fact = stFact(ds)
-                        return (
-                          <>
-                            <td key={`${d}-p`} className={`wf-am-pf wf-am-plan ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>{n0(plan)}</td>
-                            <td key={`${d}-f`} className={`wf-am-pf wf-am-fact ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${fact < plan && fact > 0 ? 'wf-am-under' : ''}`}>{n0(fact)}</td>
-                          </>
-                        )
-                      })}
-                      <td className="wf-am-pf wf-am-plan">{n0(stTotalPlan)}</td>
-                      <td className={`wf-am-pf wf-am-fact ${stTotalFact < stTotalPlan && stTotalFact > 0 ? 'wf-am-under' : ''}`}>{n0(stTotalFact)}</td>
+                    <tr key={`${pk}-${st}`} className="wf-am-status-row">
+                      <td className="wf-am-col-group wf-am-sticky-td"></td>
+                      <td className="wf-am-col-sub wf-am-sticky2-td">{st}</td>
+                      {days.map(d => { const ds=String(d); return pf(stPlan(ds),stFact(ds),isWeekend(year,month,d)) })}
+                      {pf(stTP, stTF)}
                     </tr>
                   )
                 })}
@@ -2158,11 +2237,13 @@ function DailyMatrixTable({ prods, days, year, month, mode }) {
   )
 }
 
-function AnalyticsTab({ year, month }) {
+function MatrixAnalyticsTab({ year, month }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const numDays = getDaysInMonth(year, month)
   const days = Array.from({ length: numDays }, (_, i) => i + 1)
+  // Состояние развёрнутости для каждого производства (по умолчанию все свёрнуты)
+  const [expanded, setExpanded] = useState({ tea: false, engraving: false, luminarc: false })
 
   useEffect(() => {
     setLoading(true)
@@ -2171,79 +2252,74 @@ function AnalyticsTab({ year, month }) {
       .catch(() => setLoading(false))
   }, [year, month])
 
-  if (loading) return <div className="wf-loading">Загрузка аналитики...</div>
-  if (!data) return <div className="wf-error">Ошибка загрузки аналитики</div>
+  const toggle = (prod) => setExpanded(e => ({ ...e, [prod]: !e[prod] }))
+  const allExpanded = Object.values(expanded).every(Boolean)
+  const toggleAll   = () => setExpanded(Object.fromEntries(Object.keys(expanded).map(k => [k, !allExpanded])))
 
-  const prods = data.productions || {}
+  if (loading) return <div className="wf-loading">Загрузка...</div>
+  if (!data) return <div className="wf-error">Ошибка загрузки</div>
+
+  const prods    = data.productions || {}
   const prodKeys = Object.keys(prods)
-
-  const totalEmployees  = prodKeys.reduce((s, k) => s + (prods[k].total_employees || 0), 0)
-  const totalPlanCost   = prodKeys.reduce((s, k) => s + (prods[k].total_planned_cost || 0), 0)
-  const totalFactCost   = prodKeys.reduce((s, k) => s + (prods[k].total_actual_cost  || 0), 0)
+  const totalEmp = prodKeys.reduce((s,k) => s + (prods[k].total_employees  || 0), 0)
+  const totalPlan = prodKeys.reduce((s,k) => s + (prods[k].total_planned_cost || 0), 0)
+  const totalFact = prodKeys.reduce((s,k) => s + (prods[k].total_actual_cost  || 0), 0)
 
   return (
     <div className="wf-analytics">
-      <h3>Аналитика: {MONTH_NAMES[month - 1]} {year}</h3>
+      <div style={{display:'flex', alignItems:'center', justifyContent:'space-between', flexWrap:'wrap', gap:'0.5rem', marginBottom:'0.5rem'}}>
+        <h3 style={{margin:0}}>Матричная аналитика: {MONTH_NAMES[month - 1]} {year}</h3>
+        <button className="wf-btn wf-btn-secondary wf-btn-sm" onClick={toggleAll}>
+          {allExpanded ? '▲ Свернуть все' : '▼ Развернуть все'}
+        </button>
+      </div>
+      <p style={{fontSize:'0.78rem', color:'var(--text-muted)', margin:'0 0 0.75rem'}}>
+        Нажмите на строку производства (▶) чтобы развернуть разбивку по статусам.
+      </p>
 
-      {/* ─── Таблица 1: Вышло сотрудников по дням ─── */}
-      <div className="wf-an-section-title">Вышло сотрудников по дням (план / факт)</div>
-      <DailyMatrixTable prods={prods} days={days} year={year} month={month} mode="people" />
+      <div className="wf-an-section-title">Вышло сотрудников (план / факт)</div>
+      <MatrixSection prods={prods} days={days} year={year} month={month} mode="people" expanded={expanded} onToggle={toggle} />
 
-      {/* ─── Таблица 2: Потрачено денег по дням ─── */}
-      <div className="wf-an-section-title" style={{marginTop:'1.5rem'}}>Потрачено денег на руки (план / факт), ₽</div>
-      <DailyMatrixTable prods={prods} days={days} year={year} month={month} mode="money" />
+      <div className="wf-an-section-title" style={{marginTop:'1.25rem'}}>Потрачено денег, ₽ (план / факт)</div>
+      <MatrixSection prods={prods} days={days} year={year} month={month} mode="money" expanded={expanded} onToggle={toggle} />
 
-      {/* ─── Итоги за месяц ─── */}
-      <div className="wf-an-section-title" style={{marginTop:'1.5rem'}}>Итоги за месяц</div>
+      {/* Итоги за месяц */}
+      <div className="wf-an-section-title" style={{marginTop:'1.25rem'}}>Итоги за месяц</div>
       <div className="wf-am-totals-grid">
-        {/* Всего сотрудников */}
         <div className="wf-am-totals-block">
-          <div className="wf-am-totals-title">Всего сотрудников: <strong>{totalEmployees}</strong></div>
+          <div className="wf-am-totals-title">Всего сотрудников: <strong>{totalEmp}</strong></div>
           {prodKeys.map(k => {
             const p = prods[k]
-            const statuses = Object.keys(p.status_employee_count || {})
             return (
               <div key={k} className="wf-am-totals-prod">
                 <div className="wf-am-totals-prod-name">{p.name} — <strong>{p.total_employees}</strong></div>
-                {statuses.map(st => (
+                {Object.entries(p.status_employee_count || {}).map(([st, cnt]) => (
                   <div key={st} className="wf-am-totals-status-row">
-                    <span className="wf-status-badge wf-status-badge-sm">{st}</span>
-                    <span>{p.status_employee_count[st]}</span>
+                    <span className="wf-status-badge wf-status-badge-sm">{st}</span><span>{cnt}</span>
                   </div>
                 ))}
               </div>
             )
           })}
         </div>
-
-        {/* ФОТ за месяц */}
         <div className="wf-am-totals-block">
           <div className="wf-am-totals-title">
-            Всего ФОТ за месяц:&nbsp;
-            <strong>план {n0z(totalPlanCost)} ₽</strong>&nbsp;/&nbsp;
-            <span className={totalFactCost < totalPlanCost ? 'wf-neg' : 'wf-pos'}>
-              факт {n0z(totalFactCost)} ₽
-            </span>
+            ФОТ: <strong>план {n0z(totalPlan)} ₽</strong> /
+            <span className={totalFact < totalPlan ? ' wf-neg' : ' wf-pos'}> факт {n0z(totalFact)} ₽</span>
           </div>
           {prodKeys.map(k => {
             const p = prods[k]
-            const statuses = Object.keys(p.status_total_plan_cost || {})
             return (
               <div key={k} className="wf-am-totals-prod">
                 <div className="wf-am-totals-prod-name">
-                  {p.name} —&nbsp;
-                  <strong>план {n0z(p.total_planned_cost)} ₽</strong>&nbsp;/&nbsp;
-                  <span className={p.total_actual_cost < p.total_planned_cost ? 'wf-neg' : 'wf-pos'}>
-                    факт {n0z(p.total_actual_cost)} ₽
-                  </span>
+                  {p.name} — <strong>пл {n0z(p.total_planned_cost)} ₽</strong>
+                  <span className={p.total_actual_cost < p.total_planned_cost ? ' wf-neg' : ' wf-pos'}> / фк {n0z(p.total_actual_cost)} ₽</span>
                 </div>
-                {statuses.map(st => (
+                {Object.keys(p.status_total_plan_cost || {}).map(st => (
                   <div key={st} className="wf-am-totals-status-row">
                     <span className="wf-status-badge wf-status-badge-sm">{st}</span>
-                    <span>план {n0z(p.status_total_plan_cost?.[st])} ₽</span>
-                    <span className={p.status_total_fact_cost?.[st] < p.status_total_plan_cost?.[st] ? 'wf-neg' : ''}>
-                      / факт {n0z(p.status_total_fact_cost?.[st])} ₽
-                    </span>
+                    <span>пл {n0z(p.status_total_plan_cost?.[st])} ₽</span>
+                    <span className={p.status_total_fact_cost?.[st] < p.status_total_plan_cost?.[st] ? 'wf-neg' : ''}> / фк {n0z(p.status_total_fact_cost?.[st])} ₽</span>
                   </div>
                 ))}
               </div>
@@ -2281,6 +2357,7 @@ export default function WorkforcePage({ userInfo }) {
     prods.forEach(p => availableTabs.push(p))
   }
   if (isAdmin) availableTabs.push('analytics')
+  if (isAdmin) availableTabs.push('matrix_analytics')
   availableTabs.push('export')
 
   // Устанавливаем вкладку по умолчанию
@@ -2314,9 +2391,10 @@ export default function WorkforcePage({ userInfo }) {
   }
 
   const tabLabel = (tab) => {
-    if (tab === 'reference') return '📋 Справочник'
-    if (tab === 'analytics') return '📊 Аналитика'
-    if (tab === 'export')    return '📄 Выгрузка табелей'
+    if (tab === 'reference')        return '📋 Справочник'
+    if (tab === 'analytics')        return '📊 Аналитика'
+    if (tab === 'matrix_analytics') return '📈 Матричная аналитика'
+    if (tab === 'export')           return '📄 Выгрузка табелей'
     return PRODUCTIONS[tab] || tab
   }
 
@@ -2426,6 +2504,10 @@ export default function WorkforcePage({ userInfo }) {
 
         {activeTab === 'analytics' && (
           <AnalyticsTab year={year} month={month} />
+        )}
+
+        {activeTab === 'matrix_analytics' && (
+          <MatrixAnalyticsTab year={year} month={month} />
         )}
 
         {activeTab === 'export' && (
