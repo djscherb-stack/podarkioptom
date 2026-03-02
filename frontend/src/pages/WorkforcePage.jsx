@@ -1304,7 +1304,7 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
 }
 
 // ─── Таблица табеля ───────────────────────────────────────────────────────────
-function TimesheetTable({ production, year, month, canEdit, reference }) {
+function TimesheetTable({ production, year, month, canEdit, onlyToday = false, reference }) {
   const [schedule, setSchedule] = useState(null)
   const [timesheet, setTimesheet] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -1384,6 +1384,13 @@ function TimesheetTable({ production, year, month, canEdit, reference }) {
   const today = new Date()
   const todayDay = (today.getFullYear() === year && today.getMonth() + 1 === month) ? today.getDate() : null
 
+  // Для бригадиров: ячейка редактируема только если это сегодняшний день
+  const isCellEditable = (d) => {
+    if (!canEdit) return false
+    if (onlyToday) return d === todayDay  // только сегодня
+    return true
+  }
+
   return (
     <div className="wf-schedule">
       <div className="wf-toolbar">
@@ -1395,6 +1402,11 @@ function TimesheetTable({ production, year, month, canEdit, reference }) {
         <div className="wf-toolbar-actions">
           {msg && <span className={`wf-msg ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</span>}
           {!canEdit && <span className="wf-msg">Просмотр (только чтение)</span>}
+          {onlyToday && canEdit && (
+            <span className="wf-ts-today-badge">
+              ⏱ Редактирование только сегодня ({todayDay ? `${todayDay} ${MONTH_NAMES[month-1]}` : 'недоступно'})
+            </span>
+          )}
         </div>
       </div>
 
@@ -1440,31 +1452,36 @@ function TimesheetTable({ production, year, month, canEdit, reference }) {
                     const isToday = d === todayDay
 
                     const isEditing = editCell?.empId === emp.id && editCell?.day === dayStr
+                    const cellCanEdit = isCellEditable(d)
                     // Стиль ячейки:
                     // wf-ts-scheduled = по плану (голубой)
                     // wf-ts-unscheduled-fill = не по плану но есть часы (оранжевый)
                     // wf-ts-worked / wf-ts-absent = заполнен факт
+                    // wf-ts-locked = заблокировано (не сегодня, бригадир)
                     const cellClass = [
                       'wf-day-cell',
                       isWeekend(year, month, d) ? 'wf-weekend' : '',
                       isToday ? 'wf-today' : '',
                       isScheduled ? 'wf-ts-scheduled' : (isFilled && actualH > 0 ? 'wf-ts-unscheduled-fill' : ''),
                       isFilled ? (actualH > 0 ? 'wf-ts-worked' : 'wf-ts-absent') : '',
-                      canEdit ? 'wf-editable' : '',
+                      cellCanEdit ? 'wf-editable' : '',
+                      onlyToday && !isToday && canEdit ? 'wf-ts-locked' : '',
                       isEditing ? 'wf-ref-editing' : '',
                     ].filter(Boolean).join(' ')
 
-                    const cellTitle = canEdit
+                    const cellTitle = cellCanEdit
                       ? isScheduled
                         ? (actualH !== undefined ? `Факт: ${actualH}ч (план: ${plannedH}ч)` : `План: ${plannedH}ч — нажмите`)
                         : (actualH !== undefined ? `Внеплановый выход: ${actualH}ч — нажмите` : 'Нет в графике — нажмите для внепланового часов')
-                      : undefined
+                      : onlyToday && !isToday && canEdit
+                        ? 'Бригадир может редактировать только сегодняшний день'
+                        : undefined
 
                     return (
                       <td
                         key={d}
                         className={cellClass}
-                        onClick={() => !isEditing && canEdit && handleCellClick(emp.id, dayStr, actualH, plannedH)}
+                        onClick={() => !isEditing && cellCanEdit && handleCellClick(emp.id, dayStr, actualH, plannedH)}
                         title={cellTitle}
                       >
                         {isEditing ? (
@@ -2512,6 +2529,7 @@ export default function WorkforcePage({ userInfo }) {
             year={year}
             month={month}
             canEdit={isAdmin || isManager || isBrigadier}
+            onlyToday={isBrigadier}
             reference={reference}
           />
         )}

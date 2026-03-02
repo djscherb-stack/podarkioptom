@@ -868,16 +868,28 @@ async def wf_save_timesheet(production: str, year: int, month: int, request: Req
 
 @app.patch("/api/workforce/timesheet/{production}/{year}/{month}/cell")
 async def wf_update_timesheet_cell(production: str, year: int, month: int, request: Request):
-    """Обновить одну ячейку табеля."""
+    """Обновить одну ячейку табеля.
+    Бригадиры могут редактировать только сегодняшний день.
+    """
     if production not in wf.PRODUCTIONS:
         raise HTTPException(status_code=404, detail="Производство не найдено")
-    _require_schedule_access(request, production)
+    access = _require_schedule_access(request, production)
     body = await request.json()
     emp_id = body.get("employee_id")
     day = str(body.get("day", ""))
     hours = body.get("hours")  # None = очистить
     if not emp_id or not day:
         raise HTTPException(status_code=400, detail="employee_id и day обязательны")
+
+    # Бригадир может редактировать только сегодняшний день
+    if access["role"] == "brigadier":
+        from datetime import date as _date
+        today = _date.today()
+        if today.year != year or today.month != month or str(today.day) != day:
+            raise HTTPException(
+                status_code=403,
+                detail=f"Бригадир может вносить данные только за сегодняшний день ({today.day} {today.month} {today.year})"
+            )
     ts = wf.update_timesheet_cell(production, year, month, emp_id, day, hours)
     # Логируем: находим ФИО сотрудника из графика
     try:

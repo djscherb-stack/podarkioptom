@@ -478,6 +478,25 @@
 /* Ячейка табеля: внеплановый выход (не в графике, но вышел) */
 .wf-ts-unscheduled-fill { background: rgba(200, 140, 30, 0.12) !important; }
 
+/* Ячейка заблокирована для бригадира (не сегодня) */
+.wf-ts-locked {
+  cursor: not-allowed !important;
+  opacity: 0.55;
+}
+.wf-ts-locked:hover { background: inherit !important; }
+
+/* Бейдж «только сегодня» в тулбаре */
+.wf-ts-today-badge {
+  font-size: 0.8rem;
+  padding: 0.2rem 0.65rem;
+  border-radius: 20px;
+  background: rgba(91, 143, 201, 0.15);
+  color: var(--accent);
+  border: 1px solid rgba(91, 143, 201, 0.3);
+  white-space: nowrap;
+  font-weight: 600;
+}
+
 /* Уволенные строки в графике */
 .wf-sched-fired-row td { background: rgba(180, 50, 50, 0.07) !important; }
 .wf-sched-fired-row .wf-day-on { background: rgba(180, 50, 50, 0.18) !important; }
