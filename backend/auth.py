@@ -189,8 +189,8 @@ def check_password(username: str, password: str) -> bool:
 
 
 def is_admin(username: str) -> bool:
-    """Только admin имеет доступ к админ-странице."""
-    return username == ADMIN_USER
+    """Пользователи с полным доступом к сайту и админ-странице."""
+    return username in (ADMIN_USER, PAVEL_USER)
 
 
 def get_schedule_access(username: str) -> dict:
