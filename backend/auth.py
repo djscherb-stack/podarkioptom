@@ -195,20 +195,35 @@ def is_admin(username: str) -> bool:
 
 def get_schedule_access(username: str) -> dict:
     """Возвращает доступ пользователя к модулю графиков/табелей.
-    role: 'admin' | 'manager' | 'brigadier' | 'viewer' | None
-    production: 'tea' | 'engraving' | 'luminarc' | 'all' | None
-    full_name: строка с ФИО пользователя (если задано)
+    Сначала проверяет переопределения из role_manager, затем WORKFORCE_USERS.
     """
     if is_admin(username):
-        return {"role": "admin", "production": "all", "full_name": username}
+        return {"role": "admin", "production": "all", "full_name": username, "nav_items": None}
+
+    # Проверяем переопределения (заданные через админку)
+    try:
+        import role_manager as rm
+        override = rm.get_role_override(username)
+        if override:
+            return {
+                "role": override["role"],
+                "production": override["production"],
+                "full_name": override.get("full_name") or WORKFORCE_USERS.get(username, {}).get("full_name", username),
+                "nav_items": override.get("nav_items"),
+            }
+    except Exception:
+        pass
+
+    # Стандартные записи из WORKFORCE_USERS
     if username in WORKFORCE_USERS:
         u = WORKFORCE_USERS[username]
         return {
             "role": u["role"],
             "production": u["production"],
             "full_name": u.get("full_name", username),
+            "nav_items": u.get("nav_items"),
         }
-    return {"role": None, "production": None, "full_name": None}
+    return {"role": None, "production": None, "full_name": None, "nav_items": None}
 
 
 def get_workforce_user_info(username: str) -> Optional[dict]:

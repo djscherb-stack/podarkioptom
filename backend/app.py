@@ -126,6 +126,7 @@ def get_me(username: str = Depends(require_auth)):
         "schedule_role": access["role"],
         "schedule_production": access["production"],
         "schedule_full_name": access.get("full_name"),
+        "nav_items": access.get("nav_items"),  # None = все пункты, список = только указанные
     }
 
 
@@ -643,6 +644,140 @@ def admin_login_history():
     return auth.get_login_history()
 
 
+# ─── Управление пользователями и ролями (Admin) ───────────────────────────────
+import role_manager as rm
+
+
+@app.get("/api/admin/users", dependencies=[Depends(require_admin)])
+def admin_get_users():
+    """Все пользователи системы с их ролями и статистикой входов."""
+    history = auth.get_login_history()
+    by_user = history.get("by_user", {})
+
+    overrides = rm.get_all_overrides()
+
+    def build_user(username, default_role, default_prod, full_name=None, is_sys=False):
+        override = overrides.get(username)
+        role = override["role"] if override else default_role
+        production = override["production"] if override else default_prod
+        fn = override.get("full_name") if override else full_name
+        stat = by_user.get(username, {})
+        return {
+            "username": username,
+            "full_name": fn or username,
+            "role": role,
+            "production": production,
+            "is_admin": auth.is_admin(username),
+            "is_system": is_sys,
+            "has_override": bool(override),
+            "login_count": stat.get("count", 0),
+            "last_login": stat.get("last"),
+        }
+
+    users = []
+
+    # Системные пользователи
+    users.append(build_user(auth.ADMIN_USER, "admin", "all",
+                            full_name="Администратор", is_sys=True))
+    for u, info in [
+        (auth.PR_USER,    {"full_name": "PR",         "role": "viewer_all", "prod": "—"}),
+        (auth.PAVEL_USER, {"full_name": "Pavel",       "role": "admin",      "prod": "all"}),
+        (auth.NP_USER,    {"full_name": "NP",          "role": "viewer_all", "prod": "—"}),
+        (auth.GUEST_USER, {"full_name": "Guest",       "role": "viewer_all", "prod": "—"}),
+    ]:
+        stat = by_user.get(u, {})
+        users.append({
+            "username": u,
+            "full_name": info["full_name"],
+            "role": info["role"],
+            "production": info["prod"],
+            "is_admin": auth.is_admin(u),
+            "is_system": True,
+            "has_override": False,
+            "login_count": stat.get("count", 0),
+            "last_login": stat.get("last"),
+        })
+
+    # Пользователи модуля графиков/табелей
+    for username, info in auth.WORKFORCE_USERS.items():
+        users.append(build_user(
+            username,
+            info["role"], info["production"],
+            full_name=info.get("full_name"),
+        ))
+
+    return {"users": users}
+
+
+@app.put("/api/admin/users/{username}/role", dependencies=[Depends(require_admin)])
+async def admin_set_user_role(username: str, request: Request):
+    """Изменить роль пользователя (сохраняется в файл переопределений)."""
+    body = await request.json()
+    role = body.get("role")
+    production = body.get("production", "all")
+    nav_items = body.get("nav_items")  # None = всё доступно
+
+    valid_roles = ["admin", "manager", "brigadier", "viewer"]
+    if role not in valid_roles:
+        raise HTTPException(status_code=400, detail=f"Неверная роль: {role}")
+
+    rm.set_role_override(username, role, production, nav_items=nav_items)
+    return {"ok": True, "username": username, "role": role, "production": production}
+
+
+@app.delete("/api/admin/users/{username}/role", dependencies=[Depends(require_admin)])
+def admin_reset_user_role(username: str):
+    """Сбросить переопределение роли (вернуться к дефолту из кода)."""
+    rm.remove_role_override(username)
+    return {"ok": True}
+
+
+# ─── Кастомные роли ───────────────────────────────────────────────────────────
+
+@app.get("/api/admin/custom-roles", dependencies=[Depends(require_admin)])
+def admin_get_custom_roles():
+    return {
+        "roles": rm.get_custom_roles(),
+        "nav_items": rm.NAV_ITEMS,
+        "productions": rm.PRODUCTIONS,
+        "workforce_roles": rm.WORKFORCE_ROLES,
+    }
+
+
+@app.post("/api/admin/custom-roles", dependencies=[Depends(require_admin)])
+async def admin_create_custom_role(request: Request):
+    body = await request.json()
+    if not body.get("name"):
+        raise HTTPException(status_code=400, detail="Название роли обязательно")
+    role = rm.save_custom_role(body)
+    return {"ok": True, "role": role}
+
+
+@app.put("/api/admin/custom-roles/{role_id}", dependencies=[Depends(require_admin)])
+async def admin_update_custom_role(role_id: str, request: Request):
+    body = await request.json()
+    body["id"] = role_id
+    role = rm.save_custom_role(body)
+    return {"ok": True, "role": role}
+
+
+@app.delete("/api/admin/custom-roles/{role_id}", dependencies=[Depends(require_admin)])
+def admin_delete_custom_role(role_id: str):
+    deleted = rm.delete_custom_role(role_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Роль не найдена")
+    return {"ok": True}
+
+
+# ─── Расширенный журнал изменений (workforce) ─────────────────────────────────
+
+@app.get("/api/admin/workforce-changelog", dependencies=[Depends(require_admin)])
+def admin_workforce_changelog(limit: int = 500):
+    """Подробный журнал изменений графиков и табелей."""
+    import workforce as wf_mod
+    return {"entries": wf_mod.get_changelog(limit)}
+
+
 @app.get("/api/employees", dependencies=[Depends(require_auth)])
 def get_employees_list():
     """Список ФИО сотрудников (из данных выработки)."""
@@ -899,8 +1034,11 @@ async def wf_update_timesheet_cell(production: str, year: int, month: int, reque
     except Exception:
         emp_name = emp_id[:8]
     val_str = f"{hours}ч" if hours is not None else "очищено"
+    # Форматируем дату: день.месяц.год
+    MONTHS_RU = ["янв","фев","мар","апр","май","июн","июл","авг","сен","окт","ноя","дек"]
+    date_str = f"{day.zfill(2)}.{str(month).zfill(2)}.{year}"
     wf.log_change(_get_request_username(request), "табель: ячейка", production, year, month,
-                  f"{emp_name}, день {day}: {val_str}")
+                  f"{emp_name} | {date_str} | {val_str}")
     return {"ok": True, "records": ts.get("records", {})}
 
 

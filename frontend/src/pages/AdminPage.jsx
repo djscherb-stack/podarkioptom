@@ -20,6 +20,24 @@ function formatDate(iso) {
 const PROD_LABELS = { tea: 'ЧАЙ', engraving: 'ГРАВИРОВКА', luminarc: 'ЛЮМИНАРК' }
 const MONTH_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
 
+const ROLE_LABELS = {
+  admin: 'Полный доступ', manager: 'Менеджер', brigadier: 'Бригадир',
+  viewer: 'Просмотр', viewer_all: 'Просмотр (весь сайт)',
+}
+const PROD_OPTS = [
+  { v: 'all', l: 'Все производства' },
+  { v: 'tea', l: 'ЧАЙ' },
+  { v: 'engraving', l: 'ГРАВИРОВКА' },
+  { v: 'luminarc', l: 'ЛЮМИНАРК' },
+]
+const NAV_LABELS = {
+  month: 'По месяцу', day: 'По дню', week: 'По неделе',
+  months: 'Аналитика по месяцам', employee_output: 'Выработка сотрудников',
+  employees: 'Сотрудники', disassembly: 'Разборка возвратов',
+  disassembly_nomenclature: 'Номенклатура разборки', cost_check: 'Проверка стоимости',
+  workforce: 'Графики и табели',
+}
+
 export default function AdminPage() {
   const [data, setData] = useState(null)
   const [error, setError] = useState(null)
@@ -32,6 +50,17 @@ export default function AdminPage() {
   const [syncLog, setSyncLog] = useState([])
   const [dataSources, setDataSources] = useState(null)
   const [wfChangelog, setWfChangelog] = useState(null)
+  // Новые секции
+  const [adminTab, setAdminTab] = useState('data')  // 'data' | 'users' | 'changelog' | 'roles'
+  const [users, setUsers] = useState([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [editingUser, setEditingUser] = useState(null) // username
+  const [editUserBuf, setEditUserBuf] = useState({})
+  const [userMsg, setUserMsg] = useState(null)
+  const [customRoles, setCustomRoles] = useState([])
+  const [rolesLoading, setRolesLoading] = useState(false)
+  const [newRole, setNewRole] = useState(null)
+  const [roleMsg, setRoleMsg] = useState(null)
   const [replaceDisassemblyStep, setReplaceDisassemblyStep] = useState(null)
   const [replaceDisassemblyFiles, setReplaceDisassemblyFiles] = useState({})
   const [replaceDisassemblyMsg, setReplaceDisassemblyMsg] = useState(null)
@@ -66,6 +95,30 @@ export default function AdminPage() {
       .then(r => setWfChangelog(r.entries || []))
       .catch(() => setWfChangelog([]))
   }, [])
+
+  const loadUsers = () => {
+    setUsersLoading(true)
+    apiFetch(`${API}/admin/users`)
+      .then(r => { setUsers(r.users || []); setUsersLoading(false) })
+      .catch(() => setUsersLoading(false))
+  }
+
+  const loadCustomRoles = () => {
+    setRolesLoading(true)
+    apiFetch(`${API}/admin/custom-roles`)
+      .then(r => { setCustomRoles(r.roles || []); setRolesLoading(false) })
+      .catch(() => setRolesLoading(false))
+  }
+
+  useEffect(() => {
+    if (adminTab === 'users' && users.length === 0) loadUsers()
+    if (adminTab === 'roles' && customRoles.length === 0) loadCustomRoles()
+    if (adminTab === 'changelog' && wfChangelog === null) {
+      apiFetch(`${API}/admin/workforce-changelog?limit=500`)
+        .then(r => setWfChangelog(r.entries || []))
+        .catch(() => setWfChangelog([]))
+    }
+  }, [adminTab])
 
   useEffect(() => {
     loadSyncLog()
@@ -207,7 +260,27 @@ export default function AdminPage() {
     <div className="admin-page">
       <h2>Админ-панель</h2>
 
-      <section className="admin-upload-section">
+      {/* Навигация по разделам */}
+      <div className="admin-tabs">
+        {[
+          ['data',      '⚙️ Данные'],
+          ['users',     '👥 Пользователи'],
+          ['changelog', '📋 Журнал изменений'],
+          ['roles',     '🔐 Роли'],
+        ].map(([id, label]) => (
+          <button
+            key={id}
+            className={`admin-tab-btn ${adminTab === id ? 'active' : ''}`}
+            onClick={() => setAdminTab(id)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ═══════════════════════ ДАННЫЕ ════════════════════════════════════ */}
+      {adminTab === 'data' && (<>
+        <section className="admin-upload-section">
         <h3>Загрузка данных</h3>
         <div className="admin-upload-buttons">
           <UploadButton />
@@ -446,59 +519,293 @@ export default function AdminPage() {
 
       <section className="admin-logins">
         <h3>Последние входы (по времени)</h3>
-        <table className="admin-table">
-          <thead>
-            <tr>
-              <th>Пользователь</th>
-              <th>Дата и время</th>
-            </tr>
-          </thead>
-          <tbody>
-            {logins.map((e, i) => (
-              <tr key={i}>
-                <td>{e.username}</td>
-                <td>{formatDate(e.at)}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </section>
-
-      <section className="admin-upload-section">
-        <h3>История редактирования графиков и табелей</h3>
-        {wfChangelog === null ? (
-          <p style={{color:'var(--text-muted)', fontSize:'0.85rem'}}>Загрузка...</p>
-        ) : wfChangelog.length === 0 ? (
-          <p style={{color:'var(--text-muted)', fontSize:'0.85rem'}}>Изменений ещё не было.</p>
-        ) : (
-          <table className="admin-table" style={{fontSize:'0.82rem'}}>
+        <div style={{overflowY:'auto', maxHeight:'340px'}}>
+          <table className="admin-table">
             <thead>
               <tr>
-                <th>Дата и время</th>
                 <th>Пользователь</th>
-                <th>Действие</th>
-                <th>Производство</th>
-                <th>Период</th>
-                <th>Детали</th>
+                <th>Дата и время</th>
               </tr>
             </thead>
             <tbody>
-              {wfChangelog.map((e, i) => (
+              {logins.map((e, i) => (
                 <tr key={i}>
-                  <td style={{whiteSpace:'nowrap'}}>{formatDate(e.at)}</td>
-                  <td><strong>{e.username}</strong></td>
-                  <td>{e.action}</td>
-                  <td>{e.production ? (PROD_LABELS[e.production] || e.production) : '—'}</td>
-                  <td style={{whiteSpace:'nowrap'}}>
-                    {e.year && e.month ? `${MONTH_SHORT[e.month - 1]} ${e.year}` : '—'}
-                  </td>
-                  <td style={{color:'var(--text-muted)'}}>{e.details || ''}</td>
+                  <td>{e.username}</td>
+                  <td>{formatDate(e.at)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
-        )}
+        </div>
       </section>
+      </>)}
+
+      {/* ═══════════════════════ ПОЛЬЗОВАТЕЛИ ══════════════════════════════ */}
+      {adminTab === 'users' && (
+        <section className="admin-upload-section">
+          <div style={{display:'flex', gap:'0.75rem', alignItems:'center', marginBottom:'0.75rem'}}>
+            <h3 style={{margin:0}}>Пользователи системы</h3>
+            <button className="admin-btn-refresh-data" onClick={loadUsers} disabled={usersLoading}>
+              {usersLoading ? '...' : '↻ Обновить'}
+            </button>
+            {userMsg && <span style={{fontSize:'0.82rem', color: userMsg.ok ? 'var(--positive)' : 'var(--negative)'}}>{userMsg.text}</span>}
+          </div>
+          <table className="admin-table" style={{fontSize:'0.82rem'}}>
+            <thead>
+              <tr>
+                <th>Логин</th>
+                <th>ФИО</th>
+                <th>Роль</th>
+                <th>Производство</th>
+                <th>Входов</th>
+                <th>Последний вход</th>
+                <th>Действие</th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map(u => (
+                <tr key={u.username} style={{opacity: u.is_system ? 0.75 : 1}}>
+                  <td>
+                    <span style={{fontFamily:'monospace', fontSize:'0.78rem'}}>{u.username}</span>
+                    {u.is_admin && <span style={{marginLeft:'4px', fontSize:'0.7rem', background:'#b86b6b', color:'#fff', borderRadius:'3px', padding:'0 4px'}}>admin</span>}
+                  </td>
+                  <td>{u.full_name}</td>
+                  {editingUser === u.username ? (
+                    <>
+                      <td>
+                        <select style={{fontSize:'0.8rem', padding:'2px 4px', background:'var(--bg)', color:'var(--text)', border:'1px solid var(--accent)', borderRadius:'4px'}}
+                          value={editUserBuf.role}
+                          onChange={e => setEditUserBuf(b => ({...b, role: e.target.value}))}>
+                          {['admin','manager','brigadier','viewer'].map(r => (
+                            <option key={r} value={r}>{ROLE_LABELS[r] || r}</option>
+                          ))}
+                        </select>
+                      </td>
+                      <td>
+                        <select style={{fontSize:'0.8rem', padding:'2px 4px', background:'var(--bg)', color:'var(--text)', border:'1px solid var(--accent)', borderRadius:'4px'}}
+                          value={editUserBuf.production}
+                          onChange={e => setEditUserBuf(b => ({...b, production: e.target.value}))}>
+                          {PROD_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                        </select>
+                      </td>
+                      <td>{u.login_count}</td>
+                      <td>{formatDate(u.last_login)}</td>
+                      <td style={{display:'flex', gap:'4px'}}>
+                        <button className="admin-btn-refresh-data" style={{padding:'2px 8px', fontSize:'0.78rem'}}
+                          onClick={async () => {
+                            try {
+                              await apiFetch(`${API}/admin/users/${encodeURIComponent(u.username)}/role`, {
+                                method: 'PUT',
+                                body: JSON.stringify({role: editUserBuf.role, production: editUserBuf.production}),
+                              })
+                              setUserMsg({text: `Роль ${u.username} обновлена`, ok: true})
+                              setTimeout(() => setUserMsg(null), 3000)
+                              loadUsers()
+                            } catch(e) { setUserMsg({text: e.message, ok: false}) }
+                            setEditingUser(null)
+                          }}>✓</button>
+                        {u.has_override && (
+                          <button style={{padding:'2px 8px', fontSize:'0.78rem', background:'none', border:'1px solid var(--border)', borderRadius:'4px', cursor:'pointer', color:'var(--text-muted)'}}
+                            title="Сбросить к дефолту"
+                            onClick={async () => {
+                              await apiFetch(`${API}/admin/users/${encodeURIComponent(u.username)}/role`, {method:'DELETE'})
+                              loadUsers()
+                            }}>↺</button>
+                        )}
+                        <button style={{padding:'2px 8px', fontSize:'0.78rem', background:'none', border:'1px solid var(--border)', borderRadius:'4px', cursor:'pointer', color:'var(--negative)'}}
+                          onClick={() => setEditingUser(null)}>✕</button>
+                      </td>
+                    </>
+                  ) : (
+                    <>
+                      <td>
+                        <span style={{background:'rgba(91,143,201,0.15)', color:'var(--accent)', borderRadius:'4px', padding:'1px 6px', fontSize:'0.78rem'}}>
+                          {ROLE_LABELS[u.role] || u.role}
+                        </span>
+                        {u.has_override && <span title="Изменено вручную" style={{marginLeft:'3px', fontSize:'0.7rem', opacity:0.6}}>✎</span>}
+                      </td>
+                      <td style={{fontSize:'0.8rem'}}>{PROD_LABELS[u.production] || u.production || '—'}</td>
+                      <td>{u.login_count}</td>
+                      <td style={{fontSize:'0.78rem', color:'var(--text-muted)'}}>{formatDate(u.last_login)}</td>
+                      <td>
+                        {!u.is_system && (
+                          <button className="admin-btn-refresh-data" style={{padding:'2px 8px', fontSize:'0.78rem'}}
+                            onClick={() => { setEditingUser(u.username); setEditUserBuf({role: u.role, production: u.production}) }}>
+                            ✎ Изменить
+                          </button>
+                        )}
+                      </td>
+                    </>
+                  )}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      {/* ═══════════════════════ ЖУРНАЛ ИЗМЕНЕНИЙ ══════════════════════════ */}
+      {adminTab === 'changelog' && (
+        <section className="admin-upload-section">
+          <h3>Журнал изменений графиков и табелей</h3>
+          {(!wfChangelog || wfChangelog.length === 0) ? (
+            <p style={{color:'var(--text-muted)', fontSize:'0.85rem'}}>
+              {wfChangelog === null ? 'Загрузка...' : 'Изменений ещё не было.'}
+            </p>
+          ) : (
+            <div style={{overflowY:'auto', maxHeight:'520px'}}>
+              <table className="admin-table" style={{fontSize:'0.82rem'}}>
+                <thead>
+                  <tr>
+                    <th>Дата и время</th>
+                    <th>Пользователь</th>
+                    <th>Действие</th>
+                    <th>Производство</th>
+                    <th>Период</th>
+                    <th>Детали</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {wfChangelog.map((e, i) => (
+                    <tr key={i}>
+                      <td style={{whiteSpace:'nowrap'}}>{formatDate(e.at)}</td>
+                      <td><strong>{e.username}</strong></td>
+                      <td>{e.action}</td>
+                      <td>{e.production ? (PROD_LABELS[e.production] || e.production) : '—'}</td>
+                      <td style={{whiteSpace:'nowrap'}}>
+                        {e.year && e.month ? `${MONTH_SHORT[e.month - 1]} ${e.year}` : '—'}
+                      </td>
+                      <td style={{color:'var(--text-muted)', maxWidth:'280px', wordBreak:'break-all'}}>{e.details || ''}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </section>
+      )}
+
+      {/* ═══════════════════════ РОЛИ ═══════════════════════════════════════ */}
+      {adminTab === 'roles' && (
+        <section className="admin-upload-section">
+          <div style={{display:'flex', gap:'0.75rem', alignItems:'center', marginBottom:'0.75rem'}}>
+            <h3 style={{margin:0}}>Кастомные роли</h3>
+            <button className="admin-btn-refresh-data"
+              onClick={() => setNewRole({name:'', workforce_role:'brigadier', workforce_production:'tea', nav_items: Object.keys(NAV_LABELS).filter(k => k === 'workforce')})}>
+              + Создать роль
+            </button>
+            {roleMsg && <span style={{fontSize:'0.82rem', color: roleMsg.ok ? 'var(--positive)' : 'var(--negative)'}}>{roleMsg.text}</span>}
+          </div>
+
+          {/* Форма создания / редактирования */}
+          {newRole && (
+            <div style={{background:'var(--bg)', border:'1px solid var(--accent)', borderRadius:'8px', padding:'1rem', marginBottom:'1rem'}}>
+              <h4 style={{margin:'0 0 0.75rem', fontSize:'0.95rem'}}>{newRole.id ? 'Редактировать роль' : 'Новая роль'}</h4>
+              <div style={{display:'flex', flexWrap:'wrap', gap:'0.75rem', marginBottom:'0.75rem'}}>
+                <label style={{display:'flex', flexDirection:'column', gap:'3px', fontSize:'0.8rem', color:'var(--text-muted)'}}>
+                  Название роли
+                  <input style={{padding:'4px 8px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:'4px', color:'var(--text)', minWidth:'200px'}}
+                    value={newRole.name} placeholder="Например: Бригадир Чая"
+                    onChange={e => setNewRole(r => ({...r, name: e.target.value}))} />
+                </label>
+                <label style={{display:'flex', flexDirection:'column', gap:'3px', fontSize:'0.8rem', color:'var(--text-muted)'}}>
+                  Уровень доступа (Графики/Табели)
+                  <select style={{padding:'4px 8px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:'4px', color:'var(--text)'}}
+                    value={newRole.workforce_role}
+                    onChange={e => setNewRole(r => ({...r, workforce_role: e.target.value}))}>
+                    {Object.entries(ROLE_LABELS).filter(([k]) => ['admin','manager','brigadier','viewer'].includes(k)).map(([k,v]) => (
+                      <option key={k} value={k}>{v}</option>
+                    ))}
+                  </select>
+                </label>
+                <label style={{display:'flex', flexDirection:'column', gap:'3px', fontSize:'0.8rem', color:'var(--text-muted)'}}>
+                  Производство
+                  <select style={{padding:'4px 8px', background:'var(--bg-card)', border:'1px solid var(--border)', borderRadius:'4px', color:'var(--text)'}}
+                    value={newRole.workforce_production}
+                    onChange={e => setNewRole(r => ({...r, workforce_production: e.target.value}))}>
+                    {PROD_OPTS.map(o => <option key={o.v} value={o.v}>{o.l}</option>)}
+                  </select>
+                </label>
+              </div>
+              <div style={{marginBottom:'0.75rem'}}>
+                <div style={{fontSize:'0.8rem', color:'var(--text-muted)', marginBottom:'0.4rem', fontWeight:600}}>Доступные пункты левого меню:</div>
+                <div style={{display:'flex', flexWrap:'wrap', gap:'0.5rem'}}>
+                  {Object.entries(NAV_LABELS).map(([k, label]) => (
+                    <label key={k} style={{display:'flex', alignItems:'center', gap:'4px', fontSize:'0.82rem', cursor:'pointer', padding:'3px 8px', border:'1px solid var(--border)', borderRadius:'4px', background: (newRole.nav_items || []).includes(k) ? 'rgba(91,143,201,0.15)' : 'transparent'}}>
+                      <input type="checkbox"
+                        checked={(newRole.nav_items || []).includes(k)}
+                        onChange={e => setNewRole(r => ({
+                          ...r,
+                          nav_items: e.target.checked
+                            ? [...(r.nav_items || []), k]
+                            : (r.nav_items || []).filter(x => x !== k)
+                        }))} />
+                      {label}
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <div style={{display:'flex', gap:'0.5rem'}}>
+                <button className="admin-btn-refresh-data"
+                  onClick={async () => {
+                    if (!newRole.name.trim()) { setRoleMsg({text:'Введите название роли', ok:false}); return }
+                    try {
+                      const method = newRole.id ? 'PUT' : 'POST'
+                      const url = newRole.id ? `${API}/admin/custom-roles/${newRole.id}` : `${API}/admin/custom-roles`
+                      await apiFetch(url, {method, body: JSON.stringify(newRole)})
+                      setRoleMsg({text: `Роль «${newRole.name}» сохранена`, ok: true})
+                      setTimeout(() => setRoleMsg(null), 3000)
+                      setNewRole(null)
+                      loadCustomRoles()
+                    } catch(e) { setRoleMsg({text: e.message, ok:false}) }
+                  }}>
+                  Сохранить роль
+                </button>
+                <button style={{padding:'4px 12px', background:'none', border:'1px solid var(--border)', borderRadius:'4px', cursor:'pointer', color:'var(--text-muted)'}}
+                  onClick={() => setNewRole(null)}>Отмена</button>
+              </div>
+            </div>
+          )}
+
+          {/* Список кастомных ролей */}
+          {rolesLoading ? <p>Загрузка...</p> : customRoles.length === 0 ? (
+            <p style={{color:'var(--text-muted)', fontSize:'0.85rem'}}>Кастомных ролей ещё нет. Нажмите «+ Создать роль».</p>
+          ) : (
+            <table className="admin-table" style={{fontSize:'0.82rem'}}>
+              <thead>
+                <tr><th>Название</th><th>Уровень</th><th>Производство</th><th>Пункты меню</th><th></th></tr>
+              </thead>
+              <tbody>
+                {customRoles.map(r => (
+                  <tr key={r.id}>
+                    <td><strong>{r.name}</strong></td>
+                    <td>{ROLE_LABELS[r.workforce_role] || r.workforce_role}</td>
+                    <td>{PROD_LABELS[r.workforce_production] || r.workforce_production || '—'}</td>
+                    <td style={{fontSize:'0.75rem', color:'var(--text-muted)'}}>
+                      {(r.nav_items || []).map(k => NAV_LABELS[k] || k).join(', ') || 'не задано'}
+                    </td>
+                    <td style={{display:'flex', gap:'4px'}}>
+                      <button className="admin-btn-refresh-data" style={{padding:'2px 8px', fontSize:'0.78rem'}}
+                        onClick={() => setNewRole({...r})}>✎</button>
+                      <button style={{padding:'2px 8px', fontSize:'0.78rem', background:'none', border:'1px solid var(--border)', borderRadius:'4px', cursor:'pointer', color:'var(--negative)'}}
+                        onClick={async () => {
+                          if (!confirm(`Удалить роль «${r.name}»?`)) return
+                          await apiFetch(`${API}/admin/custom-roles/${r.id}`, {method:'DELETE'})
+                          loadCustomRoles()
+                        }}>🗑</button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+
+          <div style={{marginTop:'1rem', padding:'0.6rem 0.9rem', background:'var(--bg)', border:'1px solid var(--border)', borderRadius:'6px', fontSize:'0.78rem', color:'var(--text-muted)'}}>
+            💡 После создания роли назначьте её пользователям на вкладке <strong>«Пользователи»</strong>.
+            Пункты меню контролируют видимость разделов сайта для этой роли.
+          </div>
+        </section>
+      )}
     </div>
   )
 }
