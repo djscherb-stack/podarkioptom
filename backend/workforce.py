@@ -271,8 +271,16 @@ def update_timesheet_cell(
 
 # ─── Аналитика ────────────────────────────────────────────────────────────────
 
+def _empty_day_dict(num_days: int) -> dict:
+    return {str(d): 0 for d in range(1, num_days + 1)}
+
+
+def _empty_cost_dict(num_days: int) -> dict:
+    return {str(d): 0.0 for d in range(1, num_days + 1)}
+
+
 def get_monthly_analytics(year: int, month: int) -> dict:
-    """Сводная аналитика по всем производствам за месяц."""
+    """Расширенная аналитика: по дням (план/факт) с разбивкой по производствам и статусам."""
     reference = get_reference()
     rate_lookup = {(r["position"], r["status"]): r["hourly_rate"] for r in reference}
     num_days = calendar.monthrange(year, month)[1]
@@ -281,59 +289,94 @@ def get_monthly_analytics(year: int, month: int) -> dict:
     for prod in PRODUCTIONS:
         schedule = get_schedule(prod, year, month)
         timesheet = get_timesheet(prod, year, month)
-
         employees = schedule.get("employees", [])
         ts_records = timesheet.get("records", {})
 
-        daily_planned = {str(d): 0 for d in range(1, num_days + 1)}
-        daily_actual = {str(d): 0 for d in range(1, num_days + 1)}
-        daily_planned_cost = {str(d): 0.0 for d in range(1, num_days + 1)}
-        daily_actual_cost = {str(d): 0.0 for d in range(1, num_days + 1)}
+        # Итого по производству
+        daily_planned      = _empty_day_dict(num_days)
+        daily_actual       = _empty_day_dict(num_days)
+        daily_planned_cost = _empty_cost_dict(num_days)
+        daily_actual_cost  = _empty_cost_dict(num_days)
 
-        total_planned_cost = 0.0
-        total_actual_cost = 0.0
-        status_counts: dict = {}
+        total_planned_cost  = 0.0
+        total_actual_cost   = 0.0
         total_planned_hours = 0.0
-        total_actual_hours = 0.0
+        total_actual_hours  = 0.0
+        status_counts: dict = {}
+
+        # По статусам
+        st_emp_count:        dict[str, int]   = {}
+        st_daily_planned:    dict[str, dict]  = {}
+        st_daily_actual:     dict[str, dict]  = {}
+        st_daily_plan_cost:  dict[str, dict]  = {}
+        st_daily_fact_cost:  dict[str, dict]  = {}
+        st_total_plan_cost:  dict[str, float] = {}
+        st_total_fact_cost:  dict[str, float] = {}
 
         for emp in employees:
-            emp_id = emp["id"]
+            emp_id   = emp["id"]
             position = emp.get("position", "")
-            status = emp.get("status", "")
-            rate = rate_lookup.get((position, status), 0.0)
+            status   = emp.get("status", "")
+            rate     = rate_lookup.get((position, status), 0.0)
             working_days: dict = emp.get("working_days", {})
-            ts_emp: dict = ts_records.get(emp_id, {})
+            ts_emp:  dict = ts_records.get(emp_id, {})
 
             status_counts[status] = status_counts.get(status, 0) + 1
+            st_emp_count[status]  = st_emp_count.get(status, 0) + 1
 
-            for day_str, planned_hours in working_days.items():
-                daily_planned[day_str] = daily_planned.get(day_str, 0) + 1
-                cost = planned_hours * rate
-                total_planned_cost += cost
-                total_planned_hours += planned_hours
-                daily_planned_cost[day_str] = daily_planned_cost.get(day_str, 0.0) + cost
+            # Инициализация статусных словарей
+            if status not in st_daily_planned:
+                st_daily_planned[status]   = _empty_day_dict(num_days)
+                st_daily_actual[status]    = _empty_day_dict(num_days)
+                st_daily_plan_cost[status] = _empty_cost_dict(num_days)
+                st_daily_fact_cost[status] = _empty_cost_dict(num_days)
+                st_total_plan_cost[status] = 0.0
+                st_total_fact_cost[status] = 0.0
+
+            for day_str, planned_h in working_days.items():
+                cost = planned_h * rate
+                # Итого по производству
+                daily_planned[day_str]      += 1
+                daily_planned_cost[day_str] += cost
+                total_planned_cost          += cost
+                total_planned_hours         += planned_h
+                # По статусу
+                st_daily_planned[status][day_str]   += 1
+                st_daily_plan_cost[status][day_str] += cost
+                st_total_plan_cost[status]          += cost
 
                 actual_h = ts_emp.get(day_str)
                 if actual_h is not None:
-                    if actual_h > 0:
-                        daily_actual[day_str] = daily_actual.get(day_str, 0) + 1
                     actual_cost = actual_h * rate
-                    total_actual_cost += actual_cost
-                    total_actual_hours += actual_h
-                    daily_actual_cost[day_str] = daily_actual_cost.get(day_str, 0.0) + actual_cost
+                    if actual_h > 0:
+                        daily_actual[day_str]                += 1
+                        st_daily_actual[status][day_str]     += 1
+                    daily_actual_cost[day_str]               += actual_cost
+                    st_daily_fact_cost[status][day_str]      += actual_cost
+                    total_actual_cost                        += actual_cost
+                    total_actual_hours                       += actual_h
+                    st_total_fact_cost[status]               += actual_cost
 
         result[prod] = {
             "name": PRODUCTIONS[prod],
             "total_employees": len(employees),
-            "status_counts": status_counts,
-            "daily_planned": daily_planned,
-            "daily_actual": daily_actual,
+            "status_counts":   status_counts,
+            "daily_planned":   daily_planned,
+            "daily_actual":    daily_actual,
             "daily_planned_cost": daily_planned_cost,
-            "daily_actual_cost": daily_actual_cost,
-            "total_planned_cost": total_planned_cost,
-            "total_actual_cost": total_actual_cost,
+            "daily_actual_cost":  daily_actual_cost,
+            "total_planned_cost":  total_planned_cost,
+            "total_actual_cost":   total_actual_cost,
             "total_planned_hours": total_planned_hours,
-            "total_actual_hours": total_actual_hours,
+            "total_actual_hours":  total_actual_hours,
+            # Разбивка по статусам
+            "status_employee_count":    st_emp_count,
+            "status_daily_planned":     st_daily_planned,
+            "status_daily_actual":      st_daily_actual,
+            "status_daily_plan_cost":   st_daily_plan_cost,
+            "status_daily_fact_cost":   st_daily_fact_cost,
+            "status_total_plan_cost":   st_total_plan_cost,
+            "status_total_fact_cost":   st_total_fact_cost,
         }
 
     return {"year": year, "month": month, "productions": result}

@@ -653,6 +653,167 @@
   color: var(--text);
 }
 
+/* ─── Аналитика — матричные таблицы ───────────────────────────────────────── */
+.wf-an-section-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--accent);
+  border-bottom: 2px solid var(--accent);
+  padding-bottom: 0.3rem;
+  margin: 0.75rem 0 0.4rem;
+}
+
+.wf-analytics-matrix {
+  border-collapse: collapse;
+  font-size: 0.78rem;
+  min-width: 100%;
+  white-space: nowrap;
+}
+
+.wf-analytics-matrix th,
+.wf-analytics-matrix td {
+  border: 1px solid var(--border);
+  padding: 0.3rem 0.4rem;
+  text-align: center;
+  vertical-align: middle;
+}
+
+.wf-am-col-group {
+  min-width: 130px;
+  max-width: 180px;
+  white-space: normal;
+  word-break: break-word;
+  text-align: left !important;
+  font-weight: 600;
+  color: var(--text);
+  padding-left: 0.5rem !important;
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: var(--bg-card);
+}
+
+.wf-am-col-sub {
+  min-width: 90px;
+  text-align: left !important;
+  padding-left: 1rem !important;
+  font-style: italic;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  position: sticky;
+  left: 130px;
+  z-index: 2;
+  background: var(--bg-card);
+}
+
+.wf-am-day-header {
+  font-weight: 700;
+  background: var(--bg);
+  color: var(--text-muted);
+  min-width: 44px;
+}
+
+.wf-am-total-header {
+  background: rgba(91, 143, 201, 0.1);
+  color: var(--accent);
+  font-weight: 700;
+}
+
+.wf-am-pf {
+  min-width: 40px;
+  font-variant-numeric: tabular-nums;
+  font-size: 0.75rem;
+}
+
+.wf-am-plan {
+  color: var(--text-muted);
+  background: rgba(255,255,255,0.01);
+}
+
+.wf-am-fact {
+  font-weight: 600;
+  color: var(--text);
+}
+
+.wf-am-under { color: var(--negative) !important; }
+
+/* Строки */
+.wf-am-grand-row td {
+  background: var(--bg) !important;
+  font-weight: 700;
+  font-size: 0.8rem;
+  border-top: 2px solid var(--border);
+}
+
+.wf-am-grand-row .wf-am-col-group {
+  background: var(--bg) !important;
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text);
+}
+
+.wf-am-prod-row td {
+  background: rgba(91, 143, 201, 0.06) !important;
+  font-weight: 600;
+}
+
+.wf-am-prod-row .wf-am-col-group {
+  background: rgba(91, 143, 201, 0.06) !important;
+  color: var(--accent);
+}
+
+.wf-am-status-row td { background: transparent; }
+.wf-am-status-row:hover td { background: var(--bg-card-hover) !important; }
+
+/* Итоги за месяц */
+.wf-am-totals-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+}
+
+.wf-am-totals-block {
+  flex: 1;
+  min-width: 280px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.75rem 1rem;
+}
+
+.wf-am-totals-title {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.wf-am-totals-prod {
+  margin-bottom: 0.5rem;
+}
+
+.wf-am-totals-prod-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--accent);
+  margin-bottom: 0.2rem;
+}
+
+.wf-am-totals-status-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+  padding: 0.1rem 0.75rem;
+}
+
 /* ─── Аналитика ────────────────────────────────────────────────────────────── */
 .wf-analytics {
   padding: 1rem 1.25rem;
