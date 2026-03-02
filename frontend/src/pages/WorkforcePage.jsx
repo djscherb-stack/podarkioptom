@@ -2345,20 +2345,32 @@ export default function WorkforcePage({ userInfo }) {
 
   const role = userInfo?.schedule_role
   const production = userInfo?.schedule_production
-  const isAdmin = role === 'admin'
-  const isManager = role === 'manager'
+  const fullName = userInfo?.schedule_full_name
+  const isAdmin     = role === 'admin'
+  const isManager   = role === 'manager'
   const isBrigadier = role === 'brigadier'
+  const isViewer    = role === 'viewer'
 
   // Определяем доступные вкладки
   const availableTabs = []
+
+  // Справочник — только для admin
   if (isAdmin) availableTabs.push('reference')
-  if (isAdmin || (production && production !== 'none')) {
-    const prods = isAdmin ? ['tea', 'engraving', 'luminarc'] : [production]
-    prods.forEach(p => availableTabs.push(p))
+
+  // Производства
+  if (isAdmin || isViewer) {
+    // Полный доступ ко всем производствам
+    ;['tea', 'engraving', 'luminarc'].forEach(p => availableTabs.push(p))
+  } else if ((isManager || isBrigadier) && production && production !== 'none') {
+    availableTabs.push(production)
   }
-  if (isAdmin) availableTabs.push('analytics')
-  if (isAdmin) availableTabs.push('matrix_analytics')
-  availableTabs.push('export')
+
+  // Аналитика — admin, managers, viewers
+  if (isAdmin || isManager || isViewer) availableTabs.push('analytics')
+  if (isAdmin || isManager || isViewer) availableTabs.push('matrix_analytics')
+
+  // Выгрузка — все кроме brigadier
+  if (isAdmin || isManager || isViewer) availableTabs.push('export')
 
   // Устанавливаем вкладку по умолчанию
   useEffect(() => {
@@ -2366,6 +2378,8 @@ export default function WorkforcePage({ userInfo }) {
       if (isBrigadier) {
         setActiveTab(production)
         setSubTab('timesheet')
+      } else if (isViewer) {
+        setActiveTab('analytics')
       } else {
         setActiveTab(availableTabs[0])
       }
@@ -2379,7 +2393,7 @@ export default function WorkforcePage({ userInfo }) {
       .catch(() => {})
   }, [])
 
-  if (!role || role === null || (!isAdmin && !isManager && !isBrigadier)) {
+  if (!role || role === null || (!isAdmin && !isManager && !isBrigadier && !isViewer)) {
     return (
       <div className="wf-page">
         <div className="wf-no-access">
@@ -2442,7 +2456,7 @@ export default function WorkforcePage({ userInfo }) {
               Сотрудники
             </button>
           )}
-          {(isAdmin || isManager) && (
+          {(isAdmin || isManager || isViewer) && (
             <button
               className={`wf-subtab ${subTab === 'schedule' ? 'wf-subtab-active' : ''}`}
               onClick={() => setSubTab('schedule')}
@@ -2480,7 +2494,7 @@ export default function WorkforcePage({ userInfo }) {
           />
         )}
 
-        {activeTab && PRODUCTIONS[activeTab] && subTab === 'schedule' && (isAdmin || isManager) && (
+        {activeTab && PRODUCTIONS[activeTab] && subTab === 'schedule' && (isAdmin || isManager || isViewer) && (
           <ScheduleTable
             key={`schedule-${activeTab}-${year}-${month}-${importKey}`}
             production={activeTab}

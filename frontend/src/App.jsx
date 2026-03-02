@@ -42,7 +42,9 @@ function DayNavLink(props) {
 
 function AppContent({ userInfo, onRefreshUser }) {
   const isAdmin = userInfo?.is_admin === true
-  const hasWorkforceAccess = userInfo?.schedule_role != null && userInfo?.schedule_role !== 'none'
+  const hasWorkforceAccess = userInfo?.schedule_role != null &&
+    userInfo?.schedule_role !== 'none' &&
+    userInfo?.schedule_role !== null
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -153,7 +155,7 @@ function App() {
       .then(async (r) => {
         if (r.ok) {
           const d = await r.json()
-          setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production })
+          setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name })
           setAuthStatus('ok')
         } else {
           setAuthStatus('fail')
@@ -179,7 +181,7 @@ function App() {
           if (r.ok) {
             const d = await r.json()
             setUserInfo(prev => {
-              const next = { username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production }
+              const next = { username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name }
               if (JSON.stringify(prev) !== JSON.stringify(next)) return next
               return prev
             })

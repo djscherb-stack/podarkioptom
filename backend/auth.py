@@ -22,15 +22,114 @@ GUEST_USER = "Guest"
 GUEST_PASSWORD = "Pdf#$178^Hh"
 
 # Пользователи модуля «Графики и табели»
-# role: "manager" — начальник (график + табель), "brigadier" — бригадир (только табель)
-# production: "tea" | "engraving" | "luminarc"
+# role: "admin"     — полный доступ ко всему модулю (все производства)
+#       "manager"   — начальник цеха: график + табель + аналитика своего производства
+#       "brigadier" — бригадир: только табель своего производства
+#       "viewer"    — просмотр всех табелей, без редактирования
+# production: "tea" | "engraving" | "luminarc" | "all"
 WORKFORCE_USERS: dict[str, dict] = {
+    # ── Дефолтные технические аккаунты (обратная совместимость) ──────────────
     "tea_head":            {"password": "TeaHead2026",  "role": "manager",   "production": "tea"},
     "tea_brigadier":       {"password": "TeaBrig2026",  "role": "brigadier", "production": "tea"},
     "engraving_head":      {"password": "EngHead2026",  "role": "manager",   "production": "engraving"},
     "engraving_brigadier": {"password": "EngBrig2026",  "role": "brigadier", "production": "engraving"},
     "luminarc_head":       {"password": "LumHead2026",  "role": "manager",   "production": "luminarc"},
     "luminarc_brigadier":  {"password": "LumBrig2026",  "role": "brigadier", "production": "luminarc"},
+
+    # ── Менеджеры (График + Табель + Аналитика) ───────────────────────────────
+    # Люминарк
+    "spodarki001@gmail.com": {
+        "password": "Mh!2026Lm", "role": "manager", "production": "luminarc",
+        "full_name": "Мхитарян Александр Михайлович",
+    },
+    # Чай
+    "pn@podarkioptom.ru": {
+        "password": "Nk!2026Tc", "role": "manager", "production": "tea",
+        "full_name": "Николаев Павел Николаевич",
+    },
+    # Гравировка
+    "m70870378@gmail.com": {
+        "password": "KM!2026Gr", "role": "manager", "production": "engraving",
+        "full_name": "Ким Михаил Алексеевич",
+    },
+
+    # ── Бригадиры Люминарк (только Табель) ───────────────────────────────────
+    "korneichukstanislaw@gmail.com": {
+        "password": "Kn!2026Lm", "role": "brigadier", "production": "luminarc",
+        "full_name": "Корнейчук Станислав Сергеевич",
+    },
+    "nooooyes1@gmail.com": {
+        "password": "St!2026Lm", "role": "brigadier", "production": "luminarc",
+        "full_name": "Старовойтова Рамира-Франческа Юрьевна",
+    },
+
+    # ── Бригадиры Чай (только Табель) ────────────────────────────────────────
+    "andrnovo4444@gmail.com": {
+        "password": "NA!2026Tc", "role": "brigadier", "production": "tea",
+        "full_name": "Новожилов Андрей Алексеевич",
+    },
+    "kimulia829@gmail.com": {
+        "password": "KY!2026Tc", "role": "brigadier", "production": "tea",
+        "full_name": "Ким Юлия Валерьевна",
+    },
+    "mash50052@gmail.com": {
+        "password": "Ch!2026Tc", "role": "brigadier", "production": "tea",
+        "full_name": "Чистякова Мария Сергеевна",
+    },
+    "paxxxaaa999@gmail.com": {
+        "password": "NP!2026Tc", "role": "brigadier", "production": "tea",
+        "full_name": "Новожилов Павел Алексеевич",
+    },
+    "qas.n201475@gmail.com": {
+        "password": "Ng!2026Tc", "role": "brigadier", "production": "tea",
+        "full_name": "Наглый Виктор",
+    },
+    "romsashenka90@gmail.com": {
+        "password": "Ro!2026Tc", "role": "brigadier", "production": "tea",
+        "full_name": "Романова Александра Андреевна",
+    },
+    "ruskin0404@gmail.com": {
+        "password": "Rs!2026Tc", "role": "brigadier", "production": "tea",
+        "full_name": "Руськин Андрей Алексеевич",
+    },
+
+    # ── Бригадиры Гравировка (только Табель) ─────────────────────────────────
+    "max7576.7576@gmail.com": {
+        "password": "Sh!2026Gr", "role": "brigadier", "production": "engraving",
+        "full_name": "Ширяев Максим Вячеславович",
+    },
+    "arenafit@mail.ru": {
+        "password": "Tv!2026Gr", "role": "brigadier", "production": "engraving",
+        "full_name": "Теванян Карен Ованесович",
+    },
+    "janybekbolotbekov09@gmail.com": {
+        "password": "Bl!2026Gr", "role": "brigadier", "production": "engraving",
+        "full_name": "Болотбеков Жаныбек Болотбекович",
+    },
+    "dimax9325@gmail.com": {
+        "password": "Sr!2026Gr", "role": "brigadier", "production": "engraving",
+        "full_name": "Шеремет Дмитрий Александрович",
+    },
+    "boboevsuhrob813@gmail.com": {
+        "password": "Bb!2026Gr", "role": "brigadier", "production": "engraving",
+        "full_name": "Бобоев Сухроб",
+    },
+
+    # ── Полный доступ ко всему модулю (все производства) ─────────────────────
+    "lodygin@podarkioptom.ru": {
+        "password": "Ld!2026Al", "role": "admin", "production": "all",
+        "full_name": "Лодыгин Юрий Михайлович",
+    },
+
+    # ── Просмотр всех табелей (без редактирования) ───────────────────────────
+    "buh.sycheva@gmail.com": {
+        "password": "ET!2026Vw", "role": "viewer", "production": "all",
+        "full_name": "Тарбаева Елена",
+    },
+    "hr@podarkioptom.ru": {
+        "password": "Fi!2026Vw", "role": "viewer", "production": "all",
+        "full_name": "Файмен Ирина",
+    },
 }
 
 # token -> username
@@ -96,15 +195,25 @@ def is_admin(username: str) -> bool:
 
 def get_schedule_access(username: str) -> dict:
     """Возвращает доступ пользователя к модулю графиков/табелей.
-    role: 'admin' | 'manager' | 'brigadier' | None
+    role: 'admin' | 'manager' | 'brigadier' | 'viewer' | None
     production: 'tea' | 'engraving' | 'luminarc' | 'all' | None
+    full_name: строка с ФИО пользователя (если задано)
     """
     if is_admin(username):
-        return {"role": "admin", "production": "all"}
+        return {"role": "admin", "production": "all", "full_name": username}
     if username in WORKFORCE_USERS:
         u = WORKFORCE_USERS[username]
-        return {"role": u["role"], "production": u["production"]}
-    return {"role": None, "production": None}
+        return {
+            "role": u["role"],
+            "production": u["production"],
+            "full_name": u.get("full_name", username),
+        }
+    return {"role": None, "production": None, "full_name": None}
+
+
+def get_workforce_user_info(username: str) -> Optional[dict]:
+    """Получить полную информацию о пользователе модуля графиков."""
+    return WORKFORCE_USERS.get(username)
 
 
 def create_session(username: str) -> str:

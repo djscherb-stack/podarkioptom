@@ -125,6 +125,7 @@ def get_me(username: str = Depends(require_auth)):
         "is_admin": auth.is_admin(username),
         "schedule_role": access["role"],
         "schedule_production": access["production"],
+        "schedule_full_name": access.get("full_name"),
     }
 
 
