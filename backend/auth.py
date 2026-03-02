@@ -205,11 +205,18 @@ def get_schedule_access(username: str) -> dict:
         import role_manager as rm
         override = rm.get_role_override(username)
         if override:
+            nav_items = override.get("nav_items")
+            # Менеджер: По дню + По неделе + Графики и табели
+            if override.get("role") == "manager" and nav_items is None:
+                nav_items = ["day", "week", "workforce"]
+            # Бригадир: только Графики и табели (внутри модуля — только табель)
+            if override.get("role") == "brigadier" and nav_items is None:
+                nav_items = ["workforce"]
             return {
                 "role": override["role"],
                 "production": override["production"],
                 "full_name": override.get("full_name") or WORKFORCE_USERS.get(username, {}).get("full_name", username),
-                "nav_items": override.get("nav_items"),
+                "nav_items": nav_items,
             }
     except Exception:
         pass
@@ -217,11 +224,18 @@ def get_schedule_access(username: str) -> dict:
     # Стандартные записи из WORKFORCE_USERS
     if username in WORKFORCE_USERS:
         u = WORKFORCE_USERS[username]
+        nav_items = u.get("nav_items")
+        # Для роли «Менеджер» по умолчанию: только «По дню», «По неделе», «Графики и табели»
+        if u.get("role") == "manager" and nav_items is None:
+            nav_items = ["day", "week", "workforce"]
+        # Для роли «Бригадир» по умолчанию: только «Графики и табели»
+        if u.get("role") == "brigadier" and nav_items is None:
+            nav_items = ["workforce"]
         return {
             "role": u["role"],
             "production": u["production"],
             "full_name": u.get("full_name", username),
-            "nav_items": u.get("nav_items"),
+            "nav_items": nav_items,
         }
     return {"role": None, "production": None, "full_name": None, "nav_items": None}
 

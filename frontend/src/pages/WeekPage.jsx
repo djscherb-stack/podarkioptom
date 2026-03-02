@@ -2,7 +2,9 @@ import { useState, useEffect } from 'react'
 import ProductionBlock from '../components/ProductionBlock'
 import { API, apiFetch } from '../api'
 
-export default function WeekPage() {
+const PROD_KEY_TO_NAME = { tea: 'ЧАЙ', engraving: 'ГРАВИРОВКА', luminarc: 'ЛЮМИНАРК' }
+
+export default function WeekPage({ userInfo } = {}) {
   const [weeks, setWeeks] = useState([])
   const [selectedYear, setSelectedYear] = useState(null)
   const [selectedWeek, setSelectedWeek] = useState(null)
@@ -58,7 +60,12 @@ export default function WeekPage() {
   if (error) return <div className="error">Ошибка: {error}</div>
 
   const productions = data?.productions || {}
-  const hasData = Object.values(productions).some(p => p?.departments?.length > 0)
+  const isManagerOneProd = userInfo?.schedule_role === 'manager' && userInfo?.schedule_production && userInfo.schedule_production !== 'all'
+  const prodName = isManagerOneProd ? PROD_KEY_TO_NAME[userInfo.schedule_production] : null
+  const productionsToShow = isManagerOneProd && prodName && productions[prodName] != null
+    ? { [prodName]: productions[prodName] }
+    : productions
+  const hasData = Object.values(productionsToShow).some(p => p?.departments?.length > 0)
 
   const currentWeek = weeks.find(w => w.year === selectedYear && w.week === selectedWeek)
   const weekLabel = currentWeek ? currentWeek.label : ''
@@ -99,7 +106,7 @@ export default function WeekPage() {
       {loading && <div className="loading">Загрузка...</div>}
       {!loading && (
         <>
-          {Object.entries(productions).map(([name, prodData]) => (
+          {Object.entries(productionsToShow).map(([name, prodData]) => (
             <ProductionBlock
               key={name}
               prodName={name}

@@ -2389,12 +2389,12 @@ export default function WorkforcePage({ userInfo }) {
     availableTabs.push(production)
   }
 
-  // Аналитика — admin, managers, viewers
+  // Аналитика — admin, viewers; у менеджера только базовая аналитика (без матричной и выгрузки)
   if (isAdmin || isManager || isViewer) availableTabs.push('analytics')
-  if (isAdmin || isManager || isViewer) availableTabs.push('matrix_analytics')
+  if (isAdmin || isViewer) availableTabs.push('matrix_analytics')
 
-  // Выгрузка — все кроме brigadier
-  if (isAdmin || isManager || isViewer) availableTabs.push('export')
+  // Выгрузка табелей — только admin и viewer (у менеджера скрыта)
+  if (isAdmin || isViewer) availableTabs.push('export')
 
   // Устанавливаем вкладку по умолчанию
   useEffect(() => {
@@ -2480,7 +2480,7 @@ export default function WorkforcePage({ userInfo }) {
               Сотрудники
             </button>
           )}
-          {(isAdmin || isManager || isViewer) && (
+          {(isAdmin || isManager || isViewer || isBrigadier) && (
             <button
               className={`wf-subtab ${subTab === 'schedule' ? 'wf-subtab-active' : ''}`}
               onClick={() => setSubTab('schedule')}
@@ -2494,7 +2494,7 @@ export default function WorkforcePage({ userInfo }) {
           >
             Табель
           </button>
-          {(isAdmin || isManager) && (
+          {isAdmin && (
             <button
               className="wf-subtab wf-subtab-import"
               onClick={() => setShowCombinedImport(true)}
@@ -2518,7 +2518,7 @@ export default function WorkforcePage({ userInfo }) {
           />
         )}
 
-        {activeTab && PRODUCTIONS[activeTab] && subTab === 'schedule' && (isAdmin || isManager || isViewer) && (
+        {activeTab && PRODUCTIONS[activeTab] && subTab === 'schedule' && (isAdmin || isManager || isViewer || isBrigadier) && (
           <ScheduleTable
             key={`schedule-${activeTab}-${year}-${month}-${importKey}`}
             production={activeTab}

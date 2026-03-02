@@ -8,6 +8,8 @@ import { API, apiFetch } from '../api'
 const STORAGE_KEY = 'analytics-day-date'
 const MONTH_NAMES = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня', 'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
 
+const PROD_KEY_TO_NAME = { tea: 'ЧАЙ', engraving: 'ГРАВИРОВКА', luminarc: 'ЛЮМИНАРК' }
+
 function formatDate(d) {
   return d.toISOString().slice(0, 10)
 }
@@ -26,7 +28,7 @@ function getStoredDate() {
   return null
 }
 
-export default function DayPage() {
+export default function DayPage({ userInfo } = {}) {
   const [searchParams, setSearchParams] = useSearchParams()
   const urlDate = searchParams.get('date')
   const [selectedDate, setSelectedDate] = useState(() =>
@@ -87,7 +89,12 @@ export default function DayPage() {
   if (error) return <div className="error">Ошибка: {error}</div>
 
   const productions = data?.productions || {}
-  const hasData = Object.values(productions).some(p => p?.departments?.length > 0)
+  const isManagerOneProd = userInfo?.schedule_role === 'manager' && userInfo?.schedule_production && userInfo.schedule_production !== 'all'
+  const prodName = isManagerOneProd ? PROD_KEY_TO_NAME[userInfo.schedule_production] : null
+  const productionsToShow = isManagerOneProd && prodName
+    ? { [prodName]: productions[prodName] }
+    : productions
+  const hasData = Object.values(productionsToShow).some(p => p?.departments?.length > 0)
 
   const handleDateChange = (v) => {
     setSelectedDate(v)
@@ -121,9 +128,9 @@ export default function DayPage() {
             const month = d ? d.getMonth() + 1 : null
             return (
               <>
-                <ProductionBlock prodName="ЧАЙ" prodData={productions.ЧАЙ} employeeOutput={data?.employee_output} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
-                <ProductionBlock prodName="ГРАВИРОВКА" prodData={productions.ГРАВИРОВКА} employeeOutput={data?.employee_output} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
-                <ProductionBlock prodName="ЛЮМИНАРК" prodData={productions.ЛЮМИНАРК} employeeOutput={data?.employee_output} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
+                {Object.entries(productionsToShow).map(([name, prodData]) => (
+                  <ProductionBlock key={name} prodName={name} prodData={prodData} employeeOutput={data?.employee_output} expandedKey={expandedKey} onToggle={setExpandedKey} expanded7daysKey={expanded7daysKey} onToggle7days={setExpanded7daysKey} year={year} month={month} />
+                ))}
                 <EmployeeOutputBlock
                   employeeOutput={data?.employee_output}
                   expanded={employeeOutputExpanded}

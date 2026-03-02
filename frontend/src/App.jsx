@@ -56,39 +56,59 @@ function AppContent({ userInfo, onRefreshUser }) {
     setMobileMenuOpen(false)
   }, [location.pathname])
 
+  const canShowNav = (key) => !userInfo?.nav_items || userInfo.nav_items.includes(key)
+
   return (
     <div className="app">
       <div className={`app-sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} aria-hidden="true" />
       <aside className={`app-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="app-sidebar-nav">
-          <NavLink to="/month" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            По месяцу
-          </NavLink>
-          <DayNavLink className={({ isActive }) => `nav-link nav-link-main ${isActive ? 'active' : ''}`.trim()}>
-            По дню
-          </DayNavLink>
-          <NavLink to="/week" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            По неделе
-          </NavLink>
-          <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            Аналитика по месяцам
-          </NavLink>
-          <NavLink to="/employee-output" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
-            Выработка сотрудников <span className="nav-beta">(бета)</span>
-          </NavLink>
-          <NavLink to="/employees" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
-            Сотрудники <span className="nav-beta">(бета)</span>
-          </NavLink>
-          <NavLink to="/disassembly" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            Разборка возвратов
-          </NavLink>
-          <NavLink to="/disassembly-nomenclature" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            Номенклатура разборки
-          </NavLink>
-          <NavLink to="/cost-check" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-            Проверка стоимости
-          </NavLink>
-          {hasWorkforceAccess && (
+          {canShowNav('month') && (
+            <NavLink to="/month" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              По месяцу
+            </NavLink>
+          )}
+          {canShowNav('day') && (
+            <DayNavLink className={({ isActive }) => `nav-link nav-link-main ${isActive ? 'active' : ''}`.trim()}>
+              По дню
+            </DayNavLink>
+          )}
+          {canShowNav('week') && (
+            <NavLink to="/week" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              По неделе
+            </NavLink>
+          )}
+          {canShowNav('months') && (
+            <NavLink to="/months" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Аналитика по месяцам
+            </NavLink>
+          )}
+          {canShowNav('employee_output') && (
+            <NavLink to="/employee-output" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
+              Выработка сотрудников <span className="nav-beta">(бета)</span>
+            </NavLink>
+          )}
+          {canShowNav('employees') && (
+            <NavLink to="/employees" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'} title="Данные могут быть не корректными">
+              Сотрудники <span className="nav-beta">(бета)</span>
+            </NavLink>
+          )}
+          {canShowNav('disassembly') && (
+            <NavLink to="/disassembly" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Разборка возвратов
+            </NavLink>
+          )}
+          {canShowNav('disassembly_nomenclature') && (
+            <NavLink to="/disassembly-nomenclature" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Номенклатура разборки
+            </NavLink>
+          )}
+          {canShowNav('cost_check') && (
+            <NavLink to="/cost-check" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Проверка стоимости
+            </NavLink>
+          )}
+          {hasWorkforceAccess && canShowNav('workforce') && (
             <NavLink to="/workforce" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Графики и табели
             </NavLink>
@@ -124,8 +144,8 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Routes>
           <Route path="/" element={<Navigate to={getYesterdayDayPath()} replace />} />
           <Route path="/month" element={<MonthPage />} />
-          <Route path="/day" element={<DayPage />} />
-          <Route path="/week" element={<WeekPage />} />
+          <Route path="/day" element={<DayPage userInfo={userInfo} />} />
+          <Route path="/week" element={<WeekPage userInfo={userInfo} />} />
           <Route path="/employee-output" element={<EmployeeOutputPage />} />
           <Route path="/employees" element={<EmployeesPage />} />
           <Route path="/months" element={<MonthsComparePage />} />
@@ -155,7 +175,7 @@ function App() {
       .then(async (r) => {
         if (r.ok) {
           const d = await r.json()
-          setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name })
+          setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items })
           setAuthStatus('ok')
         } else {
           setAuthStatus('fail')
@@ -181,7 +201,7 @@ function App() {
           if (r.ok) {
             const d = await r.json()
             setUserInfo(prev => {
-              const next = { username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name }
+              const next = { username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items }
               if (JSON.stringify(prev) !== JSON.stringify(next)) return next
               return prev
             })
