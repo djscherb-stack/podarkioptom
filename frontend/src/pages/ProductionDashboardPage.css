@@ -1,0 +1,544 @@
+/* ─── Page ─────────────────────────────────────────────────────────────────── */
+.pd-page {
+  padding: 1.25rem 1.5rem;
+  max-width: 1400px;
+}
+
+.pd-page-header {
+  display: flex;
+  align-items: baseline;
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+.pd-page-title {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 0;
+}
+
+.pd-page-subtitle {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+/* ─── Main Tabs ──────────────────────────────────────────────────────────────── */
+.pd-main-tabs {
+  display: flex;
+  gap: 0;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1.5rem;
+}
+
+.pd-main-tab {
+  padding: 0.6rem 1.4rem;
+  font-size: 0.93rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.pd-main-tab:hover {
+  color: var(--text);
+}
+
+.pd-main-tab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+/* ─── Period Bar ─────────────────────────────────────────────────────────────── */
+.pd-period-bar {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  margin-bottom: 1rem;
+}
+
+.pd-period-presets {
+  display: flex;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pd-period-btn {
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-block);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pd-period-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pd-period-active {
+  background: var(--accent);
+  color: #fff !important;
+  border-color: var(--accent);
+}
+
+.pd-period-custom {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.pd-date-input {
+  padding: 0.4rem 0.6rem;
+  font-size: 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input, var(--bg-block));
+  color: var(--text);
+}
+
+.pd-period-dash {
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.pd-btn-primary {
+  padding: 0.45rem 1rem;
+  font-size: 0.85rem;
+  border: 1.5px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+  transition: opacity 0.15s;
+}
+
+.pd-btn-primary:hover { opacity: 0.88; }
+
+/* ─── Period Label ───────────────────────────────────────────────────────────── */
+.pd-period-label {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  margin-bottom: 1.1rem;
+}
+
+.pd-period-compare {
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+/* ─── Sections Grid ──────────────────────────────────────────────────────────── */
+.pd-sections-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+
+/* ─── Section Card ───────────────────────────────────────────────────────────── */
+.pd-section-card {
+  background: var(--bg-block);
+  border: 1.5px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.pd-section-main {
+  border-color: var(--accent);
+  border-width: 2px;
+}
+
+.pd-sc-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pd-sc-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.pd-sc-name {
+  font-size: 0.93rem;
+  font-weight: 600;
+  color: var(--text);
+  line-height: 1.3;
+}
+
+.pd-main-badge {
+  font-size: 0.68rem;
+  font-weight: 700;
+  background: var(--accent);
+  color: #fff;
+  padding: 0.1rem 0.4rem;
+  border-radius: 4px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+/* ─── Sparkline ──────────────────────────────────────────────────────────────── */
+.pd-sparkline {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-shrink: 0;
+}
+
+.pd-trend {
+  font-size: 1rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.pd-trend-up   { color: #22c55e; }
+.pd-trend-down { color: #ef4444; }
+.pd-trend-flat { color: #888; }
+
+/* ─── Section Total ──────────────────────────────────────────────────────────── */
+.pd-sc-total-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.pd-sc-total {
+  font-size: 1.7rem;
+  font-weight: 700;
+  color: var(--text);
+  line-height: 1;
+}
+
+.pd-sc-unit {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.pd-sc-prev {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+/* ─── Delta Badge ────────────────────────────────────────────────────────────── */
+.pd-delta {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.15rem 0.4rem;
+  border-radius: 5px;
+  white-space: nowrap;
+}
+
+.pd-delta-pos  { background: rgba(34, 197, 94, 0.12);  color: #16a34a; }
+.pd-delta-neg  { background: rgba(239, 68, 68, 0.12);   color: #dc2626; }
+.pd-delta-flat { background: rgba(136, 136, 136, 0.1);  color: #888; }
+
+/* ─── Sub-sections (Картон/Дерево) ──────────────────────────────────────────── */
+.pd-subs {
+  border-top: 1px solid var(--border);
+  padding-top: 0.55rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.pd-sub {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+}
+
+.pd-sub-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.pd-sub-name {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pd-sub-row {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+}
+
+.pd-sub-total {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+/* ─── Metrics ────────────────────────────────────────────────────────────────── */
+.pd-sc-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 0.5rem;
+  border-top: 1px solid var(--border);
+  padding-top: 0.65rem;
+}
+
+.pd-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pd-metric-label {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.pd-metric-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.pd-metric-cost {
+  color: var(--accent);
+}
+
+/* ─── Detalization ───────────────────────────────────────────────────────────── */
+.pd-detail {
+  border-top: 1px solid var(--border);
+  padding-top: 0.5rem;
+}
+
+.pd-btn-detail {
+  font-size: 0.8rem;
+  padding: 0.3rem 0.7rem;
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  background: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.pd-btn-detail:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.pd-detail-panel {
+  margin-top: 0.5rem;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.pd-detail-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.pd-detail-table th {
+  text-align: left;
+  padding: 0.25rem 0.4rem;
+  font-weight: 600;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-block);
+}
+
+.pd-detail-table td {
+  padding: 0.2rem 0.4rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+}
+
+.pd-detail-table tr:last-child td { border-bottom: none; }
+
+.pd-num-h { text-align: right; }
+.pd-num   { text-align: right; }
+
+/* ─── Summary Card ───────────────────────────────────────────────────────────── */
+.pd-summary-card {
+  background: var(--bg-block);
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  margin-top: 0.25rem;
+}
+
+.pd-summary-title {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: var(--accent);
+  margin-bottom: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.pd-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 0.75rem 1.25rem;
+}
+
+.pd-summary-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.pd-summary-label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  line-height: 1.35;
+}
+
+.pd-summary-value {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.pd-summary-highlight .pd-summary-label { color: var(--accent); }
+.pd-summary-highlight .pd-summary-value { color: var(--accent); font-size: 1.15rem; }
+
+/* ─── Workforce Tab ──────────────────────────────────────────────────────────── */
+.pd-workforce {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.pd-month-nav {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  margin-bottom: 0.75rem;
+}
+
+.pd-month-btn {
+  width: 28px;
+  height: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg-block);
+  color: var(--text);
+  cursor: pointer;
+  font-size: 1rem;
+  transition: border-color 0.15s;
+}
+
+.pd-month-btn:hover { border-color: var(--accent); }
+
+.pd-select {
+  padding: 0.35rem 0.6rem;
+  font-size: 0.85rem;
+  border: 1.5px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-input, var(--bg-block));
+  color: var(--text);
+}
+
+.pd-subtabs {
+  display: flex;
+  gap: 0.1rem;
+  border-bottom: 2px solid var(--border);
+  margin-bottom: 1rem;
+}
+
+.pd-subtab {
+  padding: 0.5rem 1.1rem;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -2px;
+  cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+
+.pd-subtab:hover { color: var(--text); }
+
+.pd-subtab-active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 600;
+}
+
+.pd-wf-content {
+  flex: 1;
+}
+
+/* ─── States ─────────────────────────────────────────────────────────────────── */
+.pd-loading {
+  padding: 2rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+}
+
+.pd-error {
+  padding: 1rem 1.25rem;
+  background: rgba(239, 68, 68, 0.08);
+  border: 1px solid rgba(239, 68, 68, 0.3);
+  border-radius: 8px;
+  color: #dc2626;
+  font-size: 0.88rem;
+  margin-bottom: 1rem;
+}
+
+.pd-empty {
+  padding: 2.5rem 1.5rem;
+  text-align: center;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  background: var(--bg-block);
+  border: 1.5px dashed var(--border);
+  border-radius: 10px;
+  margin-top: 0.5rem;
+}
+
+.pd-no-access {
+  padding: 3rem 2rem;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.pd-no-access h2 { color: var(--text); margin-bottom: 0.5rem; }
+
+/* ─── Responsive ─────────────────────────────────────────────────────────────── */
+@media (max-width: 768px) {
+  .pd-page { padding: 0.75rem 0.85rem; }
+  .pd-sections-grid { grid-template-columns: 1fr; }
+  .pd-summary-grid  { grid-template-columns: 1fr 1fr; }
+  .pd-main-tab      { padding: 0.5rem 0.75rem; font-size: 0.85rem; }
+  .pd-sc-total      { font-size: 1.4rem; }
+}

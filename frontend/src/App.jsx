@@ -14,6 +14,7 @@ import CostCheckPage from './pages/CostCheckPage'
 import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import WorkforcePage from './pages/WorkforcePage'
+import ProductionDashboardPage from './pages/ProductionDashboardPage'
 import { API } from './api'
 import './App.css'
 
@@ -45,6 +46,10 @@ function AppContent({ userInfo, onRefreshUser }) {
   const hasWorkforceAccess = userInfo?.schedule_role != null &&
     userInfo?.schedule_role !== 'none' &&
     userInfo?.schedule_role !== null
+  const hasDashboardAccess = isAdmin || (
+    hasWorkforceAccess &&
+    (userInfo?.schedule_production === 'engraving' || userInfo?.schedule_production === 'all')
+  )
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -108,6 +113,11 @@ function AppContent({ userInfo, onRefreshUser }) {
               Проверка стоимости
             </NavLink>
           )}
+          {hasDashboardAccess && (isAdmin || canShowNav('production_dashboard')) && (
+            <NavLink to="/production-dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Панель производства
+            </NavLink>
+          )}
           {hasWorkforceAccess && canShowNav('workforce') && (
             <NavLink to="/workforce" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Графики и табели
@@ -155,6 +165,7 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
           <Route path="/workforce" element={<WorkforcePage userInfo={userInfo} />} />
+          <Route path="/production-dashboard" element={<ProductionDashboardPage userInfo={userInfo} />} />
           </Routes>
         </main>
       </div>

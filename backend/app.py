@@ -871,6 +871,44 @@ def get_day_ai_analytics(date_str: str, debug: Optional[str] = None):
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Панель управления производством
+# ─────────────────────────────────────────────────────────────────────────────
+
+@app.get("/api/production-dashboard/engraving", dependencies=[Depends(require_auth)])
+def get_engraving_dashboard(date_from: str = "", date_to: str = ""):
+    """Сводная панель для производства ГРАВИРОВКА: выпуск по участкам + данные рабочей силы."""
+    from datetime import datetime, timedelta
+    try:
+        d_from = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else (datetime.now() - timedelta(days=1)).date()
+        d_to   = datetime.strptime(date_to,   "%Y-%m-%d").date() if date_to   else d_from
+    except ValueError:
+        return {"error": "Формат дат: YYYY-MM-DD"}
+    if d_from > d_to:
+        return {"error": "Дата начала не может быть позже даты конца"}
+
+    production_data = db.get_engraving_period_stats(d_from, d_to)
+
+    # Workforce data will be available once timesheet data is populated for engraving
+    try:
+        import workforce as _wf
+        workforce_data = _wf.get_workforce_period_data("engraving", d_from, d_to)
+    except Exception:
+        workforce_data = {"employee_count": 0, "total_hours": 0, "total_cost": 0, "daily_cost": {}, "by_section": {}}
+
+    # Aggregate cost per unit for the main (assembly) section
+    total_units = next(
+        (s.get("total", 0) for s in production_data.get("sections", []) if s.get("main")),
+        0
+    )
+    total_cost = workforce_data.get("total_cost", 0)
+    employee_count = workforce_data.get("employee_count", 0)
+    workforce_data["cost_per_unit"]     = round(total_cost / total_units, 2) if total_units > 0 else 0
+    workforce_data["units_per_employee"] = round(total_units / employee_count, 1) if employee_count > 0 else 0
+
+    return {**production_data, "workforce": workforce_data}
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # Модуль «Графики и табели» (workforce)
 # ─────────────────────────────────────────────────────────────────────────────
 import workforce as wf

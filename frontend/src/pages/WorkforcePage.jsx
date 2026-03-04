@@ -516,7 +516,18 @@ function fmtFireDate(iso) {
   } catch { return iso }
 }
 
-function EmployeesTab({ production, canEdit }) {
+// Участки для производства ГРАВИРОВКА
+export const ENGRAVING_SECTIONS = [
+  'Сборочный цех',
+  'Гравировочный цех',
+  'Резка МДФ',
+  'Сборка МДФ',
+  'Валковый пресс',
+  'Шелкография',
+  'Вспомогательный персонал',
+]
+
+export function EmployeesTab({ production, canEdit }) {
   const [employees, setEmployees] = useState([])
   const [ref, setRef] = useState([])
   const [loading, setLoading] = useState(true)
@@ -525,7 +536,7 @@ function EmployeesTab({ production, canEdit }) {
   const [showImport, setShowImport] = useState(false)
   const [importMode, setImportMode] = useState('replace')
   const [addingRow, setAddingRow] = useState(false)
-  const [newEmp, setNewEmp] = useState({ full_name: '', position: '', status: '', phone: '' })
+  const [newEmp, setNewEmp] = useState({ full_name: '', position: '', status: '', phone: '', section: '' })
   const [editingId, setEditingId] = useState(null)
   const [editBuf, setEditBuf] = useState({})
   const [showFired, setShowFired] = useState(false)
@@ -574,10 +585,11 @@ function EmployeesTab({ production, canEdit }) {
       full_name: newEmp.full_name.trim(),
       position: newEmp.position,
       status: newEmp.status,
-      ...(newEmp.phone ? { phone: newEmp.phone.trim() } : {}),
+      ...(newEmp.phone    ? { phone:    newEmp.phone.trim()    } : {}),
+      ...(newEmp.section  ? { section:  newEmp.section         } : {}),
     }
     saveList([...employees, emp])
-    setNewEmp({ full_name: '', position: '', status: '', phone: '' })
+    setNewEmp({ full_name: '', position: '', status: '', phone: '', section: '' })
     setAddingRow(false)
   }
 
@@ -588,7 +600,7 @@ function EmployeesTab({ production, canEdit }) {
 
   const handleEditStart = (emp) => {
     setEditingId(emp.id)
-    setEditBuf({ full_name: emp.full_name, position: emp.position, status: emp.status, phone: emp.phone || '' })
+    setEditBuf({ full_name: emp.full_name, position: emp.position, status: emp.status, phone: emp.phone || '', section: emp.section || '' })
   }
 
   const handleEditSave = () => {
@@ -637,7 +649,8 @@ function EmployeesTab({ production, canEdit }) {
 
   if (loading) return <div className="wf-loading">Загрузка...</div>
 
-  const colSpan = canEdit ? 6 : 5
+  const showSection = production === 'engraving'
+  const colSpan = canEdit ? (showSection ? 7 : 6) : (showSection ? 6 : 5)
 
   const renderRow = (emp, idx, isFired = false) => {
     if (editingId === emp.id) {
@@ -667,6 +680,15 @@ function EmployeesTab({ production, canEdit }) {
               placeholder="+7 (999) 000-00-00"
               onChange={e => setEditBuf(b => ({...b, phone: e.target.value}))} />
           </td>
+          {showSection && (
+            <td>
+              <select className="wf-cell-input" value={editBuf.section || ''}
+                onChange={e => setEditBuf(b => ({...b, section: e.target.value}))}>
+                <option value="">— Участок —</option>
+                {ENGRAVING_SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+              </select>
+            </td>
+          )}
           <td className="wf-row-actions">
             <button className="wf-btn-icon wf-btn-save" onClick={handleEditSave} title="Сохранить">✓</button>
             <button className="wf-btn-icon wf-btn-cancel" onClick={() => setEditingId(null)} title="Отмена">✕</button>
@@ -694,6 +716,11 @@ function EmployeesTab({ production, canEdit }) {
             : <span style={{opacity:0.4}}>—</span>
           }
         </td>
+        {showSection && (
+          <td style={{opacity: isFired ? 0.5 : 1, fontSize:'0.82rem', color: emp.section ? 'var(--text)' : 'var(--text-muted)'}}>
+            {emp.section || <span style={{opacity:0.4}}>—</span>}
+          </td>
+        )}
         {canEdit && (
           <td className="wf-row-actions">
             {!isFired ? (
@@ -775,6 +802,7 @@ function EmployeesTab({ production, canEdit }) {
               <th>Должность</th>
               <th>Статус</th>
               <th>Телефон</th>
+              {showSection && <th>Участок</th>}
               {canEdit && <th style={{width:'160px'}}></th>}
             </tr>
           </thead>
@@ -806,6 +834,15 @@ function EmployeesTab({ production, canEdit }) {
                   <input className="wf-cell-input" placeholder="+7 (999) 000-00-00" value={newEmp.phone}
                     onChange={e => setNewEmp(n => ({...n, phone: e.target.value}))} />
                 </td>
+                {showSection && (
+                  <td>
+                    <select className="wf-cell-input" value={newEmp.section}
+                      onChange={e => setNewEmp(n => ({...n, section: e.target.value}))}>
+                      <option value="">— Участок —</option>
+                      {ENGRAVING_SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
+                )}
                 <td className="wf-row-actions">
                   <button className="wf-btn wf-btn-primary wf-btn-sm" onClick={handleAdd}>Добавить</button>
                   <button className="wf-btn wf-btn-secondary wf-btn-sm" onClick={() => setAddingRow(false)}>Отмена</button>
@@ -912,7 +949,7 @@ function FilterDropdown({ label, options, selected, onChange }) {
 }
 
 // ─── Таблица графика ──────────────────────────────────────────────────────────
-function ScheduleTable({ production, year, month, canEdit, reference }) {
+export function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [schedule, setSchedule] = useState(null)
   const [empList, setEmpList] = useState([])   // список сотрудников для проверки увольнений
   const [loading, setLoading] = useState(true)
@@ -1415,7 +1452,7 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
 }
 
 // ─── Таблица табеля ───────────────────────────────────────────────────────────
-function TimesheetTable({ production, year, month, canEdit, onlyToday = false, reference }) {
+export function TimesheetTable({ production, year, month, canEdit, onlyToday = false, reference }) {
   const [schedule, setSchedule] = useState(null)
   const [timesheet, setTimesheet] = useState(null)
   const [loading, setLoading] = useState(true)

@@ -1412,6 +1412,98 @@ def get_disassembly_missing_prices() -> list[str]:
         return []
 
 
+def get_engraving_period_stats(date_from: date, date_to: date) -> dict:
+    """Dashboard: aggregated production stats for ГРАВИРОВКА, with daily breakdown and prev-period comparison."""
+    df = get_df()
+    days = (date_to - date_from).days + 1
+    prev_from = date_from - timedelta(days=days)
+    prev_to = date_to - timedelta(days=days)
+
+    empty_base = {
+        "period": {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        "prev_period": {"from": prev_from.isoformat(), "to": prev_to.isoformat()},
+        "sections": [],
+    }
+    if df.empty:
+        return empty_base
+
+    # Filtered DataFrames
+    period_df = df[(df["date_only"] >= date_from) & (df["date_only"] <= date_to)]
+    prev_df   = df[(df["date_only"] >= prev_from) & (df["date_only"] <= prev_to)]
+
+    current_grav = build_productions_stats(period_df).get("ГРАВИРОВКА", {"departments": []})
+    prev_grav    = build_productions_stats(prev_df).get("ГРАВИРОВКА", {"departments": []})
+
+    # Daily breakdown per department
+    daily_by_dept: dict[str, list] = {}
+    for offset in range(days):
+        d = date_from + timedelta(days=offset)
+        day_df = df[df["date_only"] == d]
+        if day_df.empty:
+            continue
+        day_grav = build_productions_stats(day_df).get("ГРАВИРОВКА", {"departments": []})
+        for dept in day_grav.get("departments", []):
+            name = dept["name"]
+            if name not in daily_by_dept:
+                daily_by_dept[name] = []
+            entry: dict = {"date": d.isoformat(), "total": dept.get("total", 0)}
+            if dept.get("subs"):
+                entry["subs"] = {s["sub_name"]: s["total"] for s in dept["subs"]}
+            daily_by_dept[name].append(entry)
+
+    prev_depts = {d["name"]: d for d in prev_grav.get("departments", [])}
+    sections = []
+    for dept in current_grav.get("departments", []):
+        name  = dept["name"]
+        total = dept.get("total", 0)
+        prev_dept  = prev_depts.get(name, {})
+        prev_total = prev_dept.get("total", 0)
+        delta      = total - prev_total
+        delta_pct  = round((delta / prev_total * 100) if prev_total else 0, 1)
+
+        section: dict = {
+            "name":       name,
+            "total":      total,
+            "unit":       dept.get("unit", "шт"),
+            "main":       dept.get("main", False),
+            "prev_total": prev_total,
+            "delta":      delta,
+            "delta_pct":  delta_pct,
+            "daily_data": daily_by_dept.get(name, []),
+            "nomenclature": dept.get("nomenclature", []),
+        }
+        if dept.get("subs"):
+            prev_subs_map = {s["sub_name"]: s["total"] for s in prev_dept.get("subs", [])}
+            section["subs"] = []
+            for s in dept["subs"]:
+                sn, st = s["sub_name"], s["total"]
+                sp = prev_subs_map.get(sn, 0)
+                section["subs"].append({
+                    "sub_name":   sn,
+                    "total":      st,
+                    "unit":       s.get("unit", "шт"),
+                    "prev_total": sp,
+                    "delta":      st - sp,
+                    "delta_pct":  round((st - sp) / sp * 100 if sp else 0, 1),
+                })
+            # daily data per sub
+            daily_subs: dict[str, list] = {}
+            for entry in daily_by_dept.get(name, []):
+                for sub_name, sub_val in (entry.get("subs") or {}).items():
+                    if sub_name not in daily_subs:
+                        daily_subs[sub_name] = []
+                    daily_subs[sub_name].append({"date": entry["date"], "total": sub_val})
+            for s in section["subs"]:
+                s["daily_data"] = daily_subs.get(s["sub_name"], [])
+        sections.append(section)
+
+    return {
+        "period":      {"from": date_from.isoformat(), "to": date_to.isoformat()},
+        "prev_period": {"from": prev_from.isoformat(), "to": prev_to.isoformat()},
+        "sections":    sections,
+    }
+
+
 def get_data_sources_status() -> dict[str, Any]:
     """Статус источников данных для админки: 001–004, цены, выработка, выпуск — файл, строки, даты."""
     refresh_data()

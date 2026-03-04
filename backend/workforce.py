@@ -631,6 +631,86 @@ def reinstate_employee(production: str, employee_id: str) -> dict:
     return {"ok": True}
 
 
+def get_workforce_period_data(production: str, date_from, date_to) -> dict:
+    """Get employee count, total hours and costs for a production over a date range.
+    Also returns per-section counts (if employees have the 'section' field set).
+    """
+    from datetime import date as _date
+
+    reference = get_reference()
+    rate_lookup = {(r["position"], r["status"]): r["hourly_rate"] for r in reference}
+
+    # Determine which (year, month) pairs overlap the period
+    months: set[tuple[int, int]] = set()
+    cur = _date(date_from.year, date_from.month, 1)
+    end = _date(date_to.year, date_to.month, 1)
+    while cur <= end:
+        months.add((cur.year, cur.month))
+        if cur.month == 12:
+            cur = _date(cur.year + 1, 1, 1)
+        else:
+            cur = _date(cur.year, cur.month + 1, 1)
+
+    employees_set: set[str] = set()
+    total_hours = 0.0
+    total_cost  = 0.0
+    daily_cost:      dict[str, float] = {}
+    daily_employees: dict[str, set]   = {}
+
+    for year, month in sorted(months):
+        timesheet  = get_timesheet(production, year, month)
+        schedule   = get_schedule(production, year, month)
+        ts_records = timesheet.get("records", {})
+        emp_by_id  = {e["id"]: e for e in schedule.get("employees", [])}
+
+        for emp_id, days_dict in ts_records.items():
+            emp = emp_by_id.get(emp_id)
+            if not emp:
+                continue
+            position = emp.get("position", "")
+            status   = emp.get("status", "")
+            rate     = rate_lookup.get((position, status), 0.0)
+
+            for day_str, hours in days_dict.items():
+                if not hours or float(hours) <= 0:
+                    continue
+                try:
+                    d = _date(year, month, int(day_str))
+                except Exception:
+                    continue
+                if date_from <= d <= date_to:
+                    name = emp.get("full_name", "").strip()
+                    employees_set.add(name)
+                    h    = float(hours)
+                    cost = h * rate
+                    total_hours += h
+                    total_cost  += cost
+                    dk = d.isoformat()
+                    daily_cost[dk] = daily_cost.get(dk, 0.0) + cost
+                    if dk not in daily_employees:
+                        daily_employees[dk] = set()
+                    daily_employees[dk].add(name)
+
+    # Section-level employee counts (uses persistent employees list with 'section' field)
+    emp_records  = get_employees(production)
+    section_map  = {e.get("full_name", "").strip(): e.get("section", "") for e in emp_records}
+    section_names: dict[str, set] = {}
+    for names in daily_employees.values():
+        for name in names:
+            sec = section_map.get(name, "") or "—"
+            if sec not in section_names:
+                section_names[sec] = set()
+            section_names[sec].add(name)
+
+    return {
+        "employee_count": len(employees_set),
+        "total_hours":    round(total_hours, 1),
+        "total_cost":     round(total_cost, 2),
+        "daily_cost":     {k: round(v, 2) for k, v in daily_cost.items()},
+        "by_section":     {s: len(ns) for s, ns in section_names.items()},
+    }
+
+
 def import_employees_from_tsv(production: str, tsv: str) -> list:
     """
     Парсинг вставленных данных из Google Таблиц.
