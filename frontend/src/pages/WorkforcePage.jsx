@@ -1209,7 +1209,10 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
       </div>
 
       <div className="wf-table-scroll">
-        <table className="wf-schedule-table">
+        <table
+          className={`wf-schedule-table ${canEdit ? 'wf-has-actions' : ''}`}
+          style={{ '--wf-fio-width': `${fioWidth}px` }}
+        >
           <thead>
             <tr>
               {canEdit && <th className="wf-col-actions-left"></th>}
@@ -1563,7 +1566,10 @@ function TimesheetTable({ production, year, month, canEdit, onlyToday = false, r
       </div>
 
       <div className="wf-table-scroll">
-        <table className="wf-schedule-table wf-timesheet-table">
+        <table
+          className="wf-schedule-table wf-timesheet-table"
+          style={{ '--wf-fio-width': `${fioWidth}px` }}
+        >
           <thead>
             <tr>
               <th className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>ФИО</th>

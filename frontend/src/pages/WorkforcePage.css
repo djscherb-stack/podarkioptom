@@ -329,8 +329,12 @@
 .wf-schedule { width: 100%; }
 
 .wf-table-scroll {
-  overflow-x: auto;
+  overflow: auto;
   padding: 0;
+}
+
+.wf-schedule .wf-table-scroll {
+  max-height: 72vh;
 }
 
 .wf-schedule-table {
@@ -338,6 +342,13 @@
   font-size: 0.83rem;
   min-width: 100%;
   table-layout: auto;
+  --wf-left-start: 0px;
+  --wf-fio-width: 185px;
+  --wf-pos-width: 130px;
+}
+
+.wf-schedule-table.wf-has-actions {
+  --wf-left-start: 52px;
 }
 
 .wf-schedule-table th,
@@ -354,6 +365,15 @@
   font-size: 0.78rem;
   text-align: center;
   padding: 0.3rem 0.25rem;
+}
+
+/* Sticky верхней строки с датами */
+.wf-schedule-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 20;
+  background: var(--bg);
+  background-clip: padding-box;
 }
 
 .wf-schedule-table td {
@@ -405,6 +425,76 @@
   justify-content: center;
 }
 .wf-sched-fired-row .wf-col-actions-left { background: rgba(180,50,50,0.07) !important; }
+
+/* Sticky колонки: ФИО, Должность, Статус */
+.wf-schedule-table td.wf-col-name,
+.wf-schedule-table td.wf-col-pos,
+.wf-schedule-table td.wf-col-status {
+  position: sticky;
+  z-index: 9;
+  /* Непрозрачная подложка, чтобы цифры не просвечивали под текстом */
+  background: var(--bg-card);
+  background-clip: padding-box;
+}
+
+.wf-schedule-table td.wf-col-name {
+  left: var(--wf-left-start);
+  box-shadow: 2px 0 0 var(--border);
+}
+
+.wf-schedule-table td.wf-col-pos {
+  left: calc(var(--wf-left-start) + var(--wf-fio-width));
+  box-shadow: 2px 0 0 var(--border);
+}
+
+.wf-schedule-table td.wf-col-status {
+  left: calc(var(--wf-left-start) + var(--wf-fio-width) + var(--wf-pos-width));
+  box-shadow: 2px 0 0 var(--border);
+}
+
+/* Header ячейки этих же колонок — выше по z-index */
+.wf-schedule-table thead th.wf-col-name,
+.wf-schedule-table thead th.wf-col-pos,
+.wf-schedule-table thead th.wf-col-status {
+  z-index: 30;
+  background: var(--bg);
+  background-clip: padding-box;
+}
+
+.wf-schedule-table thead th.wf-col-name {
+  left: var(--wf-left-start);
+}
+
+.wf-schedule-table thead th.wf-col-pos {
+  left: calc(var(--wf-left-start) + var(--wf-fio-width));
+}
+
+.wf-schedule-table thead th.wf-col-status {
+  left: calc(var(--wf-left-start) + var(--wf-fio-width) + var(--wf-pos-width));
+}
+
+/* Угловая ячейка (кнопки действий) поверх остальных sticky */
+.wf-schedule-table thead .wf-col-actions-left {
+  z-index: 40;
+  top: 0;
+  background: var(--bg);
+  background-clip: padding-box;
+}
+
+/* Шапка дат тоже непрозрачная, чтобы строки при вертикальном скролле не просвечивали */
+.wf-schedule-table thead th.wf-col-day,
+.wf-schedule-table thead th.wf-col-total {
+  background: var(--bg);
+  background-clip: padding-box;
+}
+
+.wf-schedule-table thead th.wf-col-day.wf-weekend {
+  background: var(--bg-card) !important;
+}
+
+.wf-schedule-table thead th.wf-col-day.wf-today {
+  background: var(--bg-card-hover) !important;
+}
 
 .wf-dow {
   font-size: 0.65rem;
