@@ -18,6 +18,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 
+# Локальные модули (работают при запуске из папки backend/)
 import database as db
 import auth
 import theme as theme_mod

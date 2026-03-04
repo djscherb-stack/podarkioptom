@@ -861,6 +861,56 @@ function EmployeesTab({ production, canEdit }) {
 }
 
 
+// ─── Выпадающий фильтр-дропдаун ───────────────────────────────────────────────
+function FilterDropdown({ label, options, selected, onChange }) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef(null)
+
+  useEffect(() => {
+    const onOut = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false) }
+    document.addEventListener('mousedown', onOut)
+    return () => document.removeEventListener('mousedown', onOut)
+  }, [])
+
+  const toggle = (opt) =>
+    onChange(selected.includes(opt) ? selected.filter(x => x !== opt) : [...selected, opt])
+
+  const count = selected.length
+
+  return (
+    <div className="wf-fd" ref={ref}>
+      <button
+        type="button"
+        className={`wf-btn wf-btn-secondary wf-btn-xs wf-fd-btn ${count > 0 ? 'wf-fd-active' : ''}`}
+        onClick={() => setOpen(o => !o)}
+      >
+        {label}{count > 0 ? ` (${count})` : ''} {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <div className="wf-fd-panel">
+          <div className="wf-fd-options">
+            {options.map(opt => (
+              <label key={opt} className="wf-fd-check">
+                <input type="checkbox" checked={selected.includes(opt)} onChange={() => toggle(opt)} />
+                <span>{opt}</span>
+              </label>
+            ))}
+            {options.length === 0 && <span className="wf-fd-empty">Нет вариантов</span>}
+          </div>
+          <div className="wf-fd-footer">
+            <button type="button" className="wf-btn wf-btn-secondary wf-btn-xs" onClick={() => onChange([])}>
+              Сбросить
+            </button>
+            <button type="button" className="wf-btn wf-btn-primary wf-btn-xs" onClick={() => setOpen(false)}>
+              ОК
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Таблица графика ──────────────────────────────────────────────────────────
 function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [schedule, setSchedule] = useState(null)
@@ -872,9 +922,13 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [showImport, setShowImport] = useState(false)
   const [addingEmployee, setAddingEmployee] = useState(false)
   const [newEmp, setNewEmp] = useState({ full_name: '', position: '', status: '' })
-  const [editCell, setEditCell] = useState(null)       // {empIdx, day} — ячейка дня
+  const [editCell, setEditCell] = useState(null)       // {empId, day} — ячейка дня
   const [editingEmpId, setEditingEmpId] = useState(null) // id строки сотрудника
   const [editEmpBuf, setEditEmpBuf] = useState({})
+  const [sortBy, setSortBy] = useState('fio')          // 'fio' | 'position' | 'status'
+  const [fioWidth, setFioWidth] = useState(185)
+  const [positionFilter, setPositionFilter] = useState([]) // массив выбранных должностей
+  const [statusFilter, setStatusFilter] = useState([])     // массив выбранных статусов
   const numDays = getDaysInMonth(year, month)
 
   // Карта увольнений по ФИО (lowercase)
@@ -922,34 +976,36 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
     }
   }
 
-  const handleCellClick = (empIdx, day) => {
+  const handleCellClick = (empId, day) => {
     if (!canEdit) return
-    const emp = schedule.employees[empIdx]
+    const employeesArr = schedule?.employees || []
+    const emp = employeesArr.find(e => e.id === empId)
+    if (!emp) return
     const dayStr = String(day)
     const current = emp.working_days[dayStr]
     if (current !== undefined) {
       // Открываем редактирование
-      setEditCell({ empIdx, day })
+      setEditCell({ empId, day })
     } else {
       // Ставим часы по умолчанию согласно должности
       const defaultH = getDefaultHours(emp.position)
       const updated = {
         ...schedule,
-        employees: schedule.employees.map((e, i) =>
-          i === empIdx ? { ...e, working_days: { ...e.working_days, [dayStr]: defaultH } } : e
+        employees: schedule.employees.map(e =>
+          e.id === empId ? { ...e, working_days: { ...e.working_days, [dayStr]: defaultH } } : e
         ),
       }
       saveSchedule(updated)
     }
   }
 
-  const handleCellEdit = (empIdx, day, val) => {
+  const handleCellEdit = (empId, day, val) => {
     const dayStr = String(day)
     const hours = parseFloat(val)
     const updated = {
       ...schedule,
       employees: schedule.employees.map((e, i) => {
-        if (i !== empIdx) return e
+        if (e.id !== empId) return e
         const wd = { ...e.working_days }
         if (!val || isNaN(hours) || hours <= 0) {
           delete wd[dayStr]
@@ -963,9 +1019,11 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
     saveSchedule(updated)
   }
 
-  const handleDeleteEmployee = (empIdx) => {
-    if (!confirm(`Удалить «${schedule.employees[empIdx]?.full_name}» из графика этого месяца?`)) return
-    const updated = { ...schedule, employees: schedule.employees.filter((_, i) => i !== empIdx) }
+  const handleDeleteEmployee = (empId) => {
+    const emp = (schedule.employees || []).find(e => e.id === empId)
+    if (!emp) return
+    if (!confirm(`Удалить «${emp.full_name}» из графика этого месяца?`)) return
+    const updated = { ...schedule, employees: schedule.employees.filter(e => e.id !== empId) }
     saveSchedule(updated)
   }
 
@@ -1065,12 +1123,29 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
 
   const employees = schedule.employees || []
 
-  // Итоговые данные по дням
+  // Фильтрация по должности и статусу
+  const filteredEmployees = employees.filter(emp => {
+    if (positionFilter.length && !positionFilter.includes(emp.position)) return false
+    if (statusFilter.length && !statusFilter.includes(emp.status)) return false
+    return true
+  })
+
+  // Сортировка
+  const sortedEmployees = [...filteredEmployees].sort((a, b) => {
+    const get = (e) => {
+      if (sortBy === 'position') return (e.position || '').toLowerCase()
+      if (sortBy === 'status') return (e.status || '').toLowerCase()
+      return (e.full_name || '').toLowerCase()
+    }
+    return get(a).localeCompare(get(b), 'ru')
+  })
+
+  // Итоговые данные по дням — по отфильтрованным сотрудникам
   const dayTotals = {}
   for (let d = 1; d <= numDays; d++) {
-    dayTotals[d] = employees.filter(e => e.working_days[String(d)] !== undefined).length
+    dayTotals[d] = filteredEmployees.filter(e => e.working_days[String(d)] !== undefined).length
   }
-  const totalPlannedDays = employees.reduce((s, e) => s + Object.keys(e.working_days).length, 0)
+  const totalPlannedDays = filteredEmployees.reduce((s, e) => s + Object.keys(e.working_days).length, 0)
 
   return (
     <div className="wf-schedule">
@@ -1078,7 +1153,7 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
         <div className="wf-toolbar-info">
           <span className="wf-prod-label">{PRODUCTIONS[production]}</span>
           <span className="wf-sub-label">График на {MONTH_NAMES[month - 1]} {year}</span>
-          <span className="wf-count-badge">{employees.length} сотр.</span>
+          <span className="wf-count-badge">{filteredEmployees.length} сотр.</span>
         </div>
         <div className="wf-toolbar-actions">
           {msg && <span className={`wf-msg ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</span>}
@@ -1100,12 +1175,45 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
         </div>
       </div>
 
+      {/* Фильтры и сортировка */}
+      <div className="wf-filter-bar">
+        <FilterDropdown
+          label="Должности"
+          options={positions}
+          selected={positionFilter}
+          onChange={setPositionFilter}
+        />
+        <FilterDropdown
+          label="Статусы"
+          options={[...new Set(reference.map(r => r.status).filter(Boolean))]}
+          selected={statusFilter}
+          onChange={setStatusFilter}
+        />
+        <div className="wf-filter-sep" />
+        <span className="wf-filter-label">Сорт:</span>
+        <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'fio' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('fio')}>ФИО</button>
+        <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'position' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('position')}>Должность</button>
+        <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'status' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('status')}>Статус</button>
+        <div className="wf-filter-sep" />
+        <span className="wf-filter-label">Ширина ФИО:</span>
+        <input type="range" min="140" max="360" step="10" value={fioWidth} onChange={e => setFioWidth(Number(e.target.value))} style={{ width: '80px' }} />
+        <span className="wf-filter-fio-val">{fioWidth}px</span>
+        {(positionFilter.length > 0 || statusFilter.length > 0) && (
+          <>
+            <div className="wf-filter-sep" />
+            <button type="button" className="wf-btn wf-btn-danger wf-btn-xs" onClick={() => { setPositionFilter([]); setStatusFilter([]) }}>
+              ✕ Сбросить фильтры
+            </button>
+          </>
+        )}
+      </div>
+
       <div className="wf-table-scroll">
         <table className="wf-schedule-table">
           <thead>
             <tr>
               {canEdit && <th className="wf-col-actions-left"></th>}
-              <th className="wf-col-name">ФИО</th>
+              <th className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>ФИО</th>
               <th className="wf-col-pos">Должность</th>
               <th className="wf-col-status">Статус</th>
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
@@ -1118,7 +1226,7 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
             </tr>
           </thead>
           <tbody>
-            {employees.map((emp, empIdx) => {
+            {sortedEmployees.map((emp) => {
               const totalDays = Object.keys(emp.working_days).length
               const totalHours = Object.values(emp.working_days).reduce((s, h) => s + h, 0)
               const firedAt   = getFiredAt(emp.full_name)
@@ -1138,14 +1246,14 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
                       ) : (
                         <span className="wf-sched-actions">
                           <button className="wf-btn-icon" onClick={() => handleEditEmpStart(emp)} title="Редактировать сотрудника">✎</button>
-                          <button className="wf-btn-icon wf-btn-danger" onClick={() => handleDeleteEmployee(empIdx)} title="Удалить из графика">🗑</button>
+                          <button className="wf-btn-icon wf-btn-danger" onClick={() => handleDeleteEmployee(emp.id)} title="Удалить из графика">🗑</button>
                         </span>
                       )}
                     </td>
                   )}
 
                   {/* ФИО */}
-                  <td className="wf-col-name">
+                  <td className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>
                     {isEditingRow ? (
                       <input
                         className="wf-cell-input"
@@ -1201,12 +1309,12 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
                   {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
                     const dayStr = String(d)
                     const hours = emp.working_days[dayStr]
-                    const isEditing = !isEditingRow && editCell?.empIdx === empIdx && editCell?.day === d
+                    const isEditing = editCell?.empId === emp.id && editCell?.day === d
                     return (
                       <td
                         key={d}
                         className={`wf-day-cell ${hours !== undefined ? 'wf-day-on' : ''} ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${canEdit && !isEditingRow ? 'wf-editable' : ''}`}
-                        onClick={() => !isEditing && !isEditingRow && handleCellClick(empIdx, d)}
+                        onClick={() => !isEditing && !isEditingRow && handleCellClick(emp.id, d)}
                       >
                         {isEditing ? (
                           <input
@@ -1214,12 +1322,12 @@ function ScheduleTable({ production, year, month, canEdit, reference }) {
                             type="number"
                             defaultValue={hours || ''}
                             autoFocus
-                            onBlur={e => handleCellEdit(empIdx, d, e.target.value)}
+                            onBlur={e => handleCellEdit(emp.id, d, e.target.value)}
                             onKeyDown={e => {
-                              if (e.key === 'Enter') handleCellEdit(empIdx, d, e.target.value)
+                              if (e.key === 'Enter') handleCellEdit(emp.id, d, e.target.value)
                               if (e.key === 'Escape') setEditCell(null)
                               if (e.key === 'Delete' || e.key === 'Backspace') {
-                                if (!e.target.value) handleCellEdit(empIdx, d, '')
+                                if (!e.target.value) handleCellEdit(emp.id, d, '')
                               }
                             }}
                           />
@@ -1312,6 +1420,11 @@ function TimesheetTable({ production, year, month, canEdit, onlyToday = false, r
   // Редактирование: {empId, day} + локальное значение в строке ввода
   const [editCell, setEditCell] = useState(null)
   const [editValue, setEditValue] = useState('')
+  // Фильтры, сортировка, ширина ФИО
+  const [positionFilter, setPositionFilter] = useState([])
+  const [statusFilter, setStatusFilter] = useState([])
+  const [sortBy, setSortBy] = useState('fio')
+  const [fioWidth, setFioWidth] = useState(185)
   const numDays = getDaysInMonth(year, month)
 
   const load = useCallback(() => {
@@ -1368,7 +1481,23 @@ function TimesheetTable({ production, year, month, canEdit, onlyToday = false, r
   const employees = schedule.employees || []
   const records = timesheet.records || {}
 
-  // Итоги по дням
+  // Фильтрация и сортировка
+  const tsPositions = [...new Set(employees.map(e => e.position).filter(Boolean))].sort()
+  const tsStatuses  = [...new Set(employees.map(e => e.status).filter(Boolean))].sort()
+
+  const filteredEmps = employees.filter(emp => {
+    if (positionFilter.length > 0 && !positionFilter.includes(emp.position)) return false
+    if (statusFilter.length > 0 && !statusFilter.includes(emp.status)) return false
+    return true
+  })
+  const sortedEmps = [...filteredEmps].sort((a, b) => {
+    if (sortBy === 'fio')      return (a.full_name || '').localeCompare(b.full_name || '', 'ru')
+    if (sortBy === 'position') return (a.position || '').localeCompare(b.position || '', 'ru')
+    if (sortBy === 'status')   return (a.status || '').localeCompare(b.status || '', 'ru')
+    return 0
+  })
+
+  // Итоги по дням (всегда по всем сотрудникам, не по отфильтрованным)
   const dayPlanned = {}
   const dayActual = {}
   for (let d = 1; d <= numDays; d++) {
@@ -1397,7 +1526,7 @@ function TimesheetTable({ production, year, month, canEdit, onlyToday = false, r
         <div className="wf-toolbar-info">
           <span className="wf-prod-label">{PRODUCTIONS[production]}</span>
           <span className="wf-sub-label">Табель на {MONTH_NAMES[month - 1]} {year}</span>
-          <span className="wf-count-badge">{employees.length} сотр.</span>
+          <span className="wf-count-badge">{filteredEmps.length}{filteredEmps.length !== employees.length ? `/${employees.length}` : ''} сотр.</span>
         </div>
         <div className="wf-toolbar-actions">
           {msg && <span className={`wf-msg ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</span>}
@@ -1410,11 +1539,34 @@ function TimesheetTable({ production, year, month, canEdit, onlyToday = false, r
         </div>
       </div>
 
+      {/* Фильтры и сортировка */}
+      <div className="wf-filter-bar">
+        <FilterDropdown label="Должности" options={tsPositions} selected={positionFilter} onChange={setPositionFilter} />
+        <FilterDropdown label="Статусы" options={tsStatuses} selected={statusFilter} onChange={setStatusFilter} />
+        <div className="wf-filter-sep" />
+        <span className="wf-filter-label">Сорт:</span>
+        <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'fio' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('fio')}>ФИО</button>
+        <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'position' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('position')}>Должность</button>
+        <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'status' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('status')}>Статус</button>
+        <div className="wf-filter-sep" />
+        <span className="wf-filter-label">Ширина ФИО:</span>
+        <input type="range" min="140" max="360" step="10" value={fioWidth} onChange={e => setFioWidth(Number(e.target.value))} style={{ width: '80px' }} />
+        <span className="wf-filter-fio-val">{fioWidth}px</span>
+        {(positionFilter.length > 0 || statusFilter.length > 0) && (
+          <>
+            <div className="wf-filter-sep" />
+            <button type="button" className="wf-btn wf-btn-danger wf-btn-xs" onClick={() => { setPositionFilter([]); setStatusFilter([]) }}>
+              ✕ Сбросить фильтры
+            </button>
+          </>
+        )}
+      </div>
+
       <div className="wf-table-scroll">
         <table className="wf-schedule-table wf-timesheet-table">
           <thead>
             <tr>
-              <th className="wf-col-name">ФИО</th>
+              <th className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>ФИО</th>
               <th className="wf-col-pos">Должность</th>
               <th className="wf-col-status">Статус</th>
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
@@ -1430,7 +1582,7 @@ function TimesheetTable({ production, year, month, canEdit, onlyToday = false, r
             </tr>
           </thead>
           <tbody>
-            {employees.map(emp => {
+            {sortedEmps.map(emp => {
               const rate = rateMap[`${emp.position}|${emp.status}`] || 0
               const ts = records[emp.id] || {}
               const plannedHours = Object.values(emp.working_days).reduce((s, h) => s + h, 0)
@@ -1440,7 +1592,7 @@ function TimesheetTable({ production, year, month, canEdit, onlyToday = false, r
 
               return (
                 <tr key={emp.id}>
-                  <td className="wf-col-name">{emp.full_name}</td>
+                  <td className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>{emp.full_name}</td>
                   <td className="wf-col-pos">{emp.position}</td>
                   <td className="wf-col-status"><span className="wf-status-badge">{emp.status}</span></td>
                   {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
