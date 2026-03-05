@@ -67,7 +67,11 @@ def refresh_data():
         elif _df.empty:
             _df["year_month"] = pd.Series(dtype=object)
             _df["date_only"] = pd.Series(dtype=object)
-    except Exception:
+            import sys
+            print(f"[данные] Пустой датафрейм продукции. Папка: {DATA_DIR}", file=sys.stderr)
+    except Exception as e:
+        import sys
+        print(f"[данные] Ошибка загрузки продукции: {e}", file=sys.stderr)
         _df = pd.DataFrame(columns=["article", "nomenclature_type", "product_name", "quantity", "date", "department", "year_month", "date_only"])
     try:
         _df_employee = load_all_employee_output_data(str(DATA_DIR))
