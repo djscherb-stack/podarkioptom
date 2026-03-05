@@ -97,7 +97,7 @@ function DeltaBadge({ delta, pct, unit = 'шт' }) {
 
 // ─── Section Card ─────────────────────────────────────────────────────────────
 
-function SectionCard({ section, workforce, isMainSection }) {
+function SectionCard({ section, workforce, isMainSection, index }) {
   const [detailOpen, setDetailOpen] = useState(false)
   const displayName = SECTION_DISPLAY[section.name] || section.name
   const sectionKey = displayName
@@ -111,69 +111,48 @@ function SectionCard({ section, workforce, isMainSection }) {
     ? sectionCost / section.total
     : 0
 
+  const subLabel = section.main
+    ? 'Основной участок'
+    : `${index + 1} участок`
+
   return (
-    <div className={`pd-section-card${section.main ? ' pd-section-main' : ''}`}>
-      <div className="pd-sc-header">
-        <div className="pd-sc-title-wrap">
-          <span className="pd-sc-name">{displayName}</span>
-          {section.main && <span className="pd-main-badge">ГП</span>}
+    <div className={`pd-section-row${section.main ? ' pd-section-main' : ''}`}>
+      <div className="pd-sec-cell pd-sec-name-cell">
+        <div className="pd-sec-name-line">
+          <span className="pd-sec-bullet" />
+          <span className="pd-sec-name">{displayName}</span>
         </div>
+        <div className="pd-sec-subline">
+          <span>{subLabel}</span>
+          {sectionCost > 0 && sectionCostPerUnit > 0 && (
+            <span className="pd-sec-subline-cost">
+              · ФОТ: {fmtRub(sectionCost)} · Себест. ед.: {fmtRub(sectionCostPerUnit)}
+            </span>
+          )}
+        </div>
+      </div>
+      <div className="pd-sec-cell pd-sec-out">
+        <span className="pd-sec-out-main">{fmtNum(section.total)}</span>
+        <span className="pd-sec-out-unit">{section.unit}</span>
+      </div>
+      <div className="pd-sec-cell pd-sec-prev">
+        {fmtNum(section.prev_total)} {section.unit}
+      </div>
+      <div className="pd-sec-cell pd-sec-change">
+        <DeltaBadge delta={section.delta} pct={section.delta_pct} unit={section.unit} />
+      </div>
+      <div className="pd-sec-cell pd-sec-emps">
+        {empCount != null ? empCount : '—'}
+      </div>
+      <div className="pd-sec-cell pd-sec-per-emp">
+        {avgPerEmp != null ? `${fmtNum(avgPerEmp)} ${section.unit}` : '—'}
+      </div>
+      <div className="pd-sec-cell pd-sec-trend">
         <Sparkline data={section.daily_data} />
       </div>
 
-      <div className="pd-sc-total-row">
-        <span className="pd-sc-total">{fmtNum(section.total)}</span>
-        <span className="pd-sc-unit">{section.unit}</span>
-        <DeltaBadge delta={section.delta} pct={section.delta_pct} unit={section.unit} />
-      </div>
-
-      <div className="pd-sc-prev">
-        Пред. период: <strong>{fmtNum(section.prev_total)}</strong> {section.unit}
-      </div>
-
-      {/* Sub-sections (Картон/Дерево: РЕЗКА / Сборка МДФ / Валковый пресс) */}
-      {section.subs && section.subs.length > 0 && (
-        <div className="pd-subs">
-          {section.subs.map(sub => (
-            <div key={sub.sub_name} className="pd-sub">
-              <div className="pd-sub-header">
-                <span className="pd-sub-name">{sub.sub_name}</span>
-                <Sparkline data={sub.daily_data} />
-              </div>
-              <div className="pd-sub-row">
-                <span className="pd-sub-total">{fmtNum(sub.total)} {sub.unit}</span>
-                <DeltaBadge delta={sub.delta} pct={sub.delta_pct} unit={sub.unit} />
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {/* Workforce metrics */}
-      <div className="pd-sc-metrics">
-        <div className="pd-metric">
-          <span className="pd-metric-label">Сотрудников на участке</span>
-          <span className="pd-metric-value">{empCount != null ? empCount : '—'}</span>
-        </div>
-        <div className="pd-metric">
-          <span className="pd-metric-label">Ср. выпуск / чел.</span>
-          <span className="pd-metric-value">{avgPerEmp != null ? `${fmtNum(avgPerEmp)} ${section.unit}` : '—'}</span>
-        </div>
-        <div className="pd-metric">
-          <span className="pd-metric-label">ФОТ участка</span>
-          <span className="pd-metric-value">{sectionCost > 0 ? fmtRub(sectionCost) : '—'}</span>
-        </div>
-        <div className="pd-metric">
-          <span className="pd-metric-label">Стоимость ед. продукции</span>
-          <span className="pd-metric-value pd-metric-cost">
-            {sectionCostPerUnit > 0 ? fmtRub(sectionCostPerUnit) : '—'}
-          </span>
-        </div>
-      </div>
-
-      {/* Detalization */}
       {section.nomenclature && section.nomenclature.length > 0 && (
-        <div className="pd-detail">
+        <div className="pd-sec-detail-row">
           <button className="pd-btn-detail" onClick={() => setDetailOpen(o => !o)}>
             Детализация {detailOpen ? '▲' : '▼'}
           </button>
@@ -342,17 +321,31 @@ function EfficiencyTab() {
             <div className="pd-empty">Нет данных о выпуске продукции за выбранный период.</div>
           ) : (
             <>
-              <div className="pd-sections-grid">
-                {data.sections.map(section => (
-                  <SectionCard
-                    key={section.name}
-                    section={section}
-                    workforce={data.workforce}
-                    isMainSection={!!section.main}
-                  />
-                ))}
-              </div>
               <SummaryCard workforce={data.workforce} sections={data.sections} />
+
+              <div className="pd-sections-block">
+                <div className="pd-sections-title-row">
+                  <div className="pd-sec-col pd-sec-col-name">Участок</div>
+                  <div className="pd-sec-col">Выпуск</div>
+                  <div className="pd-sec-col">Пред. период</div>
+                  <div className="pd-sec-col">Изменение</div>
+                  <div className="pd-sec-col">% сотрудников</div>
+                  <div className="pd-sec-col">Ср. выпуск / чел.</div>
+                  <div className="pd-sec-col pd-sec-col-trend">Динамика</div>
+                </div>
+
+                <div className="pd-sections-table">
+                  {data.sections.map((section, idx) => (
+                    <SectionCard
+                      key={section.name}
+                      section={section}
+                      workforce={data.workforce}
+                      isMainSection={!!section.main}
+                      index={idx}
+                    />
+                  ))}
+                </div>
+              </div>
             </>
           )}
         </>
