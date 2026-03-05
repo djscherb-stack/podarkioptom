@@ -43,7 +43,11 @@ def require_admin(username: str = Depends(require_auth)) -> str:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Инициализация при старте, перезагрузка при изменении файлов."""
+    import sys
+    print(f"[данные] Папка с данными: {db.DATA_DIR}", file=sys.stderr)
     db.refresh_data()
+    df = db.get_df()
+    print(f"[данные] Загружено строк продукции: {len(df)}", file=sys.stderr)
     yield
     # shutdown if needed
 
@@ -896,8 +900,11 @@ def get_engraving_dashboard(date_from: str = "", date_to: str = "", trend_days: 
     try:
         import workforce as _wf
         workforce_data = _wf.get_workforce_period_data("engraving", d_from, d_to)
-    except Exception:
-        workforce_data = {"employee_count": 0, "total_hours": 0, "total_cost": 0, "daily_cost": {}, "by_section": {}}
+    except Exception as _wf_err:
+        import traceback, sys
+        print(f"[workforce] ошибка get_workforce_period_data: {_wf_err}\n{traceback.format_exc()}", file=sys.stderr)
+        workforce_data = {"employee_count": 0, "total_hours": 0, "total_cost": 0,
+                          "is_planned": False, "daily_cost": {}, "by_section": {}, "sections": {}}
 
     # Динамика за последние 15 дней: стоимость выпуска по производству и по участкам
     try:

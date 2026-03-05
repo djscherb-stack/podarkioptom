@@ -757,6 +757,7 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
     total_cost  = 0.0
     daily_cost:      dict[str, float] = {}
     daily_employees: dict[str, set]   = {}
+    use_schedule_fallback = False  # будет True если табель пуст
 
     for year, month in sorted(months):
         timesheet  = get_timesheet(production, year, month)
@@ -792,53 +793,109 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
                         daily_employees[dk] = set()
                     daily_employees[dk].add(name)
 
-    # Section-level employee counts и затраты (по полю section из списка сотрудников)
+    # Если табель пуст — используем плановые часы из графика (fallback)
+    if total_hours == 0:
+        use_schedule_fallback = True
+        for year, month in sorted(months):
+            schedule = get_schedule(production, year, month)
+            for emp in schedule.get("employees", []):
+                position = emp.get("position", "")
+                status   = emp.get("status", "")
+                rate     = rate_lookup.get((position, status), 0.0)
+                name     = emp.get("full_name", "").strip()
+                for day_str, hours in (emp.get("working_days") or {}).items():
+                    if not hours or float(hours) <= 0:
+                        continue
+                    try:
+                        d = _date(year, month, int(day_str))
+                    except Exception:
+                        continue
+                    if date_from <= d <= date_to:
+                        employees_set.add(name)
+                        h    = float(hours)
+                        cost = h * rate
+                        total_hours += h
+                        total_cost  += cost
+                        dk = d.isoformat()
+                        daily_cost[dk] = daily_cost.get(dk, 0.0) + cost
+                        if dk not in daily_employees:
+                            daily_employees[dk] = set()
+                        daily_employees[dk].add(name)
+
+    # Section-level: по полю section из списка сотрудников; если пусто — определяем по должности из графика
     emp_records = get_employees(production)
     raw_section_map: dict[str, str] = {
-        e.get("full_name", "").strip(): e.get("section", "")
+        e.get("full_name", "").strip(): (e.get("section") or "").strip()
         for e in emp_records
     }
+    # Должность из графика (для подстановки участка, если в списке не проставлен)
+    name_to_position: dict[str, str] = {}
+    for y, m in sorted(months):
+        sched = get_schedule(production, y, m)
+        for e in sched.get("employees", []):
+            n = (e.get("full_name") or "").strip()
+            if n:
+                name_to_position[n] = e.get("position", "")
+
+    def _section_for_name(name: str, position: str = "") -> str:
+        sec = raw_section_map.get(name, "").strip()
+        if not sec and production == "engraving" and position:
+            sec = _infer_section_for_engraving(position)
+        return sec or ""
 
     section_hours: dict[str, float] = {}
     section_costs: dict[str, float] = {}
     section_employees: dict[str, set] = {}
     daily_section_cost: dict[str, dict[str, float]] = {}
 
-    for name in employees_set:
-        sec_raw = raw_section_map.get(name, "")
-        if production == "engraving":
-            sec = _normalize_engraving_section(sec_raw)
-        else:
-            sec = (sec_raw or "—").strip() or "—"
+    def _ensure_section(sec: str) -> None:
         if sec not in section_employees:
             section_employees[sec] = set()
             section_hours[sec] = 0.0
             section_costs[sec] = 0.0
+            daily_section_cost[sec] = {}
+
+    for name in employees_set:
+        sec_raw = _section_for_name(name, name_to_position.get(name, ""))
+        if production == "engraving":
+            sec = _normalize_engraving_section(sec_raw)
+        else:
+            sec = (sec_raw or "—").strip() or "—"
+        _ensure_section(sec)
         section_employees[sec].add(name)
 
-    # Распределяем часы и ФОТ по участкам пропорционально принадлежности сотрудника к участку
+    # Учитываем всех, кто встречается в daily_employees
     for dk, names in daily_employees.items():
         for name in names:
-            sec_raw = raw_section_map.get(name, "")
+            sec_raw = _section_for_name(name, name_to_position.get(name, ""))
             if production == "engraving":
                 sec = _normalize_engraving_section(sec_raw)
             else:
                 sec = (sec_raw or "—").strip() or "—"
-            if sec not in section_employees:
-                section_employees[sec] = set()
-                section_hours[sec] = 0.0
-                section_costs[sec] = 0.0
+            _ensure_section(sec)
             section_employees[sec].add(name)
 
-    # На уровне часов/ФОТ считаем по полю section, проходя ещё раз по табелю
+    # На уровне часов/ФОТ считаем по полю section, проходя ещё раз по табелю или графику
     for year, month in sorted(months):
         timesheet = get_timesheet(production, year, month)
         schedule = get_schedule(production, year, month)
-        ts_records = timesheet.get("records", {})
         emp_by_id = {e["id"]: e for e in schedule.get("employees", [])}
 
-        for emp_id, days_dict in ts_records.items():
-            emp = emp_by_id.get(emp_id)
+        if use_schedule_fallback:
+            # Используем плановые часы из графика
+            items = [
+                (e.get("id", ""), e.get("working_days") or {}, e)
+                for e in schedule.get("employees", [])
+            ]
+        else:
+            ts_records = timesheet.get("records", {})
+            items = [
+                (emp_id, days_dict, emp_by_id.get(emp_id))
+                for emp_id, days_dict in ts_records.items()
+                if emp_by_id.get(emp_id)
+            ]
+
+        for emp_id, days_dict, emp in items:
             if not emp:
                 continue
             name = emp.get("full_name", "").strip()
@@ -847,16 +904,13 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
             position = emp.get("position", "")
             status = emp.get("status", "")
             rate = rate_lookup.get((position, status), 0.0)
-            sec_raw = raw_section_map.get(name, "")
+            sec_raw = _section_for_name(name, position)
             if production == "engraving":
                 sec = _normalize_engraving_section(sec_raw)
             else:
                 sec = (sec_raw or "—").strip() or "—"
-            if sec not in section_hours:
-                section_hours[sec] = 0.0
-                section_costs[sec] = 0.0
-                section_employees.setdefault(sec, set()).add(name)
-                daily_section_cost[sec] = {}
+            _ensure_section(sec)
+            section_employees[sec].add(name)
 
             for day_str, hours in days_dict.items():
                 if not hours or float(hours) <= 0:
@@ -892,6 +946,7 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
         "employee_count": len(employees_set),
         "total_hours":    round(total_hours, 1),
         "total_cost":     round(total_cost, 2),
+        "is_planned":     use_schedule_fallback,
         "daily_cost":     {k: round(v, 2) for k, v in daily_cost.items()},
         "daily_by_section": daily_by_section,
         "by_section":     {s: len(ns) for s, ns in section_employees.items()},
