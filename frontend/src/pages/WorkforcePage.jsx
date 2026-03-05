@@ -926,6 +926,35 @@ export function EmployeesTab({ production, canEdit }) {
 }
 
 
+// ─── Ресайз колонок ────────────────────────────────────────────────────────────
+function useColResize(initial) {
+  const [widths, setWidths] = useState(initial)
+  const startResize = useCallback((col, e) => {
+    e.preventDefault()
+    const startX = e.clientX
+    const startW = widths[col]
+    const onMove = (me) => setWidths(w => ({ ...w, [col]: Math.max(50, startW + me.clientX - startX) }))
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove)
+      document.removeEventListener('mouseup', onUp)
+    }
+    document.addEventListener('mousemove', onMove)
+    document.addEventListener('mouseup', onUp)
+  }, [widths])
+  return [widths, setWidths, startResize]
+}
+
+// Ручка изменения ширины колонки
+function ResizeHandle({ col, onMouseDown }) {
+  return (
+    <span
+      className="wf-resize-handle"
+      onMouseDown={e => onMouseDown(col, e)}
+      title="Перетащите для изменения ширины"
+    />
+  )
+}
+
 // ─── Выпадающий фильтр-дропдаун ───────────────────────────────────────────────
 function FilterDropdown({ label, options, selected, onChange }) {
   const [open, setOpen] = useState(false)
@@ -991,10 +1020,10 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [editingEmpId, setEditingEmpId] = useState(null) // id строки сотрудника
   const [editEmpBuf, setEditEmpBuf] = useState({})
   const [sortBy, setSortBy] = useState('fio')          // 'fio' | 'position' | 'status'
-  const [fioWidth, setFioWidth] = useState(185)
   const [positionFilter, setPositionFilter] = useState([]) // массив выбранных должностей
   const [statusFilter, setStatusFilter] = useState([])     // массив выбранных статусов
   const numDays = getDaysInMonth(year, month)
+  const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
 
   // Карта участков по ФИО (из списка сотрудников)
   const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
@@ -1263,10 +1292,6 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'fio' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('fio')}>ФИО</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'position' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('position')}>Должность</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'status' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('status')}>Статус</button>
-        <div className="wf-filter-sep" />
-        <span className="wf-filter-label">Ширина ФИО:</span>
-        <input type="range" min="140" max="360" step="10" value={fioWidth} onChange={e => setFioWidth(Number(e.target.value))} style={{ width: '80px' }} />
-        <span className="wf-filter-fio-val">{fioWidth}px</span>
         {(positionFilter.length > 0 || statusFilter.length > 0) && (
           <>
             <div className="wf-filter-sep" />
@@ -1280,15 +1305,28 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
       <div className="wf-table-scroll">
         <table
           className={`wf-schedule-table ${canEdit ? 'wf-has-actions' : ''}`}
-          style={{ '--wf-fio-width': `${fioWidth}px` }}
+          style={{
+            '--wf-fio-width': `${colWidths.fio}px`,
+            '--wf-pos-width': `${colWidths.pos}px`,
+            '--wf-status-width': `${colWidths.status}px`,
+            '--wf-section-width': `${colWidths.section}px`,
+          }}
         >
           <thead>
             <tr>
               {canEdit && <th className="wf-col-actions-left"></th>}
-              <th className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>ФИО</th>
-              <th className="wf-col-pos">Должность</th>
-              <th className="wf-col-status">Статус</th>
-              {hasSections && <th className="wf-col-section">Участок</th>}
+              <th className="wf-col-name wf-resizable-col" style={{ width: colWidths.fio, minWidth: colWidths.fio }}>
+                ФИО<ResizeHandle col="fio" onMouseDown={startResize} />
+              </th>
+              <th className="wf-col-pos wf-resizable-col">
+                Должность<ResizeHandle col="pos" onMouseDown={startResize} />
+              </th>
+              <th className={`wf-col-status wf-resizable-col${!hasSections ? ' wf-last-sticky' : ''}`}>
+                Статус<ResizeHandle col="status" onMouseDown={startResize} />
+              </th>
+              {hasSections && <th className="wf-col-section wf-resizable-col wf-last-sticky">
+                Участок<ResizeHandle col="section" onMouseDown={startResize} />
+              </th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
                 <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>
                   <div>{d}</div>
@@ -1326,7 +1364,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
                   )}
 
                   {/* ФИО */}
-                  <td className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>
+                  <td className="wf-col-name" style={{ width: colWidths.fio, minWidth: colWidths.fio }}>
                     {isEditingRow ? (
                       <input
                         className="wf-cell-input"
@@ -1364,7 +1402,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
                   </td>
 
                   {/* Статус */}
-                  <td className="wf-col-status">
+                  <td className={`wf-col-status${!hasSections ? ' wf-last-sticky' : ''}`}>
                     {isEditingRow ? (
                       <select
                         className="wf-cell-input"
@@ -1380,7 +1418,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
 
                   {/* Участок */}
                   {hasSections && (
-                    <td className="wf-col-section" title={sectionMap[emp.full_name?.trim()] || ''}>
+                    <td className="wf-col-section wf-last-sticky" title={sectionMap[emp.full_name?.trim()] || ''}>
                       {sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>}
                     </td>
                   )}
@@ -1502,11 +1540,11 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
   // Редактирование: {empId, day} + локальное значение в строке ввода
   const [editCell, setEditCell] = useState(null)
   const [editValue, setEditValue] = useState('')
-  // Фильтры, сортировка, ширина ФИО
+  // Фильтры, сортировка, ширина колонок
   const [positionFilter, setPositionFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState([])
   const [sortBy, setSortBy] = useState('fio')
-  const [fioWidth, setFioWidth] = useState(185)
+  const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
   const numDays = getDaysInMonth(year, month)
 
   // Участки из списка сотрудников
@@ -1636,10 +1674,6 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'fio' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('fio')}>ФИО</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'position' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('position')}>Должность</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'status' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('status')}>Статус</button>
-        <div className="wf-filter-sep" />
-        <span className="wf-filter-label">Ширина ФИО:</span>
-        <input type="range" min="140" max="360" step="10" value={fioWidth} onChange={e => setFioWidth(Number(e.target.value))} style={{ width: '80px' }} />
-        <span className="wf-filter-fio-val">{fioWidth}px</span>
         {(positionFilter.length > 0 || statusFilter.length > 0) && (
           <>
             <div className="wf-filter-sep" />
@@ -1653,14 +1687,27 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
       <div className="wf-table-scroll">
         <table
           className="wf-schedule-table wf-timesheet-table"
-          style={{ '--wf-fio-width': `${fioWidth}px` }}
+          style={{
+            '--wf-fio-width': `${colWidths.fio}px`,
+            '--wf-pos-width': `${colWidths.pos}px`,
+            '--wf-status-width': `${colWidths.status}px`,
+            '--wf-section-width': `${colWidths.section}px`,
+          }}
         >
           <thead>
             <tr>
-              <th className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>ФИО</th>
-              <th className="wf-col-pos">Должность</th>
-              <th className="wf-col-status">Статус</th>
-              {hasSections && <th className="wf-col-section">Участок</th>}
+              <th className="wf-col-name wf-resizable-col" style={{ width: colWidths.fio, minWidth: colWidths.fio }}>
+                ФИО<ResizeHandle col="fio" onMouseDown={startResize} />
+              </th>
+              <th className="wf-col-pos wf-resizable-col">
+                Должность<ResizeHandle col="pos" onMouseDown={startResize} />
+              </th>
+              <th className={`wf-col-status wf-resizable-col${!hasSections ? ' wf-last-sticky' : ''}`}>
+                Статус<ResizeHandle col="status" onMouseDown={startResize} />
+              </th>
+              {hasSections && <th className="wf-col-section wf-resizable-col wf-last-sticky">
+                Участок<ResizeHandle col="section" onMouseDown={startResize} />
+              </th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
                 <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${d === todayDay ? 'wf-today' : ''}`}>
                   <div>{d}</div>
@@ -1684,11 +1731,11 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
 
               return (
                 <tr key={emp.id}>
-                  <td className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>{emp.full_name}</td>
+                  <td className="wf-col-name" style={{ width: colWidths.fio, minWidth: colWidths.fio }}>{emp.full_name}</td>
                   <td className="wf-col-pos">{emp.position}</td>
-                  <td className="wf-col-status"><span className="wf-status-badge">{emp.status}</span></td>
+                  <td className={`wf-col-status${!hasSections ? ' wf-last-sticky' : ''}`}><span className="wf-status-badge">{emp.status}</span></td>
                   {hasSections && (
-                    <td className="wf-col-section" title={sectionMap[emp.full_name?.trim()] || ''}>
+                    <td className="wf-col-section wf-last-sticky" title={sectionMap[emp.full_name?.trim()] || ''}>
                       {sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>}
                     </td>
                   )}
