@@ -187,16 +187,32 @@ function SectionCostBlock({ workforce, sections }) {
     }),
   }))
 
+  // Короткий форматтер для матричных ячеек
+  const fmtCpu = v => v > 0 ? `${Math.round(v)} ₽` : null
+
+  // Строки матрицы: только участки с выпуском продукции (без вспомогательных)
+  const matrixRows = chartSections.map(s => ({
+    ...s,
+    dailyCpuMap: Object.fromEntries(
+      allDates.map(date => {
+        const out  = s.dailyProdMap[date] || 0
+        const cost = s.dailyCostMap[date] || 0
+        return [date, out > 0 && cost > 0 ? cost / out : null]
+      })
+    ),
+  }))
+
   return (
     <div className="pd-dynamics-block">
       <div className="pd-dynamics-title">
-        Динамика себестоимости единицы продукции по участкам
+        Динамика себестоимости единицы продукции по участкам · последние 15 дней
         {isPlanned && <span className="pd-dynamics-plan-badge"> · по плану (табель не заполнен)</span>}
       </div>
       <div className="pd-dynamics-desc">
-        Стоимость ФОТ на единицу выпущенной продукции по каждому участку за последние 15 дней
+        Стоимость ФОТ на единицу выпущенной продукции — ежедневно и за период в целом
       </div>
 
+      {/* График для визуализации тренда */}
       {seriesList.some(s => s.values.filter(v => v != null).length >= 2)
         ? <CpuLineChart seriesList={seriesList} dates={allDates} />
         : <div className="pd-cpu-no-data">
@@ -204,7 +220,66 @@ function SectionCostBlock({ workforce, sections }) {
           </div>
       }
 
-      <div className="pd-dynamics-table-wrap">
+      {/* Матрица: участки × дни */}
+      <div className="pd-dynamics-table-wrap pd-cpu-matrix-wrap">
+        <table className="pd-dynamics-table pd-cpu-matrix">
+          <thead>
+            <tr>
+              <th className="pd-dyn-col-name pd-cpu-sticky-col">Участок</th>
+              {allDates.map(d => (
+                <th key={d} className="pd-cpu-date-col">{shortDateLabel(d)}</th>
+              ))}
+              <th className="pd-cpu-avg-col">За период</th>
+            </tr>
+          </thead>
+          <tbody>
+            {matrixRows.map(r => (
+              <tr key={r.displayName}>
+                <td className="pd-dyn-col-name pd-cpu-sticky-col">
+                  <span className="pd-dyn-section-dot"
+                    style={{ background: SECTION_COLORS[r.displayName] || '#888' }} />
+                  {r.main ? <strong>{r.displayName}</strong> : r.displayName}
+                </td>
+                {allDates.map(date => {
+                  const val = r.dailyCpuMap[date]
+                  return (
+                    <td key={date} className={`pd-cpu-cell${val != null ? ' pd-cpu-cell-val' : ''}`}>
+                      {val != null ? fmtCpu(val) : '—'}
+                    </td>
+                  )
+                })}
+                <td className="pd-cpu-avg-col">
+                  {r.costPerUnit > 0
+                    ? <strong className="pd-dyn-cpu-val">{fmtCpu(r.costPerUnit)}</strong>
+                    : '—'}
+                </td>
+              </tr>
+            ))}
+            {/* Строка: общий ФОТ по производству в день */}
+            {allDates.some(d => (workforce?.last_15_days?.daily_cost?.[d] || 0) > 0) && (
+              <tr className="pd-cpu-row-fot">
+                <td className="pd-dyn-col-name pd-cpu-sticky-col">
+                  <span style={{ color: '#888', fontSize: '0.72rem' }}>ФОТ произ-ва</span>
+                </td>
+                {allDates.map(date => {
+                  const dc = workforce?.last_15_days?.daily_cost?.[date] || 0
+                  return (
+                    <td key={date} className={`pd-cpu-cell pd-cpu-cell-fot${dc > 0 ? ' pd-cpu-cell-val' : ''}`}>
+                      {dc > 0 ? `${Math.round(dc / 1000)}к` : '—'}
+                    </td>
+                  )
+                })}
+                <td className="pd-cpu-avg-col">
+                  {totalCost > 0 ? <span style={{ color: '#555' }}>{fmtRub(totalCost)}</span> : '—'}
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+
+      {/* Сводная таблица за период */}
+      <div className="pd-dynamics-table-wrap" style={{ marginTop: '0.75rem' }}>
         <table className="pd-dynamics-table">
           <thead>
             <tr>

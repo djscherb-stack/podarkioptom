@@ -634,6 +634,76 @@
 }
 
 /* ─── CPU Line Chart ─────────────────────────────────────────────────────────── */
+/* ─── 15-day matrix table ────────────────────────────────────────────────────── */
+.pd-cpu-matrix-wrap {
+  margin-top: 0.5rem;
+}
+
+.pd-cpu-matrix {
+  font-size: 0.76rem;
+}
+
+/* Sticky section-name column */
+.pd-cpu-sticky-col {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #fff;
+  min-width: 130px;
+  max-width: 160px;
+}
+.pd-dynamics-table thead .pd-cpu-sticky-col {
+  background: #f5f5f5;
+  z-index: 3;
+}
+
+/* Date columns */
+.pd-cpu-date-col {
+  width: 46px;
+  min-width: 46px;
+  max-width: 50px;
+  text-align: center !important;
+  font-size: 0.7rem;
+  padding: 0.25rem 0.2rem !important;
+  white-space: nowrap;
+}
+
+/* Value cells */
+.pd-cpu-cell {
+  text-align: center !important;
+  padding: 0.25rem 0.2rem !important;
+  color: #bbb;
+  font-size: 0.72rem;
+}
+
+.pd-cpu-cell-val {
+  color: #000;
+  font-weight: 500;
+}
+
+/* FOT row subtle styling */
+.pd-cpu-row-fot td {
+  background: #fafafa;
+  font-size: 0.7rem;
+}
+.pd-cpu-cell-fot {
+  color: #888 !important;
+  font-style: italic;
+}
+
+/* Average / period total column */
+.pd-cpu-avg-col {
+  text-align: right !important;
+  min-width: 58px;
+  padding: 0.25rem 0.5rem !important;
+  border-left: 2px solid #ccc !important;
+  background: #fafafa;
+  font-size: 0.76rem;
+}
+.pd-dynamics-table thead .pd-cpu-avg-col {
+  background: #f0f0f0;
+}
+
 .pd-cpu-no-data {
   margin: 0.5rem 0 0.75rem;
   padding: 1rem;
