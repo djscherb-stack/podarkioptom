@@ -546,10 +546,62 @@ def _employees_path(production: str) -> Path:
     return WORKFORCE_DIR / f"employees_{production}.json"
 
 
+def _infer_section_for_engraving(position: str) -> str:
+    """
+    Логическое распределение сотрудников гравировки по участкам
+    по их должности.
+    """
+    p = (position or "").lower()
+
+    # Гравировщики / лазерщики → гравировочный цех
+    if "гравер" in p or "гравиров" in p or "laser" in p or "лазер" in p:
+        return "Гравировочный цех"
+
+    # Резка МДФ
+    if ("резка" in p or "резчик" in p) and "мдф" in p:
+        return "Резка МДФ"
+
+    # Сборка МДФ
+    if ("сборка" in p or "сборщик" in p) and "мдф" in p:
+        return "Сборка МДФ"
+
+    # Валковый пресс
+    if "валков" in p or "пресс" in p:
+        return "Валковый пресс"
+
+    # Шелкография
+    if "шелкограф" in p:
+        return "Шелкография"
+
+    # Упаковка / комплектовка → условно «Сборочный цех»
+    if "упаков" in p or "комплектовщ" in p or "комплектовщик" in p:
+        return "Сборочный цех"
+
+    # Вспомогательный персонал: начальники, мастера, техники, уборщицы и т.п.
+    if any(k in p for k in ["руковод", "начальник", "мастер", "техник", "уборщ", "кладов", "оператор"]):
+        return "Вспомогательный персонал"
+
+    return ""
+
+
 def get_employees(production: str) -> list:
     """Постоянный список сотрудников производства (не привязан к месяцу)."""
     _ensure_dir()
-    return _read_json(_employees_path(production), [])
+    employees = _read_json(_employees_path(production), [])
+
+    # Для гравировки автоматически расставляем участки по должностям, если секция не задана.
+    if production == "engraving" and employees:
+        changed = False
+        for emp in employees:
+            if not emp.get("section"):
+                sec = _infer_section_for_engraving(emp.get("position", ""))
+                if sec:
+                    emp["section"] = sec
+                    changed = True
+        if changed:
+            save_employees(production, employees)
+
+    return employees
 
 
 def save_employees(production: str, employees: list) -> None:
@@ -569,12 +621,18 @@ def merge_employees_from_schedule(production: str, schedule: dict) -> int:
         if not name:
             continue
         if name.lower() not in existing_names:
-            added.append({
+            entry = {
                 "id": str(uuid.uuid4()),
                 "full_name": name,
                 "position": emp.get("position", ""),
                 "status": emp.get("status", ""),
-            })
+            }
+            # Для гравировки сразу проставляем участок по должности
+            if production == "engraving":
+                sec = _infer_section_for_engraving(emp.get("position", ""))
+                if sec:
+                    entry["section"] = sec
+            added.append(entry)
             existing_names.add(name.lower())
     if added:
         save_employees(production, existing + added)
