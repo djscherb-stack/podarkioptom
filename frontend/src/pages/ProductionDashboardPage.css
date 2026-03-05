@@ -256,6 +256,13 @@
 
 .pd-sec-subline-cost {
   white-space: nowrap;
+  font-weight: 600;
+  color: #000;
+}
+
+.pd-sec-unit-cost {
+  color: #2d8a3e;
+  font-weight: 700;
 }
 
 .pd-sec-out {
@@ -489,7 +496,7 @@
 
 .pd-summary-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(6, 1fr);
   gap: 0;
   min-height: 4rem;
 }
@@ -539,11 +546,183 @@
 .pd-summary-highlight .pd-summary-desc { color: rgba(255,255,255,0.9); }
 .pd-summary-highlight .pd-summary-value { color: #fff; font-size: 1.35rem; }
 
-/* ─── Workforce Tab ──────────────────────────────────────────────────────────── */
+/* ─── Динамика за 15 дней ──────────────────────────────────────────────────── */
+.pd-dynamics-block {
+  margin-top: 1.5rem;
+  background: #fff;
+  border: 1px solid #000;
+  padding: 0.75rem 1rem 1rem;
+}
+
+.pd-dynamics-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #000;
+  margin-bottom: 0.2rem;
+}
+
+.pd-dynamics-desc {
+  font-size: 0.7rem;
+  color: #555;
+  margin-bottom: 0.6rem;
+}
+
+.pd-dynamics-table-wrap {
+  overflow-x: auto;
+}
+
+.pd-dynamics-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.pd-dynamics-table th,
+.pd-dynamics-table td {
+  padding: 0.35rem 0.5rem;
+  border: 1px solid #ddd;
+  text-align: right;
+}
+
+.pd-dynamics-table .pd-dyn-col-name {
+  text-align: left;
+  min-width: 10rem;
+  font-weight: 600;
+}
+
+.pd-dynamics-table .pd-dyn-col-day {
+  min-width: 4rem;
+}
+
+.pd-dynamics-table thead th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+}
+
+.pd-dyn-row-total {
+  background: #f9f9f9;
+}
+.pd-dyn-row-total .pd-dyn-col-name { font-weight: 700; }
+
+/* ─── Workforce Tab (График Табель) — тот же дизайн, что и панель ─────────────── */
 .pd-workforce {
   display: flex;
   flex-direction: column;
   gap: 0;
+}
+
+.pd-wf-panel {
+  background: #fff;
+  border: 1px solid #000;
+  padding: 0 1rem 1rem;
+  margin: 0;
+}
+
+.pd-wf-panel-title {
+  margin-bottom: 0.75rem;
+  padding: 0.6rem 0 0.4rem;
+}
+
+/* Тема «панель» для контента вкладки: чёрные рамки, белый фон, как на панели эффективности */
+.pd-wf-panel {
+  --border: #000;
+  --bg: #f5f5f5;
+  --bg-card: #fff;
+  --bg-card-hover: #f0f0f0;
+  --text: #000;
+  --text-muted: #555;
+  --accent: #000;
+  --positive: #2d8a3e;
+  --negative: #c53030;
+}
+
+.pd-wf-panel .wf-content,
+.pd-wf-panel .wf-schedule,
+.pd-wf-panel .wf-reference {
+  border: 1px solid #000;
+  background: #fff;
+  border-radius: 0;
+}
+
+.pd-wf-panel .wf-schedule {
+  padding: 0;
+}
+
+.pd-wf-panel .wf-toolbar {
+  border-bottom: 1px solid #000;
+  background: #fff;
+}
+
+.pd-wf-panel .wf-table th,
+.pd-wf-panel .wf-table td {
+  border-color: #ddd;
+}
+
+.pd-wf-panel .wf-table th {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.pd-wf-panel .wf-schedule-table th,
+.pd-wf-panel .wf-schedule-table td {
+  border-color: #000;
+}
+
+.pd-wf-panel .wf-schedule-table th {
+  background: #f5f5f5;
+  color: #333;
+}
+
+.pd-wf-panel .wf-btn {
+  border: 1px solid #000;
+  border-radius: 3px;
+  background: #fff;
+  color: #000;
+}
+
+.pd-wf-panel .wf-btn:hover {
+  background: #f5f5f5;
+}
+
+.pd-wf-panel .wf-btn-primary {
+  background: #000;
+  color: #fff;
+  border-color: #000;
+}
+
+.pd-wf-panel .wf-btn-secondary {
+  background: #fff;
+  color: #000;
+  border: 1px solid #000;
+}
+
+.pd-wf-panel .wf-subtab-active {
+  color: #000 !important;
+  border-bottom-color: #000 !important;
+  background: transparent !important;
+}
+
+.pd-wf-panel .wf-table-wrap {
+  padding: 0.75rem 0;
+}
+
+.pd-wf-panel .wf-select,
+.pd-wf-panel .wf-cell-input {
+  border: 1px solid #000;
+  border-radius: 3px;
+  background: #fff;
+  color: #000;
+}
+
+.pd-wf-panel .wf-loading {
+  color: #555;
+}
+
+.pd-wf-panel .wf-error {
+  color: #c53030;
 }
 
 .pd-month-nav {

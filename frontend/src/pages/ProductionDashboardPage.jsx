@@ -37,6 +37,60 @@ function fmtRub(v) {
   return new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v) + ' ₽'
 }
 
+function shortDateLabel(iso) {
+  if (!iso) return ''
+  const [, m, d] = iso.split('-')
+  return `${parseInt(d, 10)}.${m}`
+}
+
+// ─── Last 15 days cost dynamics ───────────────────────────────────────────────
+
+function Last15DaysBlock({ last15Days }) {
+  if (!last15Days?.daily_cost || Object.keys(last15Days.daily_cost).length === 0) return null
+  const dailyCost = last15Days.daily_cost || {}
+  const dailyBySection = last15Days.daily_by_section || {}
+  const dates = Object.keys(dailyCost).sort()
+  if (dates.length === 0) return null
+
+  const sections = Object.keys(dailyBySection).sort()
+  const fmtVal = (v) => (v != null && v !== '' ? fmtRub(v) : '—')
+
+  return (
+    <div className="pd-dynamics-block">
+      <div className="pd-dynamics-title">Динамика за последние 15 дней</div>
+      <div className="pd-dynamics-desc">Стоимость выпуска (ФОТ) по производству и по участкам, ₽</div>
+      <div className="pd-dynamics-table-wrap">
+        <table className="pd-dynamics-table">
+          <thead>
+            <tr>
+              <th className="pd-dyn-col-name" />
+              {dates.map((d) => (
+                <th key={d} className="pd-dyn-col-day">{shortDateLabel(d)}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            <tr className="pd-dyn-row-total">
+              <td className="pd-dyn-col-name"><strong>По производству</strong></td>
+              {dates.map((d) => (
+                <td key={d} className="pd-dyn-col-day">{fmtVal(dailyCost[d])}</td>
+              ))}
+            </tr>
+            {sections.map((sec) => (
+              <tr key={sec}>
+                <td className="pd-dyn-col-name">{sec}</td>
+                {dates.map((d) => (
+                  <td key={d} className="pd-dyn-col-day">{fmtVal(dailyBySection[sec]?.[d])}</td>
+                ))}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  )
+}
+
 // ─── Sparkline ───────────────────────────────────────────────────────────────
 
 function Sparkline({ data }) {
@@ -126,7 +180,9 @@ function SectionCard({ section, workforce, isMainSection, index }) {
           <span>{subLabel}</span>
           {sectionCost > 0 && sectionCostPerUnit > 0 && (
             <span className="pd-sec-subline-cost">
-              · ФОТ: {fmtRub(sectionCost)} · Себест. ед.: {fmtRub(sectionCostPerUnit)}
+              · ФОТ: <strong>{fmtRub(sectionCost)}</strong>
+              {' · '}
+              Себест. ед.: <span className="pd-sec-unit-cost">{fmtRub(sectionCostPerUnit)}</span>
             </span>
           )}
         </div>
@@ -186,10 +242,18 @@ function SectionCard({ section, workforce, isMainSection, index }) {
 
 function SummaryCard({ workforce, sections }) {
   if (!workforce) return null
+  const mainSection = (sections || []).find(s => s.main)
+  const totalOutput = mainSection?.total ?? 0
+  const outputUnit = mainSection?.unit ?? 'шт'
   return (
     <div className="pd-summary-card">
       <div className="pd-summary-title">Итого по производству · Гравировка</div>
       <div className="pd-summary-grid">
+        <div className="pd-summary-item">
+          <span className="pd-summary-label">Выпущено ГП</span>
+          <span className="pd-summary-value">{totalOutput > 0 ? fmtNum(totalOutput) : '—'}</span>
+          <span className="pd-summary-desc">{outputUnit}, за период</span>
+        </div>
         <div className="pd-summary-item">
           <span className="pd-summary-label">Сотрудников</span>
           <span className="pd-summary-value">{workforce.employee_count > 0 ? workforce.employee_count : '—'}</span>
@@ -354,6 +418,8 @@ function EfficiencyTab() {
                   ))}
                 </div>
               </div>
+
+              <Last15DaysBlock last15Days={data.workforce?.last_15_days} />
             </>
           )}
         </>
@@ -377,8 +443,12 @@ function WorkforceTab({ userInfo, reference }) {
 
   return (
     <div className="pd-workforce">
-      {/* Month navigation */}
-      <div className="pd-month-nav">
+      <div className="pd-wf-panel">
+        <div className="pd-sections-section-title pd-wf-panel-title">
+          ГРАФИК · ТАБЕЛЬ · СПИСОК СОТРУДНИКОВ
+        </div>
+        {/* Month navigation */}
+        <div className="pd-month-nav">
         <button className="pd-month-btn" onClick={() => {
           if (month === 1) { setMonth(12); setYear(y => y - 1) } else setMonth(m => m - 1)
         }}>‹</button>
@@ -445,6 +515,7 @@ function WorkforceTab({ userInfo, reference }) {
             reference={reference}
           />
         )}
+        </div>
       </div>
     </div>
   )

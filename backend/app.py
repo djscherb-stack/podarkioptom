@@ -899,6 +899,18 @@ def get_engraving_dashboard(date_from: str = "", date_to: str = "", trend_days: 
     except Exception:
         workforce_data = {"employee_count": 0, "total_hours": 0, "total_cost": 0, "daily_cost": {}, "by_section": {}}
 
+    # Динамика за последние 15 дней: стоимость выпуска по производству и по участкам
+    try:
+        d_to_15 = d_to
+        d_from_15 = d_to_15 - timedelta(days=14)
+        wf_15 = _wf.get_workforce_period_data("engraving", d_from_15, d_to_15)
+        workforce_data["last_15_days"] = {
+            "daily_cost": wf_15.get("daily_cost", {}),
+            "daily_by_section": wf_15.get("daily_by_section", {}),
+        }
+    except Exception:
+        workforce_data["last_15_days"] = {"daily_cost": {}, "daily_by_section": {}}
+
     # Aggregate cost per unit for the main (assembly) section
     total_units = next(
         (s.get("total", 0) for s in production_data.get("sections", []) if s.get("main")),
@@ -1129,6 +1141,17 @@ async def wf_combined_import(production: str, year: int, month: int, request: Re
 
 
 # ── Список сотрудников производства ──────────────────────────────────────────
+
+# Отдельный путь без employees/… чтобы прокси/роутер не отдавал 405
+@app.post("/api/workforce/engraving-assign-sections")
+def wf_assign_engraving_sections(request: Request):
+    """Распределить всех сотрудников гравировки по участкам по должности."""
+    access = _require_schedule_access(request, "engraving")
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    count = wf.assign_sections_for_engraving()
+    return {"ok": True, "count": count}
+
 
 @app.get("/api/workforce/employees/{production}")
 def wf_get_employees(production: str, request: Request):

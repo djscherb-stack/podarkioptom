@@ -546,6 +546,36 @@ def _employees_path(production: str) -> Path:
     return WORKFORCE_DIR / f"employees_{production}.json"
 
 
+def _infer_section_for_engraving(position: str) -> str:
+    """
+    Определить участок по должности.
+    Правила: гравировщики→Гравировка, Резка МДФ→Резка МДФ, шелкографист→Шелкография,
+    сборщик коробок→Сборка МДФ, упаковщик/комплектовщик→Сборочный цех, остальные→Вспомогательный персонал.
+    """
+    p = (position or "").lower().strip()
+    if not p:
+        return "Вспомогательный персонал"
+
+    if "гравер" in p or "гравиров" in p or "лазер" in p:
+        return "Гравировочный цех"
+    if "резка" in p and "мдф" in p:
+        return "Резка МДФ"
+    if "шелкограф" in p:
+        return "Шелкография"
+    if "сборщик" in p and "короб" in p:
+        return "Сборка МДФ"
+    if ("сборка" in p or "сборщик" in p) and "мдф" in p:
+        return "Сборка МДФ"
+    if "упаков" in p:
+        return "Сборочный цех"
+    if "комплектовщ" in p:
+        return "Сборочный цех"
+    if "валков" in p or "пресс" in p:
+        return "Валковый пресс"
+
+    return "Вспомогательный персонал"
+
+
 def _normalize_engraving_section(section: str) -> str:
     """
     Нормализация названия участка гравировки к каноническим именам карточек
@@ -590,11 +620,35 @@ def _normalize_engraving_section(section: str) -> str:
 def get_employees(production: str) -> list:
     """Постоянный список сотрудников производства (не привязан к месяцу)."""
     _ensure_dir()
-    return _read_json(_employees_path(production), [])
+    employees = _read_json(_employees_path(production), [])
+    if production == "engraving" and employees:
+        changed = False
+        for emp in employees:
+            if not emp.get("section") or (emp.get("section", "").strip() == ""):
+                sec = _infer_section_for_engraving(emp.get("position", ""))
+                if sec:
+                    emp["section"] = sec
+                    changed = True
+        if changed:
+            save_employees(production, employees)
+    return employees
 
 
 def save_employees(production: str, employees: list) -> None:
     _write_json(_employees_path(production), employees)
+
+
+def assign_sections_for_engraving() -> int:
+    """
+    Проставить участки всем сотрудникам гравировки по должности.
+    Возвращает количество сотрудников.
+    """
+    _ensure_dir()
+    employees = _read_json(_employees_path("engraving"), [])
+    for emp in employees:
+        emp["section"] = _infer_section_for_engraving(emp.get("position", ""))
+    save_employees("engraving", employees)
+    return len(employees)
 
 
 def merge_employees_from_schedule(production: str, schedule: dict) -> int:
@@ -610,12 +664,17 @@ def merge_employees_from_schedule(production: str, schedule: dict) -> int:
         if not name:
             continue
         if name.lower() not in existing_names:
+            position = emp.get("position", "")
             entry = {
                 "id": str(uuid.uuid4()),
                 "full_name": name,
-                "position": emp.get("position", ""),
+                "position": position,
                 "status": emp.get("status", ""),
             }
+            if production == "engraving":
+                sec = _infer_section_for_engraving(position)
+                if sec:
+                    entry["section"] = sec
             added.append(entry)
             existing_names.add(name.lower())
     if added:
@@ -743,6 +802,7 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
     section_hours: dict[str, float] = {}
     section_costs: dict[str, float] = {}
     section_employees: dict[str, set] = {}
+    daily_section_cost: dict[str, dict[str, float]] = {}
 
     for name in employees_set:
         sec_raw = raw_section_map.get(name, "")
@@ -796,14 +856,28 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
                 section_hours[sec] = 0.0
                 section_costs[sec] = 0.0
                 section_employees.setdefault(sec, set()).add(name)
+                daily_section_cost[sec] = {}
 
             for day_str, hours in days_dict.items():
                 if not hours or float(hours) <= 0:
                     continue
+                try:
+                    d = _date(year, month, int(day_str))
+                except Exception:
+                    continue
+                if not (date_from <= d <= date_to):
+                    continue
                 h = float(hours)
                 cost = h * rate
+                dk = d.isoformat()
                 section_hours[sec] += h
                 section_costs[sec] += cost
+                daily_section_cost[sec][dk] = daily_section_cost[sec].get(dk, 0.0) + cost
+
+    daily_by_section = {
+        sec: {k: round(v, 2) for k, v in days.items()}
+        for sec, days in daily_section_cost.items()
+    }
 
     sections_summary = {
         sec: {
@@ -819,6 +893,7 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
         "total_hours":    round(total_hours, 1),
         "total_cost":     round(total_cost, 2),
         "daily_cost":     {k: round(v, 2) for k, v in daily_cost.items()},
+        "daily_by_section": daily_by_section,
         "by_section":     {s: len(ns) for s, ns in section_employees.items()},
         "sections":       sections_summary,
     }

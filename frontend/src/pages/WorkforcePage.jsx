@@ -540,6 +540,7 @@ export function EmployeesTab({ production, canEdit }) {
   const [editingId, setEditingId] = useState(null)
   const [editBuf, setEditBuf] = useState({})
   const [showFired, setShowFired] = useState(false)
+  const [assigning, setAssigning] = useState(false)
   // id сотрудника, ожидающего подтверждения увольнения
   const [confirmFireId, setConfirmFireId] = useState(null)
 
@@ -641,6 +642,23 @@ export function EmployeesTab({ production, canEdit }) {
       showMsg('Сотрудник восстановлен.')
     } catch (e) {
       showMsg(e.message || 'Ошибка', false)
+    }
+  }
+
+  const handleAssignSections = async () => {
+    setAssigning(true)
+    try {
+      const res = await apiFetch(`${API}/workforce/engraving-assign-sections`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({}),
+      })
+      showMsg(`Участки проставлены (${res.count} чел.)`)
+      load()
+    } catch (e) {
+      showMsg(e.message || 'Ошибка', false)
+    } finally {
+      setAssigning(false)
     }
   }
 
@@ -781,6 +799,16 @@ export function EmployeesTab({ production, canEdit }) {
           )}
           {canEdit && (
             <>
+              {showSection && (
+                <button
+                  className="wf-btn wf-btn-secondary"
+                  onClick={handleAssignSections}
+                  disabled={assigning}
+                  title="Проставить участки всем по должности: гравировщики→Гравировка, сборщик коробок→Сборка МДФ, упаковщик/комплектовщик→Сборочный цех и т.д."
+                >
+                  {assigning ? 'Распределение...' : 'Распределить по участкам'}
+                </button>
+              )}
               <button className="wf-btn wf-btn-secondary" onClick={() => { setImportMode('replace'); setShowImport(true) }}>
                 ↓ Импорт (заменить)
               </button>
