@@ -344,7 +344,9 @@
   table-layout: auto;
   --wf-left-start: 0px;
   --wf-fio-width: 185px;
-  --wf-pos-width: 130px;
+  --wf-pos-width: 110px;
+  --wf-status-width: 80px;
+  --wf-section-width: 100px;
 }
 
 .wf-schedule-table.wf-has-actions {
@@ -392,16 +394,27 @@
   line-height: 1.35;
 }
 .wf-col-pos  {
-  min-width: 100px;
-  max-width: 160px;
-  width: 130px;
+  min-width: 80px;
+  max-width: 115px;
+  width: 110px;
   text-align: left !important;
   padding-left: 0.4rem !important;
   white-space: normal !important;
   word-break: break-word;
   line-height: 1.35;
 }
-.wf-col-status { min-width: 75px; max-width: 90px; }
+.wf-col-status { min-width: 75px; max-width: 85px; width: 80px; }
+.wf-col-section {
+  min-width: 80px;
+  max-width: 105px;
+  width: 100px;
+  text-align: left !important;
+  padding-left: 0.4rem !important;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.wf-section-empty { color: #bbb; }
 .wf-col-day  { width: 34px; min-width: 34px; max-width: 34px; }
 .wf-col-total { min-width: 55px; font-size: 0.78rem; }
 .wf-col-del  { width: 30px; }
@@ -426,13 +439,13 @@
 }
 .wf-sched-fired-row .wf-col-actions-left { background: rgba(180,50,50,0.07) !important; }
 
-/* Sticky колонки: ФИО, Должность, Статус */
+/* Sticky колонки: ФИО, Должность, Статус, Участок */
 .wf-schedule-table td.wf-col-name,
 .wf-schedule-table td.wf-col-pos,
-.wf-schedule-table td.wf-col-status {
+.wf-schedule-table td.wf-col-status,
+.wf-schedule-table td.wf-col-section {
   position: sticky;
   z-index: 9;
-  /* Непрозрачная подложка, чтобы цифры не просвечивали под текстом */
   background: var(--bg-card);
   background-clip: padding-box;
 }
@@ -452,10 +465,16 @@
   box-shadow: 2px 0 0 var(--border);
 }
 
+.wf-schedule-table td.wf-col-section {
+  left: calc(var(--wf-left-start) + var(--wf-fio-width) + var(--wf-pos-width) + var(--wf-status-width));
+  box-shadow: 2px 0 0 var(--border);
+}
+
 /* Header ячейки этих же колонок — выше по z-index */
 .wf-schedule-table thead th.wf-col-name,
 .wf-schedule-table thead th.wf-col-pos,
-.wf-schedule-table thead th.wf-col-status {
+.wf-schedule-table thead th.wf-col-status,
+.wf-schedule-table thead th.wf-col-section {
   z-index: 30;
   background: var(--bg);
   background-clip: padding-box;
@@ -471,6 +490,10 @@
 
 .wf-schedule-table thead th.wf-col-status {
   left: calc(var(--wf-left-start) + var(--wf-fio-width) + var(--wf-pos-width));
+}
+
+.wf-schedule-table thead th.wf-col-section {
+  left: calc(var(--wf-left-start) + var(--wf-fio-width) + var(--wf-pos-width) + var(--wf-status-width));
 }
 
 /* Угловая ячейка (кнопки действий) поверх остальных sticky */

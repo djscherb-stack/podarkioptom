@@ -996,6 +996,10 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [statusFilter, setStatusFilter] = useState([])     // массив выбранных статусов
   const numDays = getDaysInMonth(year, month)
 
+  // Карта участков по ФИО (из списка сотрудников)
+  const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
+  const hasSections = empList.some(e => e.section)
+
   // Карта увольнений по ФИО (lowercase)
   const firedMap = {}
   empList.forEach(e => { if (e.fired_at) firedMap[e.full_name.trim().toLowerCase()] = e.fired_at })
@@ -1284,6 +1288,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
               <th className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>ФИО</th>
               <th className="wf-col-pos">Должность</th>
               <th className="wf-col-status">Статус</th>
+              {hasSections && <th className="wf-col-section">Участок</th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
                 <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>
                   <div>{d}</div>
@@ -1373,6 +1378,13 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
                     ) : <span className="wf-status-badge">{emp.status}</span>}
                   </td>
 
+                  {/* Участок */}
+                  {hasSections && (
+                    <td className="wf-col-section" title={sectionMap[emp.full_name?.trim()] || ''}>
+                      {sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>}
+                    </td>
+                  )}
+
                   {/* Ячейки дней */}
                   {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
                     const dayStr = String(d)
@@ -1440,6 +1452,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
                     {statusesByPosition(newEmp.position).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
                 </td>
+                {hasSections && <td></td>}
                 <td colSpan={numDays + 2} className="wf-row-actions">
                   <button className="wf-btn wf-btn-primary wf-btn-sm" onClick={handleAddEmployee}>Добавить</button>
                   <button className="wf-btn wf-btn-secondary wf-btn-sm" onClick={() => setAddingEmployee(false)}>Отмена</button>
@@ -1450,7 +1463,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
             {/* Итоговая строка */}
             <tr className="wf-totals-row">
               {canEdit && <td></td>}
-              <td colSpan={3} className="wf-totals-label">Всего по дням:</td>
+              <td colSpan={hasSections ? 4 : 3} className="wf-totals-label">Всего по дням:</td>
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
                 <td key={d} className={`wf-day-total ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>
                   {dayTotals[d] > 0 ? dayTotals[d] : ''}
@@ -1483,6 +1496,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
 export function TimesheetTable({ production, year, month, canEdit, onlyToday = false, reference }) {
   const [schedule, setSchedule] = useState(null)
   const [timesheet, setTimesheet] = useState(null)
+  const [empList, setEmpList] = useState([])
   const [loading, setLoading] = useState(true)
   const [msg, setMsg] = useState(null)
   // Редактирование: {empId, day} + локальное значение в строке ввода
@@ -1495,14 +1509,20 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
   const [fioWidth, setFioWidth] = useState(185)
   const numDays = getDaysInMonth(year, month)
 
+  // Участки из списка сотрудников
+  const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
+  const hasSections = empList.some(e => e.section)
+
   const load = useCallback(() => {
     setLoading(true)
     Promise.all([
       apiFetch(`${API}/workforce/schedule/${production}/${year}/${month}`),
       apiFetch(`${API}/workforce/timesheet/${production}/${year}/${month}`),
-    ]).then(([sched, ts]) => {
+      apiFetch(`${API}/workforce/employees/${production}`),
+    ]).then(([sched, ts, emps]) => {
       setSchedule(sched)
       setTimesheet(ts)
+      setEmpList(Array.isArray(emps) ? emps : [])
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [production, year, month])
@@ -1640,6 +1660,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
               <th className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>ФИО</th>
               <th className="wf-col-pos">Должность</th>
               <th className="wf-col-status">Статус</th>
+              {hasSections && <th className="wf-col-section">Участок</th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
                 <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${d === todayDay ? 'wf-today' : ''}`}>
                   <div>{d}</div>
@@ -1666,6 +1687,11 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
                   <td className="wf-col-name" style={{ width: fioWidth, minWidth: fioWidth }}>{emp.full_name}</td>
                   <td className="wf-col-pos">{emp.position}</td>
                   <td className="wf-col-status"><span className="wf-status-badge">{emp.status}</span></td>
+                  {hasSections && (
+                    <td className="wf-col-section" title={sectionMap[emp.full_name?.trim()] || ''}>
+                      {sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>}
+                    </td>
+                  )}
                   {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
                     const dayStr = String(d)
                     const plannedH = emp.working_days[dayStr]
