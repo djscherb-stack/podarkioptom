@@ -1452,49 +1452,81 @@ def get_engraving_period_stats(date_from: date, date_to: date) -> dict:
             daily_by_dept[name].append(entry)
 
     prev_depts = {d["name"]: d for d in prev_grav.get("departments", [])}
-    sections = []
-    for dept in current_grav.get("departments", []):
-        name  = dept["name"]
-        total = dept.get("total", 0)
-        prev_dept  = prev_depts.get(name, {})
-        prev_total = prev_dept.get("total", 0)
-        delta      = total - prev_total
-        delta_pct  = round((delta / prev_total * 100) if prev_total else 0, 1)
+    sections: list[dict] = []
 
-        section: dict = {
-            "name":       name,
-            "total":      total,
-            "unit":       dept.get("unit", "шт"),
-            "main":       dept.get("main", False),
-            "prev_total": prev_total,
-            "delta":      delta,
-            "delta_pct":  delta_pct,
-            "daily_data": daily_by_dept.get(name, []),
-            "nomenclature": dept.get("nomenclature", []),
-        }
-        if dept.get("subs"):
+    KARTON_BLOCK = "Картон/Дерево Елино Гравировка"
+    KARTON_SUB_MAP = {
+        "РЕЗКА": "Резка МДФ",
+        "Сборка": "Сборка МДФ",
+        "Пресс": "Валковый пресс",
+    }
+
+    for dept in current_grav.get("departments", []):
+        raw_name = dept["name"]
+
+        # Особый случай: Картон/Дерево Гравировка -> три отдельных участка
+        if raw_name == KARTON_BLOCK and dept.get("subs"):
+            prev_dept = prev_depts.get(raw_name, {})
             prev_subs_map = {s["sub_name"]: s["total"] for s in prev_dept.get("subs", [])}
-            section["subs"] = []
-            for s in dept["subs"]:
-                sn, st = s["sub_name"], s["total"]
-                sp = prev_subs_map.get(sn, 0)
-                section["subs"].append({
-                    "sub_name":   sn,
-                    "total":      st,
-                    "unit":       s.get("unit", "шт"),
-                    "prev_total": sp,
-                    "delta":      st - sp,
-                    "delta_pct":  round((st - sp) / sp * 100 if sp else 0, 1),
-                })
-            # daily data per sub
+
+            # Суточные данные по каждому подучастку
             daily_subs: dict[str, list] = {}
-            for entry in daily_by_dept.get(name, []):
+            for entry in daily_by_dept.get(raw_name, []):
                 for sub_name, sub_val in (entry.get("subs") or {}).items():
                     if sub_name not in daily_subs:
                         daily_subs[sub_name] = []
                     daily_subs[sub_name].append({"date": entry["date"], "total": sub_val})
-            for s in section["subs"]:
-                s["daily_data"] = daily_subs.get(s["sub_name"], [])
+
+            nom_by_op = dept.get("nomenclature_by_op") or {}
+
+            for s in dept["subs"]:
+                op_name = s["sub_name"]
+                card_name = KARTON_SUB_MAP.get(op_name, op_name)
+                total = s.get("total", 0)
+                prev_total = prev_subs_map.get(op_name, 0)
+                delta = total - prev_total
+                delta_pct = round((delta / prev_total * 100) if prev_total else 0, 1)
+
+                section = {
+                    "name": card_name,
+                    "total": total,
+                    "unit": s.get("unit", "шт"),
+                    "main": False,
+                    "prev_total": prev_total,
+                    "delta": delta,
+                    "delta_pct": delta_pct,
+                    "daily_data": daily_subs.get(op_name, []),
+                    "nomenclature": nom_by_op.get(op_name, []),
+                }
+                sections.append(section)
+            continue
+
+        # Обычные участки (Гравировка, Шелкография, Выпуск ГП)
+        display_name = raw_name
+        if raw_name == "Гравировочный цех Елино":
+            display_name = "Гравировка"
+        elif raw_name == "Сборочный цех Елино Гравировка":
+            display_name = "Выпуск готовой продукции"
+        elif raw_name == "Шелкография Елино Гравировка":
+            display_name = "Шелкография"
+
+        total = dept.get("total", 0)
+        prev_dept = prev_depts.get(raw_name, {})
+        prev_total = prev_dept.get("total", 0)
+        delta = total - prev_total
+        delta_pct = round((delta / prev_total * 100) if prev_total else 0, 1)
+
+        section: dict = {
+            "name": display_name,
+            "total": total,
+            "unit": dept.get("unit", "шт"),
+            "main": dept.get("main", False),
+            "prev_total": prev_total,
+            "delta": delta,
+            "delta_pct": delta_pct,
+            "daily_data": daily_by_dept.get(raw_name, []),
+            "nomenclature": dept.get("nomenclature", []),
+        }
         sections.append(section)
 
     return {

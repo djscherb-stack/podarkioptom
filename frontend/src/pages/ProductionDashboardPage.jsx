@@ -100,7 +100,8 @@ function DeltaBadge({ delta, pct, unit = 'шт' }) {
 function SectionCard({ section, workforce, isMainSection }) {
   const [detailOpen, setDetailOpen] = useState(false)
   const displayName = SECTION_DISPLAY[section.name] || section.name
-  const empCount = workforce?.by_section?.[section.name] ?? (isMainSection ? (workforce?.employee_count || null) : null)
+  const sectionKey = displayName
+  const empCount = workforce?.by_section?.[sectionKey] ?? (isMainSection ? (workforce?.employee_count || null) : null)
   const avgPerEmp = empCount > 0 && section.total > 0 ? Math.round(section.total / empCount) : null
 
   return (
