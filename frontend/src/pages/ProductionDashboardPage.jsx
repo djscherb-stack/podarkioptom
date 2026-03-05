@@ -56,7 +56,7 @@ function Sparkline({ data }) {
   const last = values[values.length - 1]
   const first = values[0]
   const trend = last > first ? 'up' : last < first ? 'down' : 'flat'
-  const color = trend === 'up' ? '#22c55e' : trend === 'down' ? '#ef4444' : '#888'
+  const color = trend === 'up' ? '#6DC24B' : trend === 'down' ? '#D9534F' : '#888'
 
   return (
     <div className="pd-sparkline">
@@ -188,29 +188,34 @@ function SummaryCard({ workforce, sections }) {
   if (!workforce) return null
   return (
     <div className="pd-summary-card">
-      <div className="pd-summary-title">Итого по производству (Гравировка)</div>
+      <div className="pd-summary-title">Итого по производству · Гравировка</div>
       <div className="pd-summary-grid">
         <div className="pd-summary-item">
-          <span className="pd-summary-label">Всего сотрудников (производство)</span>
+          <span className="pd-summary-label">Сотрудников</span>
           <span className="pd-summary-value">{workforce.employee_count > 0 ? workforce.employee_count : '—'}</span>
+          <span className="pd-summary-desc">на производстве</span>
         </div>
         <div className="pd-summary-item">
-          <span className="pd-summary-label">ГП на одного сотрудника</span>
+          <span className="pd-summary-label">ГП / сотрудник</span>
           <span className="pd-summary-value">
-            {workforce.units_per_employee > 0 ? `${fmtNum(workforce.units_per_employee)} шт` : '—'}
+            {workforce.units_per_employee > 0 ? fmtNum(workforce.units_per_employee) : '—'}
           </span>
+          <span className="pd-summary-desc">шт, средний выпуск</span>
         </div>
         <div className="pd-summary-item">
-          <span className="pd-summary-label">Отработано часов</span>
+          <span className="pd-summary-label">Часов отработано</span>
           <span className="pd-summary-value">{workforce.total_hours > 0 ? fmtNum(workforce.total_hours) : '—'}</span>
+          <span className="pd-summary-desc">за период</span>
         </div>
         <div className="pd-summary-item">
-          <span className="pd-summary-label">ФОТ (все сотрудники)</span>
+          <span className="pd-summary-label">ФОТ</span>
           <span className="pd-summary-value">{workforce.total_cost > 0 ? fmtRub(workforce.total_cost) : '—'}</span>
+          <span className="pd-summary-desc">все сотрудники</span>
         </div>
         <div className="pd-summary-item pd-summary-highlight">
-          <span className="pd-summary-label">Стоимость ед. ГП (с учётом всех затрат)</span>
+          <span className="pd-summary-label">Себест. ед. ГП</span>
           <span className="pd-summary-value">{workforce.cost_per_unit > 0 ? fmtRub(workforce.cost_per_unit) : '—'}</span>
+          <span className="pd-summary-desc">с учётом всех затрат</span>
         </div>
       </div>
     </div>
@@ -324,13 +329,16 @@ function EfficiencyTab() {
               <SummaryCard workforce={data.workforce} sections={data.sections} />
 
               <div className="pd-sections-block">
+                <div className="pd-sections-section-title">
+                  ПРОИЗВОДСТВЕННЫЕ УЧАСТКИ · ЭФФЕКТИВНОСТЬ ПРОИЗВОДСТВА
+                </div>
                 <div className="pd-sections-title-row">
                   <div className="pd-sec-col pd-sec-col-name">Участок</div>
                   <div className="pd-sec-col">Выпуск</div>
                   <div className="pd-sec-col">Пред. период</div>
                   <div className="pd-sec-col">Изменение</div>
-                  <div className="pd-sec-col">% сотрудников</div>
-                  <div className="pd-sec-col">Ср. выпуск / чел.</div>
+                  <div className="pd-sec-col">Сотрудников</div>
+                  <div className="pd-sec-col">Ср. / чел.</div>
                   <div className="pd-sec-col pd-sec-col-trend">Динамика</div>
                 </div>
 
