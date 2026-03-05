@@ -875,9 +875,10 @@ def get_day_ai_analytics(date_str: str, debug: Optional[str] = None):
 # ─────────────────────────────────────────────────────────────────────────────
 
 @app.get("/api/production-dashboard/engraving", dependencies=[Depends(require_auth)])
-def get_engraving_dashboard(date_from: str = "", date_to: str = ""):
+def get_engraving_dashboard(date_from: str = "", date_to: str = "", trend_days: int = 7):
     """Сводная панель для производства ГРАВИРОВКА: выпуск по участкам + данные рабочей силы."""
     from datetime import datetime, timedelta
+    from datetime import timedelta
     try:
         d_from = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else (datetime.now() - timedelta(days=1)).date()
         d_to   = datetime.strptime(date_to,   "%Y-%m-%d").date() if date_to   else d_from
@@ -886,7 +887,10 @@ def get_engraving_dashboard(date_from: str = "", date_to: str = ""):
     if d_from > d_to:
         return {"error": "Дата начала не может быть позже даты конца"}
 
-    production_data = db.get_engraving_period_stats(d_from, d_to)
+    if trend_days is None or trend_days <= 0:
+        trend_days = 7
+
+    production_data = db.get_engraving_period_stats(d_from, d_to, trend_days=trend_days)
 
     # Workforce data will be available once timesheet data is populated for engraving
     try:

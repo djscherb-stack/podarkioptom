@@ -1412,12 +1412,15 @@ def get_disassembly_missing_prices() -> list[str]:
         return []
 
 
-def get_engraving_period_stats(date_from: date, date_to: date) -> dict:
-    """Dashboard: aggregated production stats for ГРАВИРОВКА, with daily breakdown and prev-period comparison."""
+def get_engraving_period_stats(date_from: date, date_to: date, trend_days: int = 7) -> dict:
+    """Dashboard: aggregated production stats for ГРАВИРОВКА.
+    period = [date_from; date_to] — для суммарных показателей и сравнения с предыдущим периодом.
+    trend_days — сколько дней показывать в линейном тренде (заканчивается на date_to).
+    """
     df = get_df()
-    days = (date_to - date_from).days + 1
-    prev_from = date_from - timedelta(days=days)
-    prev_to = date_to - timedelta(days=days)
+    days_for_period = (date_to - date_from).days + 1
+    prev_from = date_from - timedelta(days=days_for_period)
+    prev_to = date_to - timedelta(days=days_for_period)
 
     empty_base = {
         "period": {"from": date_from.isoformat(), "to": date_to.isoformat()},
@@ -1427,17 +1430,19 @@ def get_engraving_period_stats(date_from: date, date_to: date) -> dict:
     if df.empty:
         return empty_base
 
-    # Filtered DataFrames
+    # Filtered DataFrames for main period and previous period
     period_df = df[(df["date_only"] >= date_from) & (df["date_only"] <= date_to)]
     prev_df   = df[(df["date_only"] >= prev_from) & (df["date_only"] <= prev_to)]
 
     current_grav = build_productions_stats(period_df).get("ГРАВИРОВКА", {"departments": []})
     prev_grav    = build_productions_stats(prev_df).get("ГРАВИРОВКА", {"departments": []})
 
-    # Daily breakdown per department
+    # Daily breakdown per department: last trend_days days ending at date_to
     daily_by_dept: dict[str, list] = {}
-    for offset in range(days):
-        d = date_from + timedelta(days=offset)
+    trend_days = max(trend_days or 1, 1)
+    trend_start = date_to - timedelta(days=trend_days - 1)
+    for offset in range(trend_days):
+        d = trend_start + timedelta(days=offset)
         day_df = df[df["date_only"] == d]
         if day_df.empty:
             continue

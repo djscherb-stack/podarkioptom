@@ -101,8 +101,15 @@ function SectionCard({ section, workforce, isMainSection }) {
   const [detailOpen, setDetailOpen] = useState(false)
   const displayName = SECTION_DISPLAY[section.name] || section.name
   const sectionKey = displayName
-  const empCount = workforce?.by_section?.[sectionKey] ?? (isMainSection ? (workforce?.employee_count || null) : null)
+  const wfSec = workforce?.sections?.[sectionKey] || {}
+  const empCount = wfSec.employee_count != null
+    ? wfSec.employee_count
+    : (workforce?.by_section?.[sectionKey] ?? (isMainSection ? (workforce?.employee_count || null) : null))
   const avgPerEmp = empCount > 0 && section.total > 0 ? Math.round(section.total / empCount) : null
+  const sectionCost = wfSec.cost || 0
+  const sectionCostPerUnit = section.total > 0 && sectionCost > 0
+    ? sectionCost / section.total
+    : 0
 
   return (
     <div className={`pd-section-card${section.main ? ' pd-section-main' : ''}`}>
@@ -152,12 +159,16 @@ function SectionCard({ section, workforce, isMainSection }) {
           <span className="pd-metric-label">Ср. выпуск / чел.</span>
           <span className="pd-metric-value">{avgPerEmp != null ? `${fmtNum(avgPerEmp)} ${section.unit}` : '—'}</span>
         </div>
-        {isMainSection && (workforce?.cost_per_unit > 0) && (
-          <div className="pd-metric">
-            <span className="pd-metric-label">Стоимость ед. продукции</span>
-            <span className="pd-metric-value pd-metric-cost">{fmtRub(workforce.cost_per_unit)}</span>
-          </div>
-        )}
+        <div className="pd-metric">
+          <span className="pd-metric-label">ФОТ участка</span>
+          <span className="pd-metric-value">{sectionCost > 0 ? fmtRub(sectionCost) : '—'}</span>
+        </div>
+        <div className="pd-metric">
+          <span className="pd-metric-label">Стоимость ед. продукции</span>
+          <span className="pd-metric-value pd-metric-cost">
+            {sectionCostPerUnit > 0 ? fmtRub(sectionCostPerUnit) : '—'}
+          </span>
+        </div>
       </div>
 
       {/* Detalization */}
@@ -252,14 +263,20 @@ function EfficiencyTab() {
     return { from: dateFrom, to: dateTo }
   }, [preset, dateFrom, dateTo])
 
+  const getTrendDays = useCallback(() => {
+    if (preset === 'yesterday') return 15
+    return 7
+  }, [preset])
+
   const load = useCallback(() => {
     const { from, to } = getEffectiveDates()
+    const trendDays = getTrendDays()
     setLoading(true)
     setError(null)
-    apiFetch(`${API}/production-dashboard/engraving?date_from=${from}&date_to=${to}`)
+    apiFetch(`${API}/production-dashboard/engraving?date_from=${from}&date_to=${to}&trend_days=${trendDays}`)
       .then(res => { setData(res); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
-  }, [getEffectiveDates])
+  }, [getEffectiveDates, getTrendDays])
 
   useEffect(() => { load() }, [load])
 

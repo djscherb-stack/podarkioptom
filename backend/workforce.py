@@ -546,62 +546,51 @@ def _employees_path(production: str) -> Path:
     return WORKFORCE_DIR / f"employees_{production}.json"
 
 
-def _infer_section_for_engraving(position: str) -> str:
+def _normalize_engraving_section(section: str) -> str:
     """
-    Логическое распределение сотрудников гравировки по участкам
-    по их должности.
+    Нормализация названия участка гравировки к каноническим именам карточек
+    на дашборде (независимо от того, как он записан в списке сотрудников).
     """
-    p = (position or "").lower()
+    s = (section or "").strip()
+    if not s:
+        return "—"
+    low = s.lower()
 
-    # Гравировщики / лазерщики → участок «Гравировка»
-    if "гравер" in p or "гравиров" in p or "laser" in p or "лазер" in p:
+    # Гравировка
+    if "гравиров" in low:
         return "Гравировка"
 
     # Резка МДФ
-    if ("резка" in p or "резчик" in p) and "мдф" in p:
+    if "резка" in low and "мдф" in low:
         return "Резка МДФ"
 
     # Сборка МДФ
-    if ("сборка" in p or "сборщик" in p) and "мдф" in p:
+    if "сборка" in low and "мдф" in low:
         return "Сборка МДФ"
 
     # Валковый пресс
-    if "валков" in p or "пресс" in p:
+    if "валков" in low or "пресс" in low:
         return "Валковый пресс"
 
     # Шелкография
-    if "шелкограф" in p:
+    if "шелкограф" in low:
         return "Шелкография"
 
-    # Упаковка / комплектовка → участок «Выпуск готовой продукции»
-    if "упаков" in p or "комплектовщ" in p or "комплектовщик" in p:
+    # Выпуск готовой продукции / сборочный
+    if "сбороч" in low or "выпуск" in low:
         return "Выпуск готовой продукции"
 
-    # Вспомогательный персонал: начальники, мастера, техники, уборщицы и т.п.
-    if any(k in p for k in ["руковод", "начальник", "мастер", "техник", "уборщ", "кладов", "оператор"]):
+    # Вспомогательный персонал
+    if any(k in low for k in ["руковод", "начальник", "мастер", "техник", "уборщ", "кладов", "оператор"]):
         return "Вспомогательный персонал"
 
-    return ""
+    return s
 
 
 def get_employees(production: str) -> list:
     """Постоянный список сотрудников производства (не привязан к месяцу)."""
     _ensure_dir()
-    employees = _read_json(_employees_path(production), [])
-
-    # Для гравировки автоматически расставляем участки по должностям, если секция не задана.
-    if production == "engraving" and employees:
-        changed = False
-        for emp in employees:
-            if not emp.get("section"):
-                sec = _infer_section_for_engraving(emp.get("position", ""))
-                if sec:
-                    emp["section"] = sec
-                    changed = True
-        if changed:
-            save_employees(production, employees)
-
-    return employees
+    return _read_json(_employees_path(production), [])
 
 
 def save_employees(production: str, employees: list) -> None:
@@ -627,11 +616,6 @@ def merge_employees_from_schedule(production: str, schedule: dict) -> int:
                 "position": emp.get("position", ""),
                 "status": emp.get("status", ""),
             }
-            # Для гравировки сразу проставляем участок по должности
-            if production == "engraving":
-                sec = _infer_section_for_engraving(emp.get("position", ""))
-                if sec:
-                    entry["section"] = sec
             added.append(entry)
             existing_names.add(name.lower())
     if added:
@@ -749,23 +733,94 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
                         daily_employees[dk] = set()
                     daily_employees[dk].add(name)
 
-    # Section-level employee counts (uses persistent employees list with 'section' field)
-    emp_records  = get_employees(production)
-    section_map  = {e.get("full_name", "").strip(): e.get("section", "") for e in emp_records}
-    section_names: dict[str, set] = {}
-    for names in daily_employees.values():
+    # Section-level employee counts и затраты (по полю section из списка сотрудников)
+    emp_records = get_employees(production)
+    raw_section_map: dict[str, str] = {
+        e.get("full_name", "").strip(): e.get("section", "")
+        for e in emp_records
+    }
+
+    section_hours: dict[str, float] = {}
+    section_costs: dict[str, float] = {}
+    section_employees: dict[str, set] = {}
+
+    for name in employees_set:
+        sec_raw = raw_section_map.get(name, "")
+        if production == "engraving":
+            sec = _normalize_engraving_section(sec_raw)
+        else:
+            sec = (sec_raw or "—").strip() or "—"
+        if sec not in section_employees:
+            section_employees[sec] = set()
+            section_hours[sec] = 0.0
+            section_costs[sec] = 0.0
+        section_employees[sec].add(name)
+
+    # Распределяем часы и ФОТ по участкам пропорционально принадлежности сотрудника к участку
+    for dk, names in daily_employees.items():
         for name in names:
-            sec = section_map.get(name, "") or "—"
-            if sec not in section_names:
-                section_names[sec] = set()
-            section_names[sec].add(name)
+            sec_raw = raw_section_map.get(name, "")
+            if production == "engraving":
+                sec = _normalize_engraving_section(sec_raw)
+            else:
+                sec = (sec_raw or "—").strip() or "—"
+            if sec not in section_employees:
+                section_employees[sec] = set()
+                section_hours[sec] = 0.0
+                section_costs[sec] = 0.0
+            section_employees[sec].add(name)
+
+    # На уровне часов/ФОТ считаем по полю section, проходя ещё раз по табелю
+    for year, month in sorted(months):
+        timesheet = get_timesheet(production, year, month)
+        schedule = get_schedule(production, year, month)
+        ts_records = timesheet.get("records", {})
+        emp_by_id = {e["id"]: e for e in schedule.get("employees", [])}
+
+        for emp_id, days_dict in ts_records.items():
+            emp = emp_by_id.get(emp_id)
+            if not emp:
+                continue
+            name = emp.get("full_name", "").strip()
+            if name not in employees_set:
+                continue
+            position = emp.get("position", "")
+            status = emp.get("status", "")
+            rate = rate_lookup.get((position, status), 0.0)
+            sec_raw = raw_section_map.get(name, "")
+            if production == "engraving":
+                sec = _normalize_engraving_section(sec_raw)
+            else:
+                sec = (sec_raw or "—").strip() or "—"
+            if sec not in section_hours:
+                section_hours[sec] = 0.0
+                section_costs[sec] = 0.0
+                section_employees.setdefault(sec, set()).add(name)
+
+            for day_str, hours in days_dict.items():
+                if not hours or float(hours) <= 0:
+                    continue
+                h = float(hours)
+                cost = h * rate
+                section_hours[sec] += h
+                section_costs[sec] += cost
+
+    sections_summary = {
+        sec: {
+            "employee_count": len(names),
+            "hours": round(section_hours.get(sec, 0.0), 1),
+            "cost": round(section_costs.get(sec, 0.0), 2),
+        }
+        for sec, names in section_employees.items()
+    }
 
     return {
         "employee_count": len(employees_set),
         "total_hours":    round(total_hours, 1),
         "total_cost":     round(total_cost, 2),
         "daily_cost":     {k: round(v, 2) for k, v in daily_cost.items()},
-        "by_section":     {s: len(ns) for s, ns in section_names.items()},
+        "by_section":     {s: len(ns) for s, ns in section_employees.items()},
+        "sections":       sections_summary,
     }
 
 
