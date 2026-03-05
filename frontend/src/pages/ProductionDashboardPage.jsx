@@ -453,6 +453,117 @@ function SummaryCard({ workforce, sections }) {
   )
 }
 
+// ─── Aux Staff Block ──────────────────────────────────────────────────────────
+
+function AuxStaffBlock({ workforce, sections }) {
+  const [open, setOpen] = useState(false)
+
+  const auxSec = workforce?.sections?.['Вспомогательный персонал']
+  if (!auxSec || (auxSec.employee_count === 0 && auxSec.cost === 0)) return null
+
+  const totalOutput = (sections || []).find(s => s.main)?.total ?? 0
+  const costPerUnit = totalOutput > 0 && auxSec.cost > 0
+    ? auxSec.cost / totalOutput : 0
+  const isPlanned = workforce?.is_planned === true
+
+  const employees = auxSec.employees || []
+
+  return (
+    <div className="pd-aux-block">
+      {/* ── Заголовок с кнопкой разворота ── */}
+      <button className="pd-aux-header" onClick={() => setOpen(o => !o)}>
+        <div className="pd-aux-header-left">
+          <span className="pd-aux-title">Вспомогательный персонал</span>
+          {isPlanned && <span className="pd-dynamics-plan-badge"> · по плану</span>}
+        </div>
+        <div className="pd-aux-header-kpi">
+          <span className="pd-aux-kpi-item">
+            <span className="pd-aux-kpi-label">Сотрудников</span>
+            <span className="pd-aux-kpi-value">{auxSec.employee_count}</span>
+          </span>
+          <span className="pd-aux-kpi-item">
+            <span className="pd-aux-kpi-label">ФОТ за период</span>
+            <span className="pd-aux-kpi-value">{fmtRub(auxSec.cost)}</span>
+          </span>
+          {costPerUnit > 0 && (
+            <span className="pd-aux-kpi-item">
+              <span className="pd-aux-kpi-label">На ед. ГП</span>
+              <strong className="pd-aux-kpi-cpu">{fmtRub(costPerUnit)}</strong>
+            </span>
+          )}
+          <span className="pd-aux-chevron">{open ? '▲' : '▼'}</span>
+        </div>
+      </button>
+
+      {/* ── Детализация ── */}
+      {open && (
+        <div className="pd-aux-detail">
+          {employees.length === 0 ? (
+            <div className="pd-aux-empty">Детализация недоступна для этого периода</div>
+          ) : (
+            <table className="pd-aux-table">
+              <thead>
+                <tr>
+                  <th className="pd-aux-col-name">ФИО</th>
+                  <th>Должность</th>
+                  <th>Статус</th>
+                  <th>Ставка, ₽/ч</th>
+                  <th>Часов</th>
+                  <th>ФОТ, ₽</th>
+                  <th className="pd-aux-col-cpu">На ед. ГП, ₽</th>
+                </tr>
+              </thead>
+              <tbody>
+                {employees.map(emp => {
+                  const cpu = totalOutput > 0 && emp.cost > 0
+                    ? emp.cost / totalOutput : 0
+                  return (
+                    <tr key={emp.name}>
+                      <td className="pd-aux-col-name">{emp.name}</td>
+                      <td>{emp.position || '—'}</td>
+                      <td>{emp.status || '—'}</td>
+                      <td style={{ textAlign: 'right' }}>
+                        {emp.rate > 0 ? fmtNum(emp.rate) : '—'}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        {emp.hours > 0 ? emp.hours : '—'}
+                      </td>
+                      <td style={{ textAlign: 'right' }}>
+                        <strong>{emp.cost > 0 ? fmtRub(emp.cost) : '—'}</strong>
+                      </td>
+                      <td className="pd-aux-col-cpu">
+                        {cpu > 0
+                          ? <strong className="pd-dyn-cpu-val">{fmtRub(cpu)}</strong>
+                          : '—'}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+              <tfoot>
+                <tr className="pd-aux-total-row">
+                  <td className="pd-aux-col-name" colSpan={4}><strong>ИТОГО</strong></td>
+                  <td style={{ textAlign: 'right' }}>
+                    <strong>{auxSec.hours > 0 ? auxSec.hours : '—'}</strong>
+                  </td>
+                  <td style={{ textAlign: 'right' }}>
+                    <strong>{fmtRub(auxSec.cost)}</strong>
+                  </td>
+                  <td className="pd-aux-col-cpu">
+                    {costPerUnit > 0
+                      ? <strong className="pd-dyn-cpu-val">{fmtRub(costPerUnit)}</strong>
+                      : '—'}
+                  </td>
+                </tr>
+              </tfoot>
+            </table>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Efficiency Tab ───────────────────────────────────────────────────────────
 
 function EfficiencyTab() {
@@ -584,6 +695,7 @@ function EfficiencyTab() {
               </div>
 
               <SectionCostBlock workforce={data.workforce} sections={data.sections} />
+              <AuxStaffBlock workforce={data.workforce} sections={data.sections} />
             </>
           )}
         </>

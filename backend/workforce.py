@@ -875,6 +875,10 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
             _ensure_section(sec)
             section_employees[sec].add(name)
 
+    # Детализация по каждому сотруднику внутри участка
+    emp_details: dict[str, dict[str, dict]] = {}
+    # emp_details[sec][name] = {position, status, rate, hours, cost}
+
     # На уровне часов/ФОТ считаем по полю section, проходя ещё раз по табелю или графику
     for year, month in sorted(months):
         timesheet = get_timesheet(production, year, month)
@@ -882,7 +886,6 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
         emp_by_id = {e["id"]: e for e in schedule.get("employees", [])}
 
         if use_schedule_fallback:
-            # Используем плановые часы из графика
             items = [
                 (e.get("id", ""), e.get("working_days") or {}, e)
                 for e in schedule.get("employees", [])
@@ -912,6 +915,18 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
             _ensure_section(sec)
             section_employees[sec].add(name)
 
+            # Инициализируем запись по сотруднику
+            if sec not in emp_details:
+                emp_details[sec] = {}
+            if name not in emp_details[sec]:
+                emp_details[sec][name] = {
+                    "position": position,
+                    "status":   status,
+                    "rate":     round(rate, 2),
+                    "hours":    0.0,
+                    "cost":     0.0,
+                }
+
             for day_str, hours in days_dict.items():
                 if not hours or float(hours) <= 0:
                     continue
@@ -927,6 +942,8 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
                 section_hours[sec] += h
                 section_costs[sec] += cost
                 daily_section_cost[sec][dk] = daily_section_cost[sec].get(dk, 0.0) + cost
+                emp_details[sec][name]["hours"] += h
+                emp_details[sec][name]["cost"]  += cost
 
     daily_by_section = {
         sec: {k: round(v, 2) for k, v in days.items()}
@@ -938,6 +955,20 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
             "employee_count": len(names),
             "hours": round(section_hours.get(sec, 0.0), 1),
             "cost": round(section_costs.get(sec, 0.0), 2),
+            "employees": [
+                {
+                    "name":     n,
+                    "position": info["position"],
+                    "status":   info["status"],
+                    "rate":     info["rate"],
+                    "hours":    round(info["hours"], 1),
+                    "cost":     round(info["cost"], 2),
+                }
+                for n, info in sorted(
+                    emp_details.get(sec, {}).items(),
+                    key=lambda x: -x[1]["cost"]
+                )
+            ],
         }
         for sec, names in section_employees.items()
     }

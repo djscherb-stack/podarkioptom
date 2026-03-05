@@ -684,6 +684,131 @@
   vertical-align: middle;
 }
 
+/* ─── Вспомогательный персонал ──────────────────────────────────────────────── */
+.pd-aux-block {
+  margin-top: 0.75rem;
+  border: 1px solid #000;
+  background: #fff;
+}
+
+.pd-aux-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 0.6rem 1rem;
+  background: #f5f5f5;
+  border: none;
+  cursor: pointer;
+  text-align: left;
+  font-family: inherit;
+}
+.pd-aux-header:hover { background: #ebebeb; }
+
+.pd-aux-header-left {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-shrink: 0;
+}
+
+.pd-aux-title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #000;
+}
+
+.pd-aux-header-kpi {
+  display: flex;
+  align-items: center;
+  gap: 1.5rem;
+  flex-wrap: wrap;
+}
+
+.pd-aux-kpi-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.05rem;
+}
+
+.pd-aux-kpi-label {
+  font-size: 0.65rem;
+  color: #666;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.pd-aux-kpi-value {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: #000;
+}
+
+.pd-aux-kpi-cpu {
+  font-size: 0.9rem;
+  font-weight: 700;
+  color: #2d8a3e;
+}
+
+.pd-aux-chevron {
+  font-size: 0.7rem;
+  color: #555;
+  flex-shrink: 0;
+}
+
+.pd-aux-detail {
+  padding: 0.5rem 1rem 0.75rem;
+  overflow-x: auto;
+}
+
+.pd-aux-empty {
+  font-size: 0.78rem;
+  color: #888;
+  padding: 0.5rem 0;
+}
+
+.pd-aux-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.78rem;
+}
+
+.pd-aux-table th,
+.pd-aux-table td {
+  padding: 0.3rem 0.5rem;
+  border: 1px solid #ddd;
+  text-align: right;
+}
+
+.pd-aux-col-name {
+  text-align: left !important;
+  min-width: 12rem;
+}
+
+.pd-aux-col-cpu {
+  text-align: right;
+  min-width: 5rem;
+}
+
+.pd-aux-table thead th {
+  background: #f5f5f5;
+  font-weight: 600;
+  color: #333;
+  font-size: 0.72rem;
+}
+
+.pd-aux-total-row {
+  background: #111;
+  color: #fff;
+}
+.pd-aux-total-row td { border-color: #333; }
+.pd-aux-total-row .pd-aux-col-name { color: #fff; }
+.pd-aux-total-row .pd-dyn-cpu-val { color: #6DC24B; }
+
 /* ─── Workforce Tab (График Табель) — тот же дизайн, что и панель ─────────────── */
 .pd-workforce {
   display: flex;
