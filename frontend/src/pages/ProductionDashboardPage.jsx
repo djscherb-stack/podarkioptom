@@ -43,47 +43,214 @@ function shortDateLabel(iso) {
   return `${parseInt(d, 10)}.${m}`
 }
 
-// ─── Last 15 days cost dynamics ───────────────────────────────────────────────
+// ─── Section Cost Analytics ────────────────────────────────────────────────────
 
-function Last15DaysBlock({ last15Days }) {
-  if (!last15Days?.daily_cost || Object.keys(last15Days.daily_cost).length === 0) return null
-  const dailyCost = last15Days.daily_cost || {}
-  const dailyBySection = last15Days.daily_by_section || {}
-  const dates = Object.keys(dailyCost).sort()
-  if (dates.length === 0) return null
+const SECTION_COLORS = {
+  'Выпуск готовой продукции': '#111111',
+  'Гравировка':               '#2563eb',
+  'Резка МДФ':                '#d97706',
+  'Сборка МДФ':               '#16a34a',
+  'Шелкография':              '#7c3aed',
+  'Валковый пресс':           '#dc2626',
+}
 
-  const sections = Object.keys(dailyBySection).sort()
-  const fmtVal = (v) => (v != null && v !== '' ? fmtRub(v) : '—')
+// Многолинейный SVG-график: себестоимость единицы по участкам за 15 дней
+const CW = 540, CH = 170, CPL = 52, CPR = 8, CPT = 8, CPB = 26
+const ciW = CW - CPL - CPR
+const ciH = CH - CPT - CPB
+
+function CpuLineChart({ seriesList, dates }) {
+  const active = seriesList.filter(s => s.values.filter(v => v != null).length >= 2)
+  if (!active.length || dates.length < 2) return null
+
+  const allVals = active.flatMap(s => s.values.filter(v => v != null))
+  const maxY = Math.max(...allVals) * 1.15 || 1
+  const n = dates.length
+
+  const xOf = i => (ciW * i / (n - 1)).toFixed(1)
+  const yOf = v => (ciH - ciH * v / maxY).toFixed(1)
+
+  const yTicks = [0, 0.25, 0.5, 0.75, 1].map(t => maxY * t)
+
+  const buildPath = (values) => {
+    let d = ''
+    values.forEach((v, i) => {
+      if (v == null) return
+      const cmd = (i > 0 && values[i - 1] != null) ? 'L' : 'M'
+      d += ` ${cmd} ${xOf(i)} ${yOf(v)}`
+    })
+    return d.trim()
+  }
+
+  return (
+    <div className="pd-cpu-chart-wrap">
+      <svg viewBox={`0 0 ${CW} ${CH}`} style={{ width: '100%', height: CH }}>
+        <g transform={`translate(${CPL},${CPT})`}>
+          {/* Y grid */}
+          {yTicks.map((v, i) => (
+            <g key={i}>
+              <line x1={0} x2={ciW} y1={yOf(v)} y2={yOf(v)}
+                stroke={i === 0 ? '#999' : '#e5e7eb'} strokeWidth={i === 0 ? 1 : 0.5}
+                strokeDasharray={i > 0 ? '3 3' : ''} />
+              <text x={-6} y={+yOf(v) + 4} textAnchor="end" fontSize={9} fill="#888">
+                {v > 0 ? `₽${Math.round(v)}` : '0'}
+              </text>
+            </g>
+          ))}
+          {/* X labels */}
+          {dates.map((d, i) => {
+            if (i % 3 !== 0 && i !== n - 1) return null
+            return (
+              <text key={d} x={xOf(i)} y={ciH + 18} textAnchor="middle" fontSize={9} fill="#888">
+                {shortDateLabel(d)}
+              </text>
+            )
+          })}
+          {/* Lines */}
+          {active.map(s => (
+            <path key={s.name} d={buildPath(s.values)}
+              fill="none" stroke={s.color} strokeWidth={1.8}
+              strokeLinejoin="round" strokeLinecap="round" />
+          ))}
+          {/* Dots at last known value */}
+          {active.map(s => {
+            const lastIdx = s.values.map((v, i) => v != null ? i : -1).filter(i => i >= 0).pop()
+            if (lastIdx == null) return null
+            return (
+              <circle key={s.name} cx={xOf(lastIdx)} cy={yOf(s.values[lastIdx])}
+                r={3} fill={s.color} />
+            )
+          })}
+        </g>
+      </svg>
+      {/* Legend */}
+      <div className="pd-cpu-legend">
+        {active.map(s => (
+          <span key={s.name} className="pd-cpu-legend-item">
+            <span className="pd-cpu-legend-dot" style={{ background: s.color }} />
+            {s.name}
+          </span>
+        ))}
+      </div>
+    </div>
+  )
+}
+
+function SectionCostBlock({ workforce, sections }) {
+  if (!workforce || !sections || sections.length === 0) return null
+  const wfSections   = workforce.sections || {}
+  const totalCost    = workforce.total_cost || 0
+  const isPlanned    = workforce.is_planned === true
+  const dailyBySection = workforce?.last_15_days?.daily_by_section || {}
+
+  // Собираем данные по каждому участку
+  const sectionData = sections.map(section => {
+    const displayName = SECTION_DISPLAY[section.name] || section.name
+    const wfSec       = wfSections[displayName] || {}
+    const sectionCost = wfSec.cost || 0
+    const empCount    = wfSec.employee_count || 0
+    const output      = section.total || 0
+    const costPerUnit = output > 0 && sectionCost > 0 ? sectionCost / output : 0
+    const pctOfTotal  = totalCost > 0 && sectionCost > 0 ? (sectionCost / totalCost) * 100 : 0
+
+    // Ежедневные карты: дата → значение
+    const dailyProdMap = {}
+    ;(section.daily_data || []).forEach(d => { dailyProdMap[d.date] = d.total })
+    const dailyCostMap = dailyBySection[displayName] || {}
+
+    return { displayName, main: section.main, unit: section.unit || 'шт',
+             empCount, output, sectionCost, costPerUnit, pctOfTotal,
+             dailyProdMap, dailyCostMap }
+  }).filter(r => r.output > 0 || r.sectionCost > 0)
+
+  if (!sectionData.length) return null
+
+  // Объединяем все даты из обоих источников
+  const allDatesSet = new Set()
+  sectionData.forEach(s => {
+    Object.keys(s.dailyProdMap).forEach(d => allDatesSet.add(d))
+    Object.keys(s.dailyCostMap).forEach(d => allDatesSet.add(d))
+  })
+  const allDates = Array.from(allDatesSet).sort()
+
+  // Формируем серии для графика (только участки с выпуском, без вспомогательных)
+  const chartSections = sectionData.filter(s =>
+    s.output > 0 && s.displayName !== 'Вспомогательный персонал'
+  )
+  const seriesList = chartSections.map(s => ({
+    name:   s.displayName,
+    color:  SECTION_COLORS[s.displayName] || '#888',
+    values: allDates.map(date => {
+      const out  = s.dailyProdMap[date] || 0
+      const cost = s.dailyCostMap[date] || 0
+      return out > 0 && cost > 0 ? cost / out : null
+    }),
+  }))
 
   return (
     <div className="pd-dynamics-block">
-      <div className="pd-dynamics-title">Динамика за последние 15 дней</div>
-      <div className="pd-dynamics-desc">Стоимость выпуска (ФОТ) по производству и по участкам, ₽</div>
+      <div className="pd-dynamics-title">
+        Динамика себестоимости единицы продукции по участкам
+        {isPlanned && <span className="pd-dynamics-plan-badge"> · по плану (табель не заполнен)</span>}
+      </div>
+      <div className="pd-dynamics-desc">
+        Стоимость ФОТ на единицу выпущенной продукции по каждому участку за последние 15 дней
+      </div>
+
+      {seriesList.some(s => s.values.filter(v => v != null).length >= 2)
+        ? <CpuLineChart seriesList={seriesList} dates={allDates} />
+        : <div className="pd-cpu-no-data">
+            График накапливается — появится после загрузки данных выпуска за несколько дней
+          </div>
+      }
+
       <div className="pd-dynamics-table-wrap">
         <table className="pd-dynamics-table">
           <thead>
             <tr>
-              <th className="pd-dyn-col-name" />
-              {dates.map((d) => (
-                <th key={d} className="pd-dyn-col-day">{shortDateLabel(d)}</th>
-              ))}
+              <th className="pd-dyn-col-name">Участок</th>
+              <th className="pd-dyn-col-day">Сотрудников</th>
+              <th className="pd-dyn-col-day">Выпуск</th>
+              <th className="pd-dyn-col-day">ФОТ, ₽</th>
+              <th className="pd-dyn-col-day">% от общего</th>
+              <th className="pd-dyn-col-day pd-dyn-col-cpu">Себест. ед., ₽</th>
             </tr>
           </thead>
           <tbody>
-            <tr className="pd-dyn-row-total">
-              <td className="pd-dyn-col-name"><strong>По производству</strong></td>
-              {dates.map((d) => (
-                <td key={d} className="pd-dyn-col-day">{fmtVal(dailyCost[d])}</td>
-              ))}
-            </tr>
-            {sections.map((sec) => (
-              <tr key={sec}>
-                <td className="pd-dyn-col-name">{sec}</td>
-                {dates.map((d) => (
-                  <td key={d} className="pd-dyn-col-day">{fmtVal(dailyBySection[sec]?.[d])}</td>
-                ))}
+            {sectionData.map(r => (
+              <tr key={r.displayName} className={r.main ? 'pd-dyn-row-total' : ''}>
+                <td className="pd-dyn-col-name">
+                  {SECTION_COLORS[r.displayName] && (
+                    <span className="pd-dyn-section-dot"
+                      style={{ background: SECTION_COLORS[r.displayName] }} />
+                  )}
+                  {r.main ? <strong>{r.displayName}</strong> : r.displayName}
+                </td>
+                <td className="pd-dyn-col-day">{r.empCount > 0 ? r.empCount : '—'}</td>
+                <td className="pd-dyn-col-day">{r.output > 0 ? `${fmtNum(r.output)} ${r.unit}` : '—'}</td>
+                <td className="pd-dyn-col-day">{r.sectionCost > 0 ? fmtRub(r.sectionCost) : '—'}</td>
+                <td className="pd-dyn-col-day">{r.pctOfTotal > 0 ? `${r.pctOfTotal.toFixed(1)}%` : '—'}</td>
+                <td className="pd-dyn-col-day pd-dyn-col-cpu">
+                  {r.costPerUnit > 0
+                    ? <strong className="pd-dyn-cpu-val">{fmtRub(r.costPerUnit)}</strong>
+                    : '—'}
+                </td>
               </tr>
             ))}
+            {totalCost > 0 && (
+              <tr className="pd-dyn-row-grand">
+                <td className="pd-dyn-col-name"><strong>ИТОГО</strong></td>
+                <td className="pd-dyn-col-day"><strong>{workforce.employee_count > 0 ? workforce.employee_count : '—'}</strong></td>
+                <td className="pd-dyn-col-day">—</td>
+                <td className="pd-dyn-col-day"><strong>{fmtRub(totalCost)}</strong></td>
+                <td className="pd-dyn-col-day"><strong>100%</strong></td>
+                <td className="pd-dyn-col-day pd-dyn-col-cpu">
+                  {workforce.cost_per_unit > 0
+                    ? <strong className="pd-dyn-cpu-val">{fmtRub(workforce.cost_per_unit)}</strong>
+                    : '—'}
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>
@@ -311,10 +478,7 @@ function EfficiencyTab() {
     return { from: dateFrom, to: dateTo }
   }, [preset, dateFrom, dateTo])
 
-  const getTrendDays = useCallback(() => {
-    if (preset === 'yesterday') return 15
-    return 7
-  }, [preset])
+  const getTrendDays = useCallback(() => 15, [])
 
   const load = useCallback(() => {
     const { from, to } = getEffectiveDates()
@@ -419,7 +583,7 @@ function EfficiencyTab() {
                 </div>
               </div>
 
-              <Last15DaysBlock last15Days={data.workforce?.last_15_days} />
+              <SectionCostBlock workforce={data.workforce} sections={data.sections} />
             </>
           )}
         </>

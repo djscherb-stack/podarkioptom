@@ -607,6 +607,83 @@
 }
 .pd-dyn-row-total .pd-dyn-col-name { font-weight: 700; }
 
+.pd-dyn-row-grand {
+  background: #000;
+  color: #fff;
+}
+.pd-dyn-row-grand td { border-color: #333; }
+.pd-dyn-row-grand .pd-dyn-col-name { color: #fff; }
+
+.pd-dyn-col-cpu {
+  text-align: right;
+}
+.pd-dyn-cpu-val {
+  color: #2d8a3e;
+  font-weight: 700;
+}
+.pd-dyn-row-grand .pd-dyn-cpu-val {
+  color: #6DC24B;
+}
+
+.pd-dynamics-plan-badge {
+  font-weight: 400;
+  color: #888;
+  font-size: 0.7rem;
+  text-transform: none;
+  letter-spacing: 0;
+}
+
+/* ─── CPU Line Chart ─────────────────────────────────────────────────────────── */
+.pd-cpu-no-data {
+  margin: 0.5rem 0 0.75rem;
+  padding: 1rem;
+  background: #f9f9f9;
+  border: 1px dashed #ccc;
+  font-size: 0.75rem;
+  color: #888;
+  text-align: center;
+}
+
+.pd-cpu-chart-wrap {
+  margin: 0.5rem 0 0.75rem;
+  overflow-x: auto;
+}
+
+.pd-cpu-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem 1rem;
+  margin-top: 0.4rem;
+  padding: 0 0.25rem;
+}
+
+.pd-cpu-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  font-size: 0.72rem;
+  color: #333;
+}
+
+.pd-cpu-legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+/* Colored dot in table rows */
+.pd-dyn-section-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 2px;
+  margin-right: 0.35rem;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+
 /* ─── Workforce Tab (График Табель) — тот же дизайн, что и панель ─────────────── */
 .pd-workforce {
   display: flex;
