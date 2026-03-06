@@ -588,6 +588,80 @@ function AuxStaffBlock({ workforce, sections }) {
   )
 }
 
+// ─── Attendance Block ─────────────────────────────────────────────────────────
+
+const ATTENDANCE_SECTION_ORDER = [
+  'Выпуск готовой продукции', 'Гравировка', 'Шелкография',
+  'Резка МДФ', 'Сборка МДФ', 'Вспомогательный персонал',
+]
+
+function AttendanceBlock({ workforce }) {
+  if (!workforce) return null
+  const planned = workforce.planned_count ?? 0
+  const actual  = workforce.actual_count  ?? 0
+  if (planned === 0 && actual === 0) return null
+
+  const plannedBySec = workforce.planned_by_section || {}
+  const actualBySec  = workforce.actual_by_section  || {}
+  const allSections  = [...new Set([
+    ...ATTENDANCE_SECTION_ORDER,
+    ...Object.keys(plannedBySec),
+    ...Object.keys(actualBySec),
+  ])].filter(s => s !== '—' && (plannedBySec[s] || actualBySec[s]))
+
+  const pct = planned > 0 ? Math.round(actual / planned * 100) : null
+
+  return (
+    <div className="pd-att-block">
+      <div className="pd-att-header">
+        <span className="pd-att-title">Явка сотрудников</span>
+        <div className="pd-att-totals">
+          <div className="pd-att-kpi">
+            <span className="pd-att-kpi-val">{planned}</span>
+            <span className="pd-att-kpi-label">по графику</span>
+          </div>
+          <div className="pd-att-kpi pd-att-kpi-actual">
+            <span className="pd-att-kpi-val">{actual}</span>
+            <span className="pd-att-kpi-label">по факту</span>
+          </div>
+          {pct !== null && (
+            <div className={`pd-att-pct ${pct >= 100 ? 'pd-att-pct-ok' : pct >= 80 ? 'pd-att-pct-warn' : 'pd-att-pct-bad'}`}>
+              {pct}%
+            </div>
+          )}
+        </div>
+      </div>
+
+      <div className="pd-att-sections">
+        {allSections.map(sec => {
+          const p = plannedBySec[sec] ?? 0
+          const a = actualBySec[sec]  ?? 0
+          const sp = p > 0 ? Math.round(a / p * 100) : null
+          return (
+            <div key={sec} className="pd-att-sec-card">
+              <div className="pd-att-sec-name">{sec}</div>
+              <div className="pd-att-sec-row">
+                <span className="pd-att-sec-label">График</span>
+                <span className="pd-att-sec-val">{p || '—'}</span>
+              </div>
+              <div className="pd-att-sec-row">
+                <span className="pd-att-sec-label">Табель</span>
+                <span className={`pd-att-sec-val ${a < p ? 'pd-att-sec-short' : a > 0 ? 'pd-att-sec-ok' : ''}`}>{a || '—'}</span>
+              </div>
+              {sp !== null && p > 0 && (
+                <div className="pd-att-sec-bar">
+                  <div className={`pd-att-sec-bar-fill ${sp >= 100 ? 'ok' : sp >= 80 ? 'warn' : 'bad'}`}
+                    style={{ width: `${Math.min(100, sp)}%` }} />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </div>
+  )
+}
+
 // ─── Efficiency Tab ───────────────────────────────────────────────────────────
 
 function shiftDate(isoStr, days) {
@@ -719,6 +793,7 @@ function EfficiencyTab() {
           ) : (
             <>
               <SummaryCard workforce={data.workforce} sections={data.sections} />
+              <AttendanceBlock workforce={data.workforce} />
 
               <div className="pd-sections-block">
                 <div className="pd-sections-section-title">

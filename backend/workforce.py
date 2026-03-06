@@ -973,8 +973,35 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
         for sec, names in section_employees.items()
     }
 
+    # Плановые сотрудники из графика (независимо от табеля) — для блока явки
+    planned_names: set[str] = set()
+    for yr, mo in sorted(months):
+        sched = get_schedule(production, yr, mo)
+        for emp in sched.get("employees", []):
+            name = (emp.get("full_name") or "").strip()
+            if not name:
+                continue
+            for day_str in (emp.get("working_days") or {}):
+                try:
+                    d = _date(yr, mo, int(day_str))
+                except Exception:
+                    continue
+                if date_from <= d <= date_to:
+                    planned_names.add(name)
+                    break  # достаточно одного дня
+
+    planned_by_section: dict[str, int] = {}
+    for name in planned_names:
+        sec_raw = _section_for_name(name, name_to_position.get(name, ""))
+        sec = _normalize_engraving_section(sec_raw) if production == "engraving" else (sec_raw or "—").strip() or "—"
+        planned_by_section[sec] = planned_by_section.get(sec, 0) + 1
+
     return {
-        "employee_count": len(employees_set),
+        "employee_count":   len(employees_set),
+        "planned_count":    len(planned_names),
+        "actual_count":     len(employees_set),
+        "planned_by_section": planned_by_section,
+        "actual_by_section":  {s: len(ns) for s, ns in section_employees.items()},
         "total_hours":    round(total_hours, 1),
         "total_cost":     round(total_cost, 2),
         "is_planned":     use_schedule_fallback,
