@@ -641,18 +641,25 @@ function AuxStaffBlock({ workforce, sections }) {
 
 // ─── Efficiency Tab ───────────────────────────────────────────────────────────
 
+function shiftDate(isoStr, days) {
+  const d = new Date(isoStr)
+  d.setDate(d.getDate() + days)
+  return d.toISOString().slice(0, 10)
+}
+
 function EfficiencyTab() {
   const yesterday = getYesterday()
   const [preset, setPreset]     = useState('yesterday')
   const [dateFrom, setDateFrom] = useState(yesterday)
   const [dateTo, setDateTo]     = useState(yesterday)
+  const [dayOffset, setDayOffset] = useState(0)   // 0 = вчера, 1 = позавчера, и т.д.
   const [data, setData]         = useState(null)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState(null)
 
   const getEffectiveDates = useCallback(() => {
     if (preset === 'yesterday') {
-      const d = getYesterday()
+      const d = shiftDate(getYesterday(), -dayOffset)
       return { from: d, to: d }
     }
     if (preset === '7days') {
@@ -662,7 +669,7 @@ function EfficiencyTab() {
       return { from: f.toISOString().slice(0, 10), to }
     }
     return { from: dateFrom, to: dateTo }
-  }, [preset, dateFrom, dateTo])
+  }, [preset, dateFrom, dateTo, dayOffset])
 
   const getTrendDays = useCallback(() => 15, [])
 
@@ -688,10 +695,32 @@ function EfficiencyTab() {
       {/* Period selector */}
       <div className="pd-period-bar">
         <div className="pd-period-presets">
+          <button
+            className={`pd-period-btn${preset === 'yesterday' ? ' pd-period-active' : ''}`}
+            onClick={() => { setPreset('yesterday'); setDayOffset(0) }}
+          >
+            За вчера
+          </button>
+          {/* Стрелки навигации по дням */}
+          <div className="pd-day-nav">
+            <button
+              className="pd-day-nav-btn"
+              title="Предыдущий день"
+              onClick={() => { setPreset('yesterday'); setDayOffset(o => o + 1) }}
+            >‹</button>
+            <span className="pd-day-nav-label">
+              {formatDateLabel(shiftDate(getYesterday(), -dayOffset))}
+            </span>
+            <button
+              className="pd-day-nav-btn"
+              title="Следующий день"
+              disabled={dayOffset === 0}
+              onClick={() => setDayOffset(o => Math.max(0, o - 1))}
+            >›</button>
+          </div>
           {[
-            { key: 'yesterday', label: 'За вчера' },
-            { key: '7days',     label: 'За последние 7 дней' },
-            { key: 'period',    label: 'За период' },
+            { key: '7days',  label: 'За последние 7 дней' },
+            { key: 'period', label: 'За период' },
           ].map(({ key, label }) => (
             <button
               key={key}

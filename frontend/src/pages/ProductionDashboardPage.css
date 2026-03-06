@@ -99,6 +99,47 @@
   border-color: #000 !important;
 }
 
+/* Навигация по дням ‹ дата › */
+.pd-day-nav {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  border: 1px solid #000;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.pd-day-nav-btn {
+  width: 28px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fff;
+  border: none;
+  font-size: 1.1rem;
+  line-height: 1;
+  cursor: pointer;
+  color: #000;
+  transition: background 0.12s;
+  flex-shrink: 0;
+}
+.pd-day-nav-btn:hover:not(:disabled) { background: #f0f0f0; }
+.pd-day-nav-btn:disabled { color: #ccc; cursor: default; }
+
+.pd-day-nav-label {
+  padding: 0 0.5rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  white-space: nowrap;
+  border-left: 1px solid #ddd;
+  border-right: 1px solid #ddd;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  letter-spacing: 0.02em;
+}
+
 .pd-period-custom {
   display: flex;
   align-items: center;
