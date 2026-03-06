@@ -143,6 +143,17 @@ function SectionCostBlock({ workforce, sections }) {
   const isPlanned    = workforce.is_planned === true
   const dailyBySection = workforce?.last_15_days?.daily_by_section || {}
 
+  // Основной участок — знаменатель для всех расчётов себестоимости
+  const mainSection     = sections.find(s => s.main)
+  const mainOutput      = mainSection?.total || 0
+  const mainDisplayName = mainSection ? (SECTION_DISPLAY[mainSection.name] || mainSection.name) : null
+
+  // Ежедневный выпуск основного участка (для матрицы)
+  const mainDailyProdMap = {}
+  if (mainSection) {
+    ;(mainSection.daily_data || []).forEach(d => { mainDailyProdMap[d.date] = d.total })
+  }
+
   // Собираем данные по каждому участку
   const sectionData = sections.map(section => {
     const displayName = SECTION_DISPLAY[section.name] || section.name
@@ -150,7 +161,9 @@ function SectionCostBlock({ workforce, sections }) {
     const sectionCost = wfSec.cost || 0
     const empCount    = wfSec.employee_count || 0
     const output      = section.total || 0
-    const costPerUnit = output > 0 && sectionCost > 0 ? sectionCost / output : 0
+    // Делим на выпуск ОСНОВНОГО участка — тогда строки матрицы суммируются в итоговую себест.
+    const denominator = mainOutput > 0 ? mainOutput : output
+    const costPerUnit = denominator > 0 && sectionCost > 0 ? sectionCost / denominator : 0
     const pctOfTotal  = totalCost > 0 && sectionCost > 0 ? (sectionCost / totalCost) * 100 : 0
 
     // Ежедневные карты: дата → значение
@@ -190,14 +203,15 @@ function SectionCostBlock({ workforce, sections }) {
   // Короткий форматтер для матричных ячеек
   const fmtCpu = v => v > 0 ? `${Math.round(v)} ₽` : null
 
-  // Строки матрицы: только участки с выпуском продукции (без вспомогательных)
-  const matrixRows = chartSections.map(s => ({
+  // Строки матрицы: все участки с ФОТ (включая вспомогательных — они тоже влияют на себест.)
+  const matrixRows = sectionData.filter(s => s.sectionCost > 0).map(s => ({
     ...s,
     dailyCpuMap: Object.fromEntries(
       allDates.map(date => {
-        const out  = s.dailyProdMap[date] || 0
-        const cost = s.dailyCostMap[date] || 0
-        return [date, out > 0 && cost > 0 ? cost / out : null]
+        const cost    = s.dailyCostMap[date] || 0
+        // Делим на выпуск ОСНОВНОГО участка за этот день
+        const mainOut = mainDailyProdMap[date] || s.dailyProdMap[date] || 0
+        return [date, mainOut > 0 && cost > 0 ? cost / mainOut : null]
       })
     ),
   }))
@@ -255,22 +269,26 @@ function SectionCostBlock({ workforce, sections }) {
                 </td>
               </tr>
             ))}
-            {/* Строка: общий ФОТ по производству в день */}
+            {/* Итоговая строка: суммарная себестоимость = совпадает с SummaryCard */}
             {allDates.some(d => (workforce?.last_15_days?.daily_cost?.[d] || 0) > 0) && (
               <tr className="pd-cpu-row-fot">
                 <td className="pd-dyn-col-name pd-cpu-sticky-col">
-                  <span style={{ color: '#888', fontSize: '0.72rem' }}>ФОТ произ-ва</span>
+                  <strong style={{ fontSize: '0.75rem' }}>Итого себест.</strong>
                 </td>
                 {allDates.map(date => {
-                  const dc = workforce?.last_15_days?.daily_cost?.[date] || 0
+                  const dc      = workforce?.last_15_days?.daily_cost?.[date] || 0
+                  const mainOut = mainDailyProdMap[date] || 0
+                  const cpu     = dc > 0 && mainOut > 0 ? dc / mainOut : null
                   return (
-                    <td key={date} className={`pd-cpu-cell pd-cpu-cell-fot${dc > 0 ? ' pd-cpu-cell-val' : ''}`}>
-                      {dc > 0 ? `${Math.round(dc / 1000)}к` : '—'}
+                    <td key={date} className={`pd-cpu-cell pd-cpu-cell-fot${cpu != null ? ' pd-cpu-cell-val' : ''}`}>
+                      {cpu != null ? <strong>{fmtCpu(cpu)}</strong> : '—'}
                     </td>
                   )
                 })}
                 <td className="pd-cpu-avg-col">
-                  {totalCost > 0 ? <span style={{ color: '#555' }}>{fmtRub(totalCost)}</span> : '—'}
+                  {workforce.cost_per_unit > 0
+                    ? <strong className="pd-dyn-cpu-val">{fmtCpu(workforce.cost_per_unit)}</strong>
+                    : '—'}
                 </td>
               </tr>
             )}
