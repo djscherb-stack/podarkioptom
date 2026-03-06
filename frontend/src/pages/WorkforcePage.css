@@ -800,6 +800,15 @@
 .wf-ts-input-edit::-webkit-inner-spin-button,
 .wf-ts-input-edit::-webkit-outer-spin-button { -webkit-appearance: none; }
 
+@keyframes wf-cell-flash {
+  0%   { background: #ffe066; }
+  40%  { background: #fff9d6; }
+  100% { background: transparent; }
+}
+.wf-ts-input-flash {
+  animation: wf-cell-flash 0.5s ease-out forwards;
+}
+
 /* Значения в ячейках табеля */
 .wf-ts-val        { font-size: 0.85rem; font-weight: 700; color: var(--positive); display: block; padding: 0.35rem 0.1rem; cursor: pointer; }
 .wf-ts-absent-val { font-size: 0.85rem; font-weight: 700; color: var(--negative); display: block; padding: 0.35rem 0.1rem; cursor: pointer; }

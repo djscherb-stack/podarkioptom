@@ -1651,7 +1651,11 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
   const handleCellClick = (empId, day, currentHours, plannedH) => {
     if (!canEdit) return
     setEditCell({ empId, day })
-    setEditValue(currentHours !== undefined ? String(currentHours) : '')
+    // Если есть фактические часы — показываем их; иначе подставляем плановые из графика
+    const initVal = currentHours !== undefined
+      ? String(currentHours)
+      : plannedH !== undefined ? String(plannedH) : ''
+    setEditValue(initVal)
   }
 
   // Сохранить ячейку (по blur или Enter)
@@ -1892,7 +1896,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
                       >
                         {isEditing ? (
                           <input
-                            className="wf-ts-input-edit"
+                            className="wf-ts-input-edit wf-ts-input-flash"
                             type="number"
                             min="0"
                             max="24"
@@ -1900,6 +1904,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
                             autoFocus
                             value={editValue}
                             onChange={e => setEditValue(e.target.value)}
+                            onFocus={e => e.target.select()}
                             onBlur={handleCellSave}
                             onKeyDown={e => {
                               if (e.key === 'Enter') handleCellSave()
