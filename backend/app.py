@@ -1249,6 +1249,31 @@ def wf_reinstate_employee(production: str, employee_id: str, request: Request):
     return result
 
 
+@app.patch("/api/workforce/employees/{production}/{employee_id}/section")
+async def wf_update_employee_section(production: str, employee_id: str, request: Request):
+    """Обновить участок конкретного сотрудника."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    body = await request.json()
+    new_section = body.get("section", "")
+    employees = wf.get_employees(production)
+    updated = []
+    found = False
+    for e in employees:
+        if e.get("id") == employee_id:
+            updated.append({**e, "section": new_section})
+            found = True
+        else:
+            updated.append(e)
+    if not found:
+        raise HTTPException(status_code=404, detail="Сотрудник не найден")
+    wf.save_employees(production, updated)
+    return {"ok": True, "section": new_section}
+
+
 # ── Журнал изменений ─────────────────────────────────────────────────────────
 
 @app.get("/api/workforce/changelog")

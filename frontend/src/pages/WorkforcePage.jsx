@@ -1019,15 +1019,38 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [editCell, setEditCell] = useState(null)       // {empId, day} — ячейка дня
   const [editingEmpId, setEditingEmpId] = useState(null) // id строки сотрудника
   const [editEmpBuf, setEditEmpBuf] = useState({})
-  const [sortBy, setSortBy] = useState('fio')          // 'fio' | 'position' | 'status'
-  const [positionFilter, setPositionFilter] = useState([]) // массив выбранных должностей
-  const [statusFilter, setStatusFilter] = useState([])     // массив выбранных статусов
+  const [sortBy, setSortBy] = useState('fio')          // 'fio' | 'position' | 'status' | 'section'
+  const [positionFilter, setPositionFilter] = useState([])
+  const [statusFilter, setStatusFilter] = useState([])
+  const [sectionFilter, setSectionFilter] = useState([])
+  const [editingSection, setEditingSection] = useState(null) // full_name редактируемого участка
   const numDays = getDaysInMonth(year, month)
   const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
 
   // Карта участков по ФИО (из списка сотрудников)
   const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
   const hasSections = empList.some(e => e.section)
+
+  // Доступные участки для выбора
+  const availableSections = [...new Set([
+    ...empList.map(e => e.section).filter(Boolean),
+    'Гравировочный цех', 'Сборочный цех', 'Резка МДФ',
+    'Шелкография', 'Сборка МДФ', 'Вспомогательный персонал',
+  ])].sort((a, b) => a.localeCompare(b, 'ru'))
+
+  const handleSectionEdit = async (fullName, newSection) => {
+    const empEntry = empList.find(e => e.full_name?.trim() === fullName?.trim())
+    if (!empEntry) { setEditingSection(null); return }
+    try {
+      await apiFetch(`${API}/workforce/employees/${production}/${empEntry.id}/section`, {
+        method: 'PATCH', body: JSON.stringify({ section: newSection }),
+      })
+      setEmpList(list => list.map(e => e.id === empEntry.id ? { ...e, section: newSection } : e))
+    } catch (err) {
+      alert('Ошибка сохранения участка: ' + err.message)
+    }
+    setEditingSection(null)
+  }
 
   // Карта увольнений по ФИО (lowercase)
   const firedMap = {}
@@ -1221,10 +1244,14 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
 
   const employees = schedule.employees || []
 
-  // Фильтрация по должности и статусу
+  // Фильтрация по должности, статусу и участку
   const filteredEmployees = employees.filter(emp => {
     if (positionFilter.length && !positionFilter.includes(emp.position)) return false
     if (statusFilter.length && !statusFilter.includes(emp.status)) return false
+    if (sectionFilter.length) {
+      const sec = sectionMap[emp.full_name?.trim()] || ''
+      if (!sectionFilter.includes(sec)) return false
+    }
     return true
   })
 
@@ -1233,6 +1260,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
     const get = (e) => {
       if (sortBy === 'position') return (e.position || '').toLowerCase()
       if (sortBy === 'status') return (e.status || '').toLowerCase()
+      if (sortBy === 'section') return (sectionMap[e.full_name?.trim()] || '').toLowerCase()
       return (e.full_name || '').toLowerCase()
     }
     return get(a).localeCompare(get(b), 'ru')
@@ -1287,15 +1315,26 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
           selected={statusFilter}
           onChange={setStatusFilter}
         />
+        {hasSections && (
+          <FilterDropdown
+            label="Участки"
+            options={availableSections}
+            selected={sectionFilter}
+            onChange={setSectionFilter}
+          />
+        )}
         <div className="wf-filter-sep" />
         <span className="wf-filter-label">Сорт:</span>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'fio' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('fio')}>ФИО</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'position' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('position')}>Должность</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'status' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('status')}>Статус</button>
-        {(positionFilter.length > 0 || statusFilter.length > 0) && (
+        {hasSections && (
+          <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'section' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('section')}>Участок</button>
+        )}
+        {(positionFilter.length > 0 || statusFilter.length > 0 || sectionFilter.length > 0) && (
           <>
             <div className="wf-filter-sep" />
-            <button type="button" className="wf-btn wf-btn-danger wf-btn-xs" onClick={() => { setPositionFilter([]); setStatusFilter([]) }}>
+            <button type="button" className="wf-btn wf-btn-danger wf-btn-xs" onClick={() => { setPositionFilter([]); setStatusFilter([]); setSectionFilter([]) }}>
               ✕ Сбросить фильтры
             </button>
           </>
@@ -1315,16 +1354,16 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
           <thead>
             <tr>
               {canEdit && <th className="wf-col-actions-left"></th>}
-              <th className="wf-col-name wf-resizable-col" style={{ width: colWidths.fio, minWidth: colWidths.fio }}>
+              <th className="wf-col-name wf-resizable-col" style={{ width: colWidths.fio, minWidth: colWidths.fio, maxWidth: colWidths.fio }}>
                 ФИО<ResizeHandle col="fio" onMouseDown={startResize} />
               </th>
-              <th className="wf-col-pos wf-resizable-col">
+              <th className="wf-col-pos wf-resizable-col" style={{ width: colWidths.pos, minWidth: colWidths.pos, maxWidth: colWidths.pos }}>
                 Должность<ResizeHandle col="pos" onMouseDown={startResize} />
               </th>
-              <th className={`wf-col-status wf-resizable-col${!hasSections ? ' wf-last-sticky' : ''}`}>
+              <th className={`wf-col-status wf-resizable-col${!hasSections ? ' wf-last-sticky' : ''}`} style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status }}>
                 Статус<ResizeHandle col="status" onMouseDown={startResize} />
               </th>
-              {hasSections && <th className="wf-col-section wf-resizable-col wf-last-sticky">
+              {hasSections && <th className="wf-col-section wf-resizable-col wf-last-sticky" style={{ width: colWidths.section, minWidth: colWidths.section, maxWidth: colWidths.section }}>
                 Участок<ResizeHandle col="section" onMouseDown={startResize} />
               </th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
@@ -1418,8 +1457,27 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
 
                   {/* Участок */}
                   {hasSections && (
-                    <td className="wf-col-section wf-last-sticky" title={sectionMap[emp.full_name?.trim()] || ''}>
-                      {sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>}
+                    <td
+                      className={`wf-col-section wf-last-sticky${canEdit ? ' wf-section-editable' : ''}`}
+                      title={canEdit ? 'Нажмите для изменения участка' : (sectionMap[emp.full_name?.trim()] || '')}
+                      onClick={() => canEdit && !isEditingRow && setEditingSection(emp.full_name?.trim())}
+                    >
+                      {editingSection === emp.full_name?.trim() ? (
+                        <select
+                          className="wf-cell-input wf-section-select"
+                          autoFocus
+                          value={sectionMap[emp.full_name?.trim()] || ''}
+                          onChange={e => handleSectionEdit(emp.full_name, e.target.value)}
+                          onBlur={() => setEditingSection(null)}
+                          onKeyDown={e => e.key === 'Escape' && setEditingSection(null)}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <option value="">— не задан —</option>
+                          {availableSections.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>
+                      )}
                     </td>
                   )}
 
@@ -1543,13 +1601,35 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
   // Фильтры, сортировка, ширина колонок
   const [positionFilter, setPositionFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState([])
+  const [sectionFilter, setSectionFilter] = useState([])
   const [sortBy, setSortBy] = useState('fio')
+  const [editingSection, setEditingSection] = useState(null)
   const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
   const numDays = getDaysInMonth(year, month)
 
   // Участки из списка сотрудников
   const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
   const hasSections = empList.some(e => e.section)
+
+  const availableSections = [...new Set([
+    ...empList.map(e => e.section).filter(Boolean),
+    'Гравировочный цех', 'Сборочный цех', 'Резка МДФ',
+    'Шелкография', 'Сборка МДФ', 'Вспомогательный персонал',
+  ])].sort((a, b) => a.localeCompare(b, 'ru'))
+
+  const handleSectionEdit = async (fullName, newSection) => {
+    const empEntry = empList.find(e => e.full_name?.trim() === fullName?.trim())
+    if (!empEntry) { setEditingSection(null); return }
+    try {
+      await apiFetch(`${API}/workforce/employees/${production}/${empEntry.id}/section`, {
+        method: 'PATCH', body: JSON.stringify({ section: newSection }),
+      })
+      setEmpList(list => list.map(e => e.id === empEntry.id ? { ...e, section: newSection } : e))
+    } catch (err) {
+      alert('Ошибка сохранения участка: ' + err.message)
+    }
+    setEditingSection(null)
+  }
 
   const load = useCallback(() => {
     setLoading(true)
@@ -1614,12 +1694,17 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
   const filteredEmps = employees.filter(emp => {
     if (positionFilter.length > 0 && !positionFilter.includes(emp.position)) return false
     if (statusFilter.length > 0 && !statusFilter.includes(emp.status)) return false
+    if (sectionFilter.length > 0) {
+      const sec = sectionMap[emp.full_name?.trim()] || ''
+      if (!sectionFilter.includes(sec)) return false
+    }
     return true
   })
   const sortedEmps = [...filteredEmps].sort((a, b) => {
     if (sortBy === 'fio')      return (a.full_name || '').localeCompare(b.full_name || '', 'ru')
     if (sortBy === 'position') return (a.position || '').localeCompare(b.position || '', 'ru')
     if (sortBy === 'status')   return (a.status || '').localeCompare(b.status || '', 'ru')
+    if (sortBy === 'section')  return (sectionMap[a.full_name?.trim()] || '').localeCompare(sectionMap[b.full_name?.trim()] || '', 'ru')
     return 0
   })
 
@@ -1669,15 +1754,21 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
       <div className="wf-filter-bar">
         <FilterDropdown label="Должности" options={tsPositions} selected={positionFilter} onChange={setPositionFilter} />
         <FilterDropdown label="Статусы" options={tsStatuses} selected={statusFilter} onChange={setStatusFilter} />
+        {hasSections && (
+          <FilterDropdown label="Участки" options={availableSections} selected={sectionFilter} onChange={setSectionFilter} />
+        )}
         <div className="wf-filter-sep" />
         <span className="wf-filter-label">Сорт:</span>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'fio' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('fio')}>ФИО</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'position' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('position')}>Должность</button>
         <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'status' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('status')}>Статус</button>
-        {(positionFilter.length > 0 || statusFilter.length > 0) && (
+        {hasSections && (
+          <button type="button" className={`wf-btn wf-btn-secondary wf-btn-xs ${sortBy === 'section' ? 'wf-btn-active' : ''}`} onClick={() => setSortBy('section')}>Участок</button>
+        )}
+        {(positionFilter.length > 0 || statusFilter.length > 0 || sectionFilter.length > 0) && (
           <>
             <div className="wf-filter-sep" />
-            <button type="button" className="wf-btn wf-btn-danger wf-btn-xs" onClick={() => { setPositionFilter([]); setStatusFilter([]) }}>
+            <button type="button" className="wf-btn wf-btn-danger wf-btn-xs" onClick={() => { setPositionFilter([]); setStatusFilter([]); setSectionFilter([]) }}>
               ✕ Сбросить фильтры
             </button>
           </>
@@ -1696,16 +1787,16 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
         >
           <thead>
             <tr>
-              <th className="wf-col-name wf-resizable-col" style={{ width: colWidths.fio, minWidth: colWidths.fio }}>
+              <th className="wf-col-name wf-resizable-col" style={{ width: colWidths.fio, minWidth: colWidths.fio, maxWidth: colWidths.fio }}>
                 ФИО<ResizeHandle col="fio" onMouseDown={startResize} />
               </th>
-              <th className="wf-col-pos wf-resizable-col">
+              <th className="wf-col-pos wf-resizable-col" style={{ width: colWidths.pos, minWidth: colWidths.pos, maxWidth: colWidths.pos }}>
                 Должность<ResizeHandle col="pos" onMouseDown={startResize} />
               </th>
-              <th className={`wf-col-status wf-resizable-col${!hasSections ? ' wf-last-sticky' : ''}`}>
+              <th className={`wf-col-status wf-resizable-col${!hasSections ? ' wf-last-sticky' : ''}`} style={{ width: colWidths.status, minWidth: colWidths.status, maxWidth: colWidths.status }}>
                 Статус<ResizeHandle col="status" onMouseDown={startResize} />
               </th>
-              {hasSections && <th className="wf-col-section wf-resizable-col wf-last-sticky">
+              {hasSections && <th className="wf-col-section wf-resizable-col wf-last-sticky" style={{ width: colWidths.section, minWidth: colWidths.section, maxWidth: colWidths.section }}>
                 Участок<ResizeHandle col="section" onMouseDown={startResize} />
               </th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
@@ -1735,8 +1826,27 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
                   <td className="wf-col-pos">{emp.position}</td>
                   <td className={`wf-col-status${!hasSections ? ' wf-last-sticky' : ''}`}><span className="wf-status-badge">{emp.status}</span></td>
                   {hasSections && (
-                    <td className="wf-col-section wf-last-sticky" title={sectionMap[emp.full_name?.trim()] || ''}>
-                      {sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>}
+                    <td
+                      className={`wf-col-section wf-last-sticky${canEdit ? ' wf-section-editable' : ''}`}
+                      title={canEdit ? 'Нажмите для изменения участка' : (sectionMap[emp.full_name?.trim()] || '')}
+                      onClick={() => canEdit && setEditingSection(emp.full_name?.trim())}
+                    >
+                      {editingSection === emp.full_name?.trim() ? (
+                        <select
+                          className="wf-cell-input wf-section-select"
+                          autoFocus
+                          value={sectionMap[emp.full_name?.trim()] || ''}
+                          onChange={e => handleSectionEdit(emp.full_name, e.target.value)}
+                          onBlur={() => setEditingSection(null)}
+                          onKeyDown={e => e.key === 'Escape' && setEditingSection(null)}
+                          onClick={e => e.stopPropagation()}
+                        >
+                          <option value="">— не задан —</option>
+                          {availableSections.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                      ) : (
+                        sectionMap[emp.full_name?.trim()] || <span className="wf-section-empty">—</span>
+                      )}
                     </td>
                   )}
                   {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
