@@ -278,57 +278,6 @@ function SectionCostBlock({ workforce, sections }) {
         </table>
       </div>
 
-      {/* Сводная таблица за период */}
-      <div className="pd-dynamics-table-wrap" style={{ marginTop: '0.75rem' }}>
-        <table className="pd-dynamics-table">
-          <thead>
-            <tr>
-              <th className="pd-dyn-col-name">Участок</th>
-              <th className="pd-dyn-col-day">Сотрудников</th>
-              <th className="pd-dyn-col-day">Выпуск</th>
-              <th className="pd-dyn-col-day">ФОТ, ₽</th>
-              <th className="pd-dyn-col-day">% от общего</th>
-              <th className="pd-dyn-col-day pd-dyn-col-cpu">Себест. ед., ₽</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sectionData.map(r => (
-              <tr key={r.displayName} className={r.main ? 'pd-dyn-row-total' : ''}>
-                <td className="pd-dyn-col-name">
-                  {SECTION_COLORS[r.displayName] && (
-                    <span className="pd-dyn-section-dot"
-                      style={{ background: SECTION_COLORS[r.displayName] }} />
-                  )}
-                  {r.main ? <strong>{r.displayName}</strong> : r.displayName}
-                </td>
-                <td className="pd-dyn-col-day">{r.empCount > 0 ? r.empCount : '—'}</td>
-                <td className="pd-dyn-col-day">{r.output > 0 ? `${fmtNum(r.output)} ${r.unit}` : '—'}</td>
-                <td className="pd-dyn-col-day">{r.sectionCost > 0 ? fmtRub(r.sectionCost) : '—'}</td>
-                <td className="pd-dyn-col-day">{r.pctOfTotal > 0 ? `${r.pctOfTotal.toFixed(1)}%` : '—'}</td>
-                <td className="pd-dyn-col-day pd-dyn-col-cpu">
-                  {r.costPerUnit > 0
-                    ? <strong className="pd-dyn-cpu-val">{fmtRub(r.costPerUnit)}</strong>
-                    : '—'}
-                </td>
-              </tr>
-            ))}
-            {totalCost > 0 && (
-              <tr className="pd-dyn-row-grand">
-                <td className="pd-dyn-col-name"><strong>ИТОГО</strong></td>
-                <td className="pd-dyn-col-day"><strong>{workforce.employee_count > 0 ? workforce.employee_count : '—'}</strong></td>
-                <td className="pd-dyn-col-day">—</td>
-                <td className="pd-dyn-col-day"><strong>{fmtRub(totalCost)}</strong></td>
-                <td className="pd-dyn-col-day"><strong>100%</strong></td>
-                <td className="pd-dyn-col-day pd-dyn-col-cpu">
-                  {workforce.cost_per_unit > 0
-                    ? <strong className="pd-dyn-cpu-val">{fmtRub(workforce.cost_per_unit)}</strong>
-                    : '—'}
-                </td>
-              </tr>
-            )}
-          </tbody>
-        </table>
-      </div>
     </div>
   )
 }
