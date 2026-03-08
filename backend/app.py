@@ -783,6 +783,38 @@ def admin_workforce_changelog(limit: int = 500):
     return {"entries": wf_mod.get_changelog(limit)}
 
 
+@app.get("/api/admin/download-data", dependencies=[Depends(require_admin)])
+def admin_download_data():
+    """Скачать архив папки data/ (для переноса данных с сервера на локальную машину)."""
+    import zipfile
+    import tempfile
+    import os
+    from fastapi.responses import StreamingResponse
+
+    data_dir = db.get_data_dir()
+    tmp = tempfile.NamedTemporaryFile(suffix=".zip", delete=False)
+    tmp.close()
+
+    with zipfile.ZipFile(tmp.name, "w", zipfile.ZIP_DEFLATED) as zf:
+        for root, dirs, files in os.walk(data_dir):
+            # пропускаем вложенные папки с временными файлами
+            for file in files:
+                filepath = os.path.join(root, file)
+                arcname = os.path.relpath(filepath, data_dir)
+                zf.write(filepath, arcname)
+
+    def iterfile():
+        with open(tmp.name, "rb") as f:
+            yield from f
+        os.unlink(tmp.name)
+
+    return StreamingResponse(
+        iterfile(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=data_backup.zip"},
+    )
+
+
 @app.get("/api/employees", dependencies=[Depends(require_auth)])
 def get_employees_list():
     """Список ФИО сотрудников (из данных выработки)."""
