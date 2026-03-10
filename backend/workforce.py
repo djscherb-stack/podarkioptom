@@ -628,13 +628,34 @@ def _infer_section_for_tea(position: str) -> str:
         return "Фасовочный цех"
     if "шелкограф" in p:
         return "Шелкография"
-    if "картон" in p or "дерево" in p or "резка" in p:
+    if "картон" in p or "дерево" in p or "резка" in p or "мдф" in p:
         return "Картон/Дерево"
-    if "термо" in p or "туннель" in p:
-        return "Термотуннель"
-    if "упаков" in p:
-        return "Упаковка"
+    if "сборочн" in p or "термо" in p or "туннель" in p or "упаков" in p:
+        return "Сборочный цех"
     return "Вспомогательный персонал"
+
+
+def _normalize_tea_section(section: str) -> str:
+    """Нормализация участков чая к каноническим именам дашборда.
+    Также переводит старые названия (Термотуннель, Упаковка) → Сборочный цех.
+    """
+    s = (section or "").strip()
+    if not s:
+        return "—"
+    low = s.lower()
+    if "купаж" in low:
+        return "Купажный цех"
+    if "фасов" in low:
+        return "Фасовочный цех"
+    if "шелкограф" in low:
+        return "Шелкография"
+    if "картон" in low or "дерево" in low or "мдф" in low:
+        return "Картон/Дерево"
+    if "сборочн" in low or "термо" in low or "туннель" in low or "упаков" in low:
+        return "Сборочный цех"
+    if any(k in low for k in ["вспомогател", "руковод", "начальник", "мастер"]):
+        return "Вспомогательный персонал"
+    return s or "—"
 
 
 def _infer_section_for_luminarc(position: str) -> str:
@@ -922,12 +943,18 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
             section_costs[sec] = 0.0
             daily_section_cost[sec] = {}
 
+    _normalize_sec = {
+        "engraving": _normalize_engraving_section,
+        "tea": _normalize_tea_section,
+    }
+
+    def _norm(sec_raw: str) -> str:
+        fn = _normalize_sec.get(production)
+        return fn(sec_raw) if fn else ((sec_raw or "—").strip() or "—")
+
     for name in employees_set:
         sec_raw = _section_for_name(name, name_to_position.get(name, ""))
-        if production == "engraving":
-            sec = _normalize_engraving_section(sec_raw)
-        else:
-            sec = (sec_raw or "—").strip() or "—"
+        sec = _norm(sec_raw)
         _ensure_section(sec)
         section_employees[sec].add(name)
 
@@ -935,10 +962,7 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
     for dk, names in daily_employees.items():
         for name in names:
             sec_raw = _section_for_name(name, name_to_position.get(name, ""))
-            if production == "engraving":
-                sec = _normalize_engraving_section(sec_raw)
-            else:
-                sec = (sec_raw or "—").strip() or "—"
+            sec = _norm(sec_raw)
             _ensure_section(sec)
             section_employees[sec].add(name)
 
@@ -975,10 +999,7 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
             status = emp.get("status", "")
             rate = rate_lookup.get((position, status), 0.0)
             sec_raw = _section_for_name(name, position)
-            if production == "engraving":
-                sec = _normalize_engraving_section(sec_raw)
-            else:
-                sec = (sec_raw or "—").strip() or "—"
+            sec = _norm(sec_raw)
             _ensure_section(sec)
             section_employees[sec].add(name)
 
@@ -1060,7 +1081,7 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
     planned_by_section: dict[str, int] = {}
     for name in planned_names:
         sec_raw = _section_for_name(name, name_to_position.get(name, ""))
-        sec = _normalize_engraving_section(sec_raw) if production == "engraving" else (sec_raw or "—").strip() or "—"
+        sec = _norm(sec_raw)
         planned_by_section[sec] = planned_by_section.get(sec, 0) + 1
 
     return {

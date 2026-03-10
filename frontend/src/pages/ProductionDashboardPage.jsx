@@ -9,10 +9,20 @@ const MONTH_NAMES = [
 ]
 
 const SECTION_DISPLAY = {
+  // Гравировка
   'Сборочный цех Елино Гравировка':   'Выпуск готовой продукции',
   'Гравировочный цех Елино':           'Гравировка',
   'Картон/Дерево Елино Гравировка':    'Картон/Дерево',
   'Шелкография Елино Гравировка':      'Шелкография',
+  // Чай
+  'Купажный цех Елино':                'Купажный цех',
+  'Шелкография Елино':                 'Шелкография',
+  'Картон/Дерево Елино':               'Картон/Дерево',
+  'Сборочный цех Елино':               'Сборочный цех',
+  'Фасовка КУБОВ':                     'Фасовочный цех',
+  'Фасовка банок':                     'Фасовочный цех',
+  // Люминарк
+  'Сборочный цех Люминарк':            'Сборочный цех Люминарк',
 }
 
 function getYesterday() {
@@ -168,11 +178,16 @@ function SectionCostBlock({ workforce, sections }) {
     ;(mainSection.daily_data || []).forEach(d => { mainDailyProdMap[d.date] = d.total })
   }
 
-  // Собираем данные по каждому участку
+  // Собираем данные по каждому участку (дедупликация по displayName для матрицы ФОТ)
+  const seenWfSections = new Set()
   const sectionData = sections.map(section => {
     const displayName = SECTION_DISPLAY[section.name] || section.name
     const wfSec       = wfSections[displayName] || {}
-    const sectionCost = wfSec.cost || 0
+    // Если несколько производственных секций маппятся на один участок workforce
+    // (напр. Фасовка КУБОВ + Фасовка банок → Фасовочный цех), ФОТ берём только один раз
+    const alreadySeen = seenWfSections.has(displayName)
+    if (!alreadySeen && wfSec.cost) seenWfSections.add(displayName)
+    const sectionCost = alreadySeen ? 0 : (wfSec.cost || 0)
     const empCount    = wfSec.employee_count || 0
     const output      = section.total || 0
     // Делим на выпуск ОСНОВНОГО участка — тогда строки матрицы суммируются в итоговую себест.
@@ -183,7 +198,7 @@ function SectionCostBlock({ workforce, sections }) {
     // Ежедневные карты: дата → значение
     const dailyProdMap = {}
     ;(section.daily_data || []).forEach(d => { dailyProdMap[d.date] = d.total })
-    const dailyCostMap = dailyBySection[displayName] || {}
+    const dailyCostMap = alreadySeen ? {} : (dailyBySection[displayName] || {})
 
     return { displayName, main: section.main, unit: section.unit || 'шт',
              empCount, output, sectionCost, costPerUnit, pctOfTotal,
@@ -463,14 +478,14 @@ function SectionCard({ section, workforce, isMainSection, index }) {
 
 // ─── Summary Card ─────────────────────────────────────────────────────────────
 
-function SummaryCard({ workforce, sections }) {
+function SummaryCard({ workforce, sections, productionLabel }) {
   if (!workforce) return null
   const mainSection = (sections || []).find(s => s.main)
   const totalOutput = mainSection?.total ?? 0
   const outputUnit = mainSection?.unit ?? 'шт'
   return (
     <div className="pd-summary-card">
-      <div className="pd-summary-title">Итого по производству · Гравировка</div>
+      <div className="pd-summary-title">Итого по производству{productionLabel ? ` · ${productionLabel}` : ''}</div>
       <div className="pd-summary-grid">
         <div className="pd-summary-item">
           <span className="pd-summary-label">Выпущено ГП</span>
@@ -623,8 +638,16 @@ function AuxStaffBlock({ workforce, sections }) {
 // ─── Attendance Block ─────────────────────────────────────────────────────────
 
 const ATTENDANCE_SECTION_ORDER = [
+  // Гравировка
   'Выпуск готовой продукции', 'Гравировка', 'Шелкография',
-  'Резка МДФ', 'Сборка МДФ', 'Вспомогательный персонал',
+  'Резка МДФ', 'Сборка МДФ',
+  // Чай
+  'Купажный цех', 'Фасовочный цех', 'Шелкография',
+  'Картон/Дерево', 'Сборочный цех',
+  // Люминарк
+  'Склад', 'Упаковка', 'Комплекты', 'Сборочный цех Люминарк',
+  // Общее
+  'Вспомогательный персонал',
 ]
 
 function AttendanceBlock({ workforce }) {
@@ -824,7 +847,7 @@ function EfficiencyTab({ production = 'engraving' }) {
             <div className="pd-empty">Нет данных о выпуске продукции за выбранный период.</div>
           ) : (
             <>
-              <SummaryCard workforce={data.workforce} sections={data.sections} />
+              <SummaryCard workforce={data.workforce} sections={data.sections} productionLabel={PRODUCTION_CONFIG[production]?.fullLabel} />
               <AttendanceBlock workforce={data.workforce} />
 
               <div className="pd-sections-block">
