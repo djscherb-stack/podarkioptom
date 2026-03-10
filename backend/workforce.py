@@ -896,10 +896,18 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
             if n:
                 name_to_position[n] = e.get("position", "")
 
+    _infer_fns = {
+        "engraving": _infer_section_for_engraving,
+        "tea": _infer_section_for_tea,
+        "luminarc": _infer_section_for_luminarc,
+    }
+
     def _section_for_name(name: str, position: str = "") -> str:
         sec = raw_section_map.get(name, "").strip()
-        if not sec and production == "engraving" and position:
-            sec = _infer_section_for_engraving(position)
+        if not sec and position:
+            infer_fn = _infer_fns.get(production)
+            if infer_fn:
+                sec = infer_fn(position)
         return sec or ""
 
     section_hours: dict[str, float] = {}
