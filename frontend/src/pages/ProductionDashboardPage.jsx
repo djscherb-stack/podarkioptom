@@ -52,6 +52,20 @@ const SECTION_COLORS = {
   'Сборка МДФ':               '#16a34a',
   'Шелкография':              '#7c3aed',
   'Валковый пресс':           '#dc2626',
+  'Купажный цех':             '#0891b2',
+  'Фасовочный цех':           '#7c3aed',
+  'Сборочный цех':            '#16a34a',
+  'Сборочный цех Люминарк':   '#16a34a',
+  'Разборка':                 '#dc2626',
+  'Картон/Дерево':            '#d97706',
+  'Фасовка КУБОВ':            '#0891b2',
+  'Фасовка банок':            '#7c3aed',
+}
+
+const PRODUCTION_CONFIG = {
+  engraving: { label: 'Гравировка', apiKey: 'engraving', wfKey: 'engraving', fullLabel: 'ГРАВИРОВКА' },
+  tea:       { label: 'Чай',        apiKey: 'tea',        wfKey: 'tea',        fullLabel: 'ЧАЙ' },
+  luminarc:  { label: 'Люминарк',   apiKey: 'luminarc',   wfKey: 'luminarc',   fullLabel: 'ЛЮМИНАРК' },
 }
 
 // Многолинейный SVG-график: себестоимость единицы по участкам за 15 дней
@@ -688,7 +702,7 @@ function shiftDate(isoStr, days) {
   return d.toISOString().slice(0, 10)
 }
 
-function EfficiencyTab() {
+function EfficiencyTab({ production = 'engraving' }) {
   const yesterday = getYesterday()
   const [preset, setPreset]     = useState('yesterday')
   const [dateFrom, setDateFrom] = useState(yesterday)
@@ -719,7 +733,7 @@ function EfficiencyTab() {
     const trendDays = getTrendDays()
     setLoading(true)
     setError(null)
-    apiFetch(`${API}/production-dashboard/engraving?date_from=${from}&date_to=${to}&trend_days=${trendDays}`)
+    apiFetch(`${API}/production-dashboard/${production}?date_from=${from}&date_to=${to}&trend_days=${trendDays}`)
       .then(res => { setData(res); setLoading(false) })
       .catch(e => { setError(e.message); setLoading(false) })
   }, [getEffectiveDates, getTrendDays])
@@ -852,7 +866,7 @@ function EfficiencyTab() {
 
 // ─── Workforce Tab ────────────────────────────────────────────────────────────
 
-function WorkforceTab({ userInfo, reference }) {
+function WorkforceTab({ userInfo, reference, production = 'engraving' }) {
   const now = new Date()
   const [year, setYear]     = useState(now.getFullYear())
   const [month, setMonth]   = useState(now.getMonth() + 1)
@@ -912,15 +926,15 @@ function WorkforceTab({ userInfo, reference }) {
       <div className="pd-wf-content">
         {subTab === 'employees' && canEdit && (
           <EmployeesTab
-            key="pd-employees-engraving"
-            production="engraving"
+            key={`pd-employees-${production}`}
+            production={production}
             canEdit={canEdit}
           />
         )}
         {subTab === 'schedule' && (
           <ScheduleTable
-            key={`pd-sched-${year}-${month}-${importKey}`}
-            production="engraving"
+            key={`pd-sched-${production}-${year}-${month}-${importKey}`}
+            production={production}
             year={year}
             month={month}
             canEdit={canEdit}
@@ -929,8 +943,8 @@ function WorkforceTab({ userInfo, reference }) {
         )}
         {subTab === 'timesheet' && (
           <TimesheetTable
-            key={`pd-ts-${year}-${month}-${importKey}`}
-            production="engraving"
+            key={`pd-ts-${production}-${year}-${month}-${importKey}`}
+            production={production}
             year={year}
             month={month}
             canEdit={canEdit}
@@ -945,7 +959,7 @@ function WorkforceTab({ userInfo, reference }) {
 
 // ─── Main Page ────────────────────────────────────────────────────────────────
 
-export default function ProductionDashboardPage({ userInfo }) {
+export default function ProductionDashboardPage({ userInfo, production = 'engraving' }) {
   const [activeTab, setActiveTab] = useState('efficiency')
   const [reference, setReference] = useState([])
 
@@ -955,10 +969,9 @@ export default function ProductionDashboardPage({ userInfo }) {
       .catch(() => {})
   }, [])
 
-  const isAdmin    = userInfo?.is_admin === true
-  const role       = userInfo?.schedule_role
-  const prod       = userInfo?.schedule_production
-  const hasAccess  = isAdmin || (role && role !== 'none' && (prod === 'engraving' || prod === 'all'))
+  const isAdmin   = userInfo?.is_admin === true
+  const role      = userInfo?.schedule_role
+  const hasAccess = isAdmin || (role && role !== 'none')
 
   if (!hasAccess) {
     return (
@@ -971,11 +984,13 @@ export default function ProductionDashboardPage({ userInfo }) {
     )
   }
 
+  const cfg = PRODUCTION_CONFIG[production] || PRODUCTION_CONFIG.engraving
+
   return (
     <div className="pd-page">
       <div className="pd-page-header">
-        <h2 className="pd-page-title">Панель управления производством</h2>
-        <span className="pd-page-subtitle">Гравировка</span>
+        <h2 className="pd-page-title">Панель производства</h2>
+        <span className="pd-page-subtitle">{cfg.fullLabel}</span>
       </div>
 
       <div className="pd-main-tabs">
@@ -994,8 +1009,8 @@ export default function ProductionDashboardPage({ userInfo }) {
       </div>
 
       <div className="pd-tab-content">
-        {activeTab === 'efficiency' && <EfficiencyTab />}
-        {activeTab === 'workforce'  && <WorkforceTab userInfo={userInfo} reference={reference} />}
+        {activeTab === 'efficiency' && <EfficiencyTab key={production} production={production} />}
+        {activeTab === 'workforce'  && <WorkforceTab key={production} production={production} userInfo={userInfo} reference={reference} />}
       </div>
     </div>
   )

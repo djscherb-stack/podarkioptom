@@ -78,6 +78,9 @@ NAV_ITEMS = {
     "disassembly_nomenclature": "Номенклатура разборки",
     "cost_check":               "Проверка стоимости",
     "workforce":                "Графики и табели",
+    "dashboard_engraving":      "Панель производства Гравировка",
+    "dashboard_tea":            "Панель производства Чай",
+    "dashboard_luminarc":       "Панель производства Люминарк",
 }
 
 PRODUCTIONS = {

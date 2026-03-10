@@ -617,15 +617,74 @@ def _normalize_engraving_section(section: str) -> str:
     return s
 
 
+def _infer_section_for_tea(position: str) -> str:
+    """Определить участок по должности для ЧАЙ."""
+    p = (position or "").lower().strip()
+    if not p:
+        return "Вспомогательный персонал"
+    if "купаж" in p:
+        return "Купажный цех"
+    if "фасов" in p:
+        return "Фасовочный цех"
+    if "шелкограф" in p:
+        return "Шелкография"
+    if "картон" in p or "дерево" in p or "резка" in p:
+        return "Картон/Дерево"
+    if "термо" in p or "туннель" in p:
+        return "Термотуннель"
+    if "упаков" in p:
+        return "Упаковка"
+    return "Вспомогательный персонал"
+
+
+def _infer_section_for_luminarc(position: str) -> str:
+    """Определить участок по должности для ЛЮМИНАРК."""
+    p = (position or "").lower().strip()
+    if not p:
+        return "Вспомогательный персонал"
+    if "склад" in p or "кладов" in p:
+        return "Склад"
+    if "комплект" in p:
+        return "Комплекты"
+    if "упаков" in p or "сборщ" in p or "сборка" in p:
+        return "Упаковка"
+    return "Вспомогательный персонал"
+
+
+def assign_sections_for_tea() -> int:
+    """Проставить участки всем сотрудникам чая по должности."""
+    _ensure_dir()
+    employees = _read_json(_employees_path("tea"), [])
+    for emp in employees:
+        emp["section"] = _infer_section_for_tea(emp.get("position", ""))
+    save_employees("tea", employees)
+    return len(employees)
+
+
+def assign_sections_for_luminarc() -> int:
+    """Проставить участки всем сотрудникам люминарка по должности."""
+    _ensure_dir()
+    employees = _read_json(_employees_path("luminarc"), [])
+    for emp in employees:
+        emp["section"] = _infer_section_for_luminarc(emp.get("position", ""))
+    save_employees("luminarc", employees)
+    return len(employees)
+
+
 def get_employees(production: str) -> list:
     """Постоянный список сотрудников производства (не привязан к месяцу)."""
     _ensure_dir()
     employees = _read_json(_employees_path(production), [])
-    if production == "engraving" and employees:
+    _infer_fn = {
+        "engraving": _infer_section_for_engraving,
+        "tea": _infer_section_for_tea,
+        "luminarc": _infer_section_for_luminarc,
+    }.get(production)
+    if _infer_fn and employees:
         changed = False
         for emp in employees:
             if not emp.get("section") or (emp.get("section", "").strip() == ""):
-                sec = _infer_section_for_engraving(emp.get("position", ""))
+                sec = _infer_fn(emp.get("position", ""))
                 if sec:
                     emp["section"] = sec
                     changed = True

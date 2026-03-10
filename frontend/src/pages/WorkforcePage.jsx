@@ -527,6 +527,30 @@ export const ENGRAVING_SECTIONS = [
   'Вспомогательный персонал',
 ]
 
+export const TEA_SECTIONS = [
+  'Купажный цех',
+  'Фасовочный цех',
+  'Шелкография',
+  'Картон/Дерево',
+  'Термотуннель',
+  'Упаковка',
+  'Вспомогательный персонал',
+]
+
+export const LUMINARC_SECTIONS = [
+  'Склад',
+  'Упаковка',
+  'Комплекты',
+  'Вспомогательный персонал',
+]
+
+export function getSectionsForProduction(production) {
+  if (production === 'engraving') return ENGRAVING_SECTIONS
+  if (production === 'tea') return TEA_SECTIONS
+  if (production === 'luminarc') return LUMINARC_SECTIONS
+  return []
+}
+
 export function EmployeesTab({ production, canEdit }) {
   const [employees, setEmployees] = useState([])
   const [ref, setRef] = useState([])
@@ -667,7 +691,8 @@ export function EmployeesTab({ production, canEdit }) {
 
   if (loading) return <div className="wf-loading">Загрузка...</div>
 
-  const showSection = production === 'engraving'
+  const showSection = true
+  const sectionOptions = getSectionsForProduction(production)
   const colSpan = canEdit ? (showSection ? 7 : 6) : (showSection ? 6 : 5)
 
   const renderRow = (emp, idx, isFired = false) => {
@@ -703,7 +728,7 @@ export function EmployeesTab({ production, canEdit }) {
               <select className="wf-cell-input" value={editBuf.section || ''}
                 onChange={e => setEditBuf(b => ({...b, section: e.target.value}))}>
                 <option value="">— Участок —</option>
-                {ENGRAVING_SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                {sectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
               </select>
             </td>
           )}
@@ -867,7 +892,7 @@ export function EmployeesTab({ production, canEdit }) {
                     <select className="wf-cell-input" value={newEmp.section}
                       onChange={e => setNewEmp(n => ({...n, section: e.target.value}))}>
                       <option value="">— Участок —</option>
-                      {ENGRAVING_SECTIONS.map(s => <option key={s} value={s}>{s}</option>)}
+                      {sectionOptions.map(s => <option key={s} value={s}>{s}</option>)}
                     </select>
                   </td>
                 )}
@@ -1034,8 +1059,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
   // Доступные участки для выбора
   const availableSections = [...new Set([
     ...empList.map(e => e.section).filter(Boolean),
-    'Гравировочный цех', 'Сборочный цех', 'Резка МДФ',
-    'Шелкография', 'Сборка МДФ', 'Вспомогательный персонал',
+    ...getSectionsForProduction(production),
   ])].sort((a, b) => a.localeCompare(b, 'ru'))
 
   const handleSectionEdit = async (fullName, newSection) => {

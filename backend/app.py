@@ -963,6 +963,92 @@ def get_engraving_dashboard(date_from: str = "", date_to: str = "", trend_days: 
     return {**production_data, "workforce": workforce_data}
 
 
+@app.get("/api/production-dashboard/tea", dependencies=[Depends(require_auth)])
+def get_tea_dashboard(date_from: str = "", date_to: str = "", trend_days: int = 7):
+    """Сводная панель для производства ЧАЙ."""
+    from datetime import datetime, timedelta
+    try:
+        d_from = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else (datetime.now() - timedelta(days=1)).date()
+        d_to   = datetime.strptime(date_to,   "%Y-%m-%d").date() if date_to   else d_from
+    except ValueError:
+        return {"error": "Формат дат: YYYY-MM-DD"}
+    if d_from > d_to:
+        return {"error": "Дата начала не может быть позже даты конца"}
+    if trend_days is None or trend_days <= 0:
+        trend_days = 7
+
+    production_data = db.get_generic_period_stats("ЧАЙ", d_from, d_to, trend_days=trend_days)
+
+    try:
+        import workforce as _wf
+        workforce_data = _wf.get_workforce_period_data("tea", d_from, d_to)
+    except Exception:
+        workforce_data = {"employee_count": 0, "total_hours": 0, "total_cost": 0,
+                          "is_planned": False, "daily_cost": {}, "by_section": {}, "sections": {}}
+
+    try:
+        d_from_15 = d_to - timedelta(days=14)
+        wf_15 = _wf.get_workforce_period_data("tea", d_from_15, d_to)
+        workforce_data["last_15_days"] = {
+            "daily_cost": wf_15.get("daily_cost", {}),
+            "daily_by_section": wf_15.get("daily_by_section", {}),
+        }
+    except Exception:
+        workforce_data["last_15_days"] = {"daily_cost": {}, "daily_by_section": {}}
+
+    total_units = next(
+        (s.get("total", 0) for s in production_data.get("sections", []) if s.get("main")), 0)
+    total_cost = workforce_data.get("total_cost", 0)
+    employee_count = workforce_data.get("employee_count", 0)
+    workforce_data["cost_per_unit"] = round(total_cost / total_units, 2) if total_units > 0 else 0
+    workforce_data["units_per_employee"] = round(total_units / employee_count, 1) if employee_count > 0 else 0
+
+    return {**production_data, "workforce": workforce_data}
+
+
+@app.get("/api/production-dashboard/luminarc", dependencies=[Depends(require_auth)])
+def get_luminarc_dashboard(date_from: str = "", date_to: str = "", trend_days: int = 7):
+    """Сводная панель для производства ЛЮМИНАРК."""
+    from datetime import datetime, timedelta
+    try:
+        d_from = datetime.strptime(date_from, "%Y-%m-%d").date() if date_from else (datetime.now() - timedelta(days=1)).date()
+        d_to   = datetime.strptime(date_to,   "%Y-%m-%d").date() if date_to   else d_from
+    except ValueError:
+        return {"error": "Формат дат: YYYY-MM-DD"}
+    if d_from > d_to:
+        return {"error": "Дата начала не может быть позже даты конца"}
+    if trend_days is None or trend_days <= 0:
+        trend_days = 7
+
+    production_data = db.get_generic_period_stats("ЛЮМИНАРК", d_from, d_to, trend_days=trend_days)
+
+    try:
+        import workforce as _wf
+        workforce_data = _wf.get_workforce_period_data("luminarc", d_from, d_to)
+    except Exception:
+        workforce_data = {"employee_count": 0, "total_hours": 0, "total_cost": 0,
+                          "is_planned": False, "daily_cost": {}, "by_section": {}, "sections": {}}
+
+    try:
+        d_from_15 = d_to - timedelta(days=14)
+        wf_15 = _wf.get_workforce_period_data("luminarc", d_from_15, d_to)
+        workforce_data["last_15_days"] = {
+            "daily_cost": wf_15.get("daily_cost", {}),
+            "daily_by_section": wf_15.get("daily_by_section", {}),
+        }
+    except Exception:
+        workforce_data["last_15_days"] = {"daily_cost": {}, "daily_by_section": {}}
+
+    total_units = next(
+        (s.get("total", 0) for s in production_data.get("sections", []) if s.get("main")), 0)
+    total_cost = workforce_data.get("total_cost", 0)
+    employee_count = workforce_data.get("employee_count", 0)
+    workforce_data["cost_per_unit"] = round(total_cost / total_units, 2) if total_units > 0 else 0
+    workforce_data["units_per_employee"] = round(total_units / employee_count, 1) if employee_count > 0 else 0
+
+    return {**production_data, "workforce": workforce_data}
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # Модуль «Графики и табели» (workforce)
 # ─────────────────────────────────────────────────────────────────────────────
@@ -1190,6 +1276,18 @@ def wf_assign_engraving_sections(request: Request):
         raise HTTPException(status_code=403, detail="Только менеджер или администратор")
     count = wf.assign_sections_for_engraving()
     return {"ok": True, "count": count}
+
+
+@app.post("/api/workforce/tea-assign-sections", dependencies=[Depends(require_admin)])
+def wf_assign_sections_tea():
+    n = wf.assign_sections_for_tea()
+    return {"ok": True, "count": n}
+
+
+@app.post("/api/workforce/luminarc-assign-sections", dependencies=[Depends(require_admin)])
+def wf_assign_sections_luminarc():
+    n = wf.assign_sections_for_luminarc()
+    return {"ok": True, "count": n}
 
 
 @app.get("/api/workforce/employees/{production}")

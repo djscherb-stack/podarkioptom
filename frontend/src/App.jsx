@@ -46,10 +46,9 @@ function AppContent({ userInfo, onRefreshUser }) {
   const hasWorkforceAccess = userInfo?.schedule_role != null &&
     userInfo?.schedule_role !== 'none' &&
     userInfo?.schedule_role !== null
-  const hasDashboardAccess = isAdmin || (
-    hasWorkforceAccess &&
-    (userInfo?.schedule_production === 'engraving' || userInfo?.schedule_production === 'all')
-  )
+  const userProd = userInfo?.schedule_production
+  const hasDashboardAccess = isAdmin || hasWorkforceAccess
+  const canSeeProd = (key) => isAdmin || userProd === 'all' || userProd === key
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -113,9 +112,19 @@ function AppContent({ userInfo, onRefreshUser }) {
               Проверка стоимости
             </NavLink>
           )}
-          {hasDashboardAccess && (isAdmin || canShowNav('production_dashboard')) && (
-            <NavLink to="/production-dashboard" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
-              Панель производства
+          {hasDashboardAccess && canSeeProd('engraving') && (isAdmin || canShowNav('dashboard_engraving')) && (
+            <NavLink to="/dashboard-engraving" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Панель производства Гравировка
+            </NavLink>
+          )}
+          {hasDashboardAccess && canSeeProd('tea') && (isAdmin || canShowNav('dashboard_tea')) && (
+            <NavLink to="/dashboard-tea" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Панель производства Чай
+            </NavLink>
+          )}
+          {hasDashboardAccess && canSeeProd('luminarc') && (isAdmin || canShowNav('dashboard_luminarc')) && (
+            <NavLink to="/dashboard-luminarc" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Панель производства Люминарк
             </NavLink>
           )}
           {hasWorkforceAccess && canShowNav('workforce') && (
@@ -165,7 +174,10 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
           <Route path="/workforce" element={<WorkforcePage userInfo={userInfo} />} />
-          <Route path="/production-dashboard" element={<ProductionDashboardPage userInfo={userInfo} />} />
+          <Route path="/production-dashboard" element={<Navigate to="/dashboard-engraving" replace />} />
+          <Route path="/dashboard-engraving" element={<ProductionDashboardPage userInfo={userInfo} production="engraving" />} />
+          <Route path="/dashboard-tea" element={<ProductionDashboardPage userInfo={userInfo} production="tea" />} />
+          <Route path="/dashboard-luminarc" element={<ProductionDashboardPage userInfo={userInfo} production="luminarc" />} />
           </Routes>
         </main>
       </div>
@@ -181,6 +193,9 @@ function App() {
     fetchTheme().then(applyTheme)
   }, [])
 
+  const isLocalhost = typeof window !== 'undefined' &&
+    (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')
+
   const fetchUserInfo = useCallback(() => {
     fetch(`${API}/me`, { credentials: 'include' })
       .then(async (r) => {
@@ -188,6 +203,21 @@ function App() {
           const d = await r.json()
           setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items })
           setAuthStatus('ok')
+        } else if (isLocalhost) {
+          // На localhost — автовход под админом
+          fetch(`${API}/dev-auto-login`, { credentials: 'include', redirect: 'follow' })
+            .then(() => fetch(`${API}/me`, { credentials: 'include' }))
+            .then(async (r2) => {
+              if (r2.ok) {
+                const d = await r2.json()
+                setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items })
+                setAuthStatus('ok')
+              } else {
+                setAuthStatus('fail')
+                setUserInfo(null)
+              }
+            })
+            .catch(() => { setAuthStatus('fail'); setUserInfo(null) })
         } else {
           setAuthStatus('fail')
           setUserInfo(null)
@@ -197,7 +227,7 @@ function App() {
         setAuthStatus('fail')
         setUserInfo(null)
       })
-  }, [])
+  }, [isLocalhost])
 
   useEffect(() => {
     fetchUserInfo()
