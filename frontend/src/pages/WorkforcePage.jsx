@@ -1048,6 +1048,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [statusFilter, setStatusFilter] = useState([])
   const [sectionFilter, setSectionFilter] = useState([])
   const [editingSection, setEditingSection] = useState(null) // full_name редактируемого участка
+  const [dayFilter, setDayFilter] = useState(null)           // число дня или null
   const numDays = getDaysInMonth(year, month)
   const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
 
@@ -1267,7 +1268,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
 
   const employees = schedule.employees || []
 
-  // Фильтрация по должности, статусу и участку
+  // Фильтрация по должности, статусу, участку и выбранному дню
   const filteredEmployees = employees.filter(emp => {
     if (positionFilter.length && !positionFilter.includes(emp.position)) return false
     if (statusFilter.length && !statusFilter.includes(emp.status)) return false
@@ -1275,6 +1276,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
       const sec = sectionMap[emp.full_name?.trim()] || ''
       if (!sectionFilter.includes(sec)) return false
     }
+    if (dayFilter !== null && emp.working_days[String(dayFilter)] === undefined) return false
     return true
   })
 
@@ -1390,7 +1392,14 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
                 Участок<ResizeHandle col="section" onMouseDown={startResize} />
               </th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
-                <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''}`}>
+                <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${dayFilter === d ? 'wf-day-filtered' : ''}`}>
+                  <input
+                    type="checkbox"
+                    className="wf-day-check"
+                    checked={dayFilter === d}
+                    onChange={() => setDayFilter(df => df === d ? null : d)}
+                    title={`Только работающие ${d}-го`}
+                  />
                   <div>{d}</div>
                   <div className="wf-dow">{DAY_NAMES[getDayOfWeek(year, month, d)]}</div>
                 </th>
@@ -1627,6 +1636,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
   const [sectionFilter, setSectionFilter] = useState([])
   const [sortBy, setSortBy] = useState('fio')
   const [editingSection, setEditingSection] = useState(null)
+  const [dayFilter, setDayFilter] = useState(null)           // число дня или null
   const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
   const numDays = getDaysInMonth(year, month)
 
@@ -1724,6 +1734,12 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
     if (sectionFilter.length > 0) {
       const sec = sectionMap[emp.full_name?.trim()] || ''
       if (!sectionFilter.includes(sec)) return false
+    }
+    if (dayFilter !== null) {
+      const dStr = String(dayFilter)
+      const hasPlan = emp.working_days[dStr] !== undefined
+      const hasFact = (records[emp.id]?.[dStr] ?? null) !== null
+      if (!hasPlan && !hasFact) return false
     }
     return true
   })
@@ -1827,7 +1843,14 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
                 Участок<ResizeHandle col="section" onMouseDown={startResize} />
               </th>}
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
-                <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${d === todayDay ? 'wf-today' : ''}`}>
+                <th key={d} className={`wf-col-day ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${d === todayDay ? 'wf-today' : ''} ${dayFilter === d ? 'wf-day-filtered' : ''}`}>
+                  <input
+                    type="checkbox"
+                    className="wf-day-check"
+                    checked={dayFilter === d}
+                    onChange={() => setDayFilter(df => df === d ? null : d)}
+                    title={`Только работающие ${d}-го`}
+                  />
                   <div>{d}</div>
                   <div className="wf-dow">{DAY_NAMES[getDayOfWeek(year, month, d)]}</div>
                 </th>

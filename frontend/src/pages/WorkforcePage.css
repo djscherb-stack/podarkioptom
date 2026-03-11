@@ -593,6 +593,32 @@
   font-weight: 400;
 }
 
+/* Чекбокс-фильтр над датой */
+.wf-day-check {
+  display: block;
+  width: 12px;
+  height: 12px;
+  margin: 0 auto 2px;
+  cursor: pointer;
+  accent-color: #000;
+  opacity: 0.35;
+  transition: opacity 0.15s;
+}
+.wf-day-check:checked,
+.wf-col-day:hover .wf-day-check {
+  opacity: 1;
+}
+.wf-col-day.wf-day-filtered {
+  background: #000 !important;
+  color: #fff !important;
+}
+.wf-col-day.wf-day-filtered .wf-dow,
+.wf-col-day.wf-day-filtered .wf-day-check {
+  color: #fff !important;
+  opacity: 1;
+  accent-color: #fff;
+}
+
 .wf-weekend { background: rgba(120, 80, 80, 0.08) !important; color: var(--negative) !important; }
 .wf-weekend .wf-dow { color: var(--negative) !important; opacity: 0.7; }
 
