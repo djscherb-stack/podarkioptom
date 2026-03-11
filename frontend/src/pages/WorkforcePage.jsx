@@ -1737,9 +1737,8 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
     }
     if (dayFilter !== null) {
       const dStr = String(dayFilter)
-      const hasPlan = emp.working_days[dStr] !== undefined
-      const hasFact = (records[emp.id]?.[dStr] ?? null) !== null
-      if (!hasPlan && !hasFact) return false
+      const actualH = records[emp.id]?.[dStr]
+      if (!actualH || actualH <= 0) return false
     }
     return true
   })
@@ -1849,7 +1848,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
                     className="wf-day-check"
                     checked={dayFilter === d}
                     onChange={() => setDayFilter(df => df === d ? null : d)}
-                    title={`Только работающие ${d}-го`}
+                    title={`Только отработавшие ${d}-го (зелёные ячейки)`}
                   />
                   <div>{d}</div>
                   <div className="wf-dow">{DAY_NAMES[getDayOfWeek(year, month, d)]}</div>
