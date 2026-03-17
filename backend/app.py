@@ -120,6 +120,41 @@ def logout(request: Request):
     return response
 
 
+@app.post("/api/admin/impersonate")
+async def impersonate_user(request: Request, _admin: str = Depends(require_admin)):
+    """Войти под другим пользователем (только для admin). Возвращает оригинальный токен."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Ожидается JSON"}, status_code=400)
+    target = body.get("username", "")
+    if not target:
+        return JSONResponse({"error": "username обязателен"}, status_code=400)
+    original_token = request.cookies.get("analytics_session")
+    new_token = auth.create_session(target)
+    response = JSONResponse({"ok": True, "original_token": original_token, "impersonating": target})
+    response.set_cookie("analytics_session", new_token, httponly=True, samesite="lax", max_age=7 * 24 * 3600, path="/")
+    return response
+
+
+@app.post("/api/admin/unimpersonate")
+async def unimpersonate_user(request: Request):
+    """Вернуться к оригинальной сессии admin."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Ожидается JSON"}, status_code=400)
+    original_token = body.get("token", "")
+    if not original_token:
+        return JSONResponse({"error": "token обязателен"}, status_code=400)
+    original_user = auth.get_username(original_token)
+    if not original_user or not auth.is_admin(original_user):
+        return JSONResponse({"error": "Недействительный или истёкший токен администратора"}, status_code=403)
+    response = JSONResponse({"ok": True, "username": original_user})
+    response.set_cookie("analytics_session", original_token, httponly=True, samesite="lax", max_age=7 * 24 * 3600, path="/")
+    return response
+
+
 @app.get("/api/me")
 def get_me(username: str = Depends(require_auth)):
     """Проверка авторизации. Возвращает username, is_admin и доступ к графикам/табелям."""

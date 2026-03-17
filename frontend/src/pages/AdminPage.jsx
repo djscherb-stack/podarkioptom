@@ -68,6 +68,7 @@ export default function AdminPage() {
   const [replaceDisassemblyLog, setReplaceDisassemblyLog] = useState([])
   const [replaceDisassemblyProgress, setReplaceDisassemblyProgress] = useState(null)
   const [replaceDisassemblyModalOpen, setReplaceDisassemblyModalOpen] = useState(false)
+  const [impersonatingUser, setImpersonatingUser] = useState(null)
   const replaceLogEndRef = useRef(null)
   const navigate = useNavigate()
 
@@ -627,13 +628,36 @@ export default function AdminPage() {
                       <td style={{fontSize:'0.8rem'}}>{PROD_LABELS[u.production] || u.production || '—'}</td>
                       <td>{u.login_count}</td>
                       <td style={{fontSize:'0.78rem', color:'var(--text-muted)'}}>{formatDate(u.last_login)}</td>
-                      <td>
+                      <td style={{display:'flex', gap:'4px', flexWrap:'wrap'}}>
                         {!u.is_system && (
                           <button className="admin-btn-refresh-data" style={{padding:'2px 8px', fontSize:'0.78rem'}}
                             onClick={() => { setEditingUser(u.username); setEditUserBuf({role: u.role, production: u.production}) }}>
                             ✎ Изменить
                           </button>
                         )}
+                        <button
+                          style={{padding:'2px 8px', fontSize:'0.78rem', background:'rgba(91,143,201,0.1)', border:'1px solid var(--accent)', borderRadius:'4px', cursor:'pointer', color:'var(--accent)'}}
+                          disabled={impersonatingUser === u.username}
+                          title={`Войти как ${u.username}`}
+                          onClick={async () => {
+                            setImpersonatingUser(u.username)
+                            try {
+                              const r = await apiFetch(`${API}/admin/impersonate`, {
+                                method: 'POST',
+                                body: JSON.stringify({username: u.username}),
+                              })
+                              sessionStorage.setItem('impersonation', JSON.stringify({
+                                originalToken: r.original_token,
+                                impersonating: u.username,
+                              }))
+                              window.location.href = '/'
+                            } catch(e) {
+                              setImpersonatingUser(null)
+                              alert('Ошибка: ' + e.message)
+                            }
+                          }}>
+                          {impersonatingUser === u.username ? '...' : '👁 Просмотр'}
+                        </button>
                       </td>
                     </>
                   )}

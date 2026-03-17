@@ -43,6 +43,21 @@ function DayNavLink(props) {
 
 function AppContent({ userInfo, onRefreshUser }) {
   const isAdmin = userInfo?.is_admin === true
+  const [impersonation] = useState(() => {
+    try { return JSON.parse(sessionStorage.getItem('impersonation') || 'null') } catch { return null }
+  })
+  const handleUnimpersonate = async () => {
+    try {
+      await fetch(`${API}/admin/unimpersonate`, {
+        method: 'POST', credentials: 'include',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({token: impersonation.originalToken}),
+      })
+    } finally {
+      sessionStorage.removeItem('impersonation')
+      window.location.href = '/admin'
+    }
+  }
   const hasWorkforceAccess = userInfo?.schedule_role != null &&
     userInfo?.schedule_role !== 'none' &&
     userInfo?.schedule_role !== null
@@ -63,7 +78,23 @@ function AppContent({ userInfo, onRefreshUser }) {
   const canShowNav = (key) => !userInfo?.nav_items || userInfo.nav_items.includes(key)
 
   return (
-    <div className="app">
+    <div className="app" style={impersonation ? {paddingTop: '34px'} : undefined}>
+      {impersonation && (
+        <div style={{
+          position: 'fixed', top: 0, left: 0, right: 0, zIndex: 9999,
+          background: '#92400e', color: '#fef3c7',
+          padding: '6px 16px', display: 'flex', alignItems: 'center', gap: '12px',
+          fontSize: '0.85rem', borderBottom: '2px solid #b45309',
+        }}>
+          <span>👁 Просмотр как: <strong>{impersonation.impersonating}</strong></span>
+          <button onClick={handleUnimpersonate} style={{
+            background: 'rgba(255,255,255,0.15)', border: '1px solid rgba(255,255,255,0.35)',
+            borderRadius: '4px', color: '#fef3c7', cursor: 'pointer', padding: '2px 10px', fontSize: '0.82rem',
+          }}>
+            ← Вернуться к admin
+          </button>
+        </div>
+      )}
       <div className={`app-sidebar-overlay ${mobileMenuOpen ? 'open' : ''}`} onClick={() => setMobileMenuOpen(false)} aria-hidden="true" />
       <aside className={`app-sidebar ${mobileMenuOpen ? 'open' : ''}`}>
         <div className="app-sidebar-nav">
