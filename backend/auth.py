@@ -125,6 +125,8 @@ WORKFORCE_USERS: dict[str, dict] = {
     "lodygin@podarkioptom.ru": {
         "password": "Ld!2026Al", "role": "admin", "production": "all",
         "full_name": "Лодыгин Юрий Михайлович",
+        "nav_items": ["month", "day", "week", "months", "disassembly",
+                      "dashboard_engraving", "dashboard_tea", "dashboard_luminarc", "workforce"],
     },
 
     # ── Просмотр всех табелей (без редактирования) ───────────────────────────
