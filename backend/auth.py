@@ -116,6 +116,12 @@ WORKFORCE_USERS: dict[str, dict] = {
     },
 
     # ── Полный доступ ко всему модулю (все производства) ─────────────────────
+    "NP": {
+        "password": NP_PASSWORD, "role": "admin", "production": "all",
+        "full_name": "Начальник производства",
+        "nav_items": ["month", "day", "week", "months", "disassembly",
+                      "dashboard_engraving", "dashboard_tea", "dashboard_luminarc", "workforce"],
+    },
     "lodygin@podarkioptom.ru": {
         "password": "Ld!2026Al", "role": "admin", "production": "all",
         "full_name": "Лодыгин Юрий Михайлович",
