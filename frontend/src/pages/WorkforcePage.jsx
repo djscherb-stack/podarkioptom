@@ -1978,7 +1978,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
 
             {/* Строки итогов */}
             <tr className="wf-totals-row">
-              <td colSpan={3} className="wf-totals-label">План (чел.):</td>
+              <td colSpan={hasSections ? 4 : 3} className="wf-totals-label">План (чел.):</td>
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => (
                 <td key={d} className={`wf-day-total ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${d === todayDay ? 'wf-today' : ''}`}>
                   {dayPlanned[d] > 0 ? dayPlanned[d] : ''}
@@ -1987,7 +1987,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
               <td colSpan={4}></td>
             </tr>
             <tr className="wf-totals-row wf-totals-actual">
-              <td colSpan={3} className="wf-totals-label">Факт (чел.):</td>
+              <td colSpan={hasSections ? 4 : 3} className="wf-totals-label">Факт (чел.):</td>
               {Array.from({ length: numDays }, (_, i) => i + 1).map(d => {
                 const diff = dayActual[d] - dayPlanned[d]
                 return (
