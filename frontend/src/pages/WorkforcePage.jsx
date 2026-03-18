@@ -2017,20 +2017,21 @@ function TimesheetExportTab({ userInfo }) {
   const isAdmin = userInfo?.schedule_role === 'admin'
   const userProd = userInfo?.schedule_production
 
-  const [expProd, setExpProd]   = useState(isAdmin ? 'tea' : (userProd || 'tea'))
-  const [expYear, setExpYear]   = useState(now.getFullYear())
-  const [expMonth, setExpMonth] = useState(now.getMonth() + 1)
-  const [fromDay, setFromDay]   = useState(1)
-  const [toDay, setToDay]       = useState(getDaysInMonth(now.getFullYear(), now.getMonth() + 1))
-  const [status, setStatus]     = useState('all')
+  const [expProd, setExpProd]     = useState(isAdmin ? 'all' : (userProd || 'tea'))
+  const [fromYear, setFromYear]   = useState(now.getFullYear())
+  const [fromMonth, setFromMonth] = useState(now.getMonth() + 1)
+  const [fromDay, setFromDay]     = useState(1)
+  const [toYear, setToYear]       = useState(now.getFullYear())
+  const [toMonth, setToMonth]     = useState(now.getMonth() + 1)
+  const [toDay, setToDay]         = useState(now.getDate())
+  const [status, setStatus]       = useState('all')
 
-  const [loading, setLoading]     = useState(false)
+  const [loading, setLoading]       = useState(false)
   const [pdfLoading, setPdfLoading] = useState(false)
-  const [preview, setPreview]     = useState(null)
-  const [error, setError]         = useState(null)
+  const [preview, setPreview]       = useState(null)
+  const [error, setError]           = useState(null)
   const previewRef = useRef(null)
 
-  // Подтягиваем доступные статусы из справочника
   const [allStatuses, setAllStatuses] = useState([])
   useEffect(() => {
     apiFetch(`${API}/workforce/reference`)
@@ -2041,73 +2042,122 @@ function TimesheetExportTab({ userInfo }) {
       .catch(() => {})
   }, [])
 
-  // Обновить toDay при смене месяца/года
-  useEffect(() => {
-    const max = getDaysInMonth(expYear, expMonth)
-    if (toDay > max) setToDay(max)
-    if (fromDay > max) setFromDay(1)
-  }, [expYear, expMonth])
+  const MONTH_SHORT = ['янв','фев','мар','апр','май','июн','июл','авг','сен','окт','ноя','дек']
 
-  const productions = isAdmin
-    ? Object.entries(PRODUCTIONS)
-    : [[userProd, PRODUCTIONS[userProd] || userProd]]
+  const generateDates = (fy, fm, fd, ty, tm, td) => {
+    const dates = []
+    const end = new Date(ty, tm - 1, td)
+    let cur = new Date(fy, fm - 1, fd)
+    while (cur <= end && dates.length <= 93) {
+      const y = cur.getFullYear(), m = cur.getMonth() + 1, d = cur.getDate()
+      dates.push({ year: y, month: m, day: d, label: `${d} ${MONTH_SHORT[m - 1]}`, key: `${y}-${m}-${d}` })
+      cur.setDate(cur.getDate() + 1)
+    }
+    return dates
+  }
+
+  const fromMaxDay = getDaysInMonth(fromYear, fromMonth)
+  const toMaxDay   = getDaysInMonth(toYear, toMonth)
+  const isValidRange = new Date(fromYear, fromMonth - 1, fromDay) <= new Date(toYear, toMonth - 1, toDay)
+  const years = [now.getFullYear() - 1, now.getFullYear(), now.getFullYear() + 1]
 
   const buildPreview = async () => {
-    setLoading(true)
-    setError(null)
-    setPreview(null)
+    if (!isValidRange) { setError('Дата начала позже даты конца'); return }
+    const dates = generateDates(fromYear, fromMonth, fromDay, toYear, toMonth, toDay)
+    if (dates.length === 0) { setError('Пустой период'); return }
+    if (dates.length > 93)  { setError('Период не может превышать 93 дня'); return }
+
+    setLoading(true); setError(null); setPreview(null)
     try {
-      const [sched, ts, ref] = await Promise.all([
-        apiFetch(`${API}/workforce/schedule/${expProd}/${expYear}/${expMonth}`),
-        apiFetch(`${API}/workforce/timesheet/${expProd}/${expYear}/${expMonth}`),
-        apiFetch(`${API}/workforce/reference`),
-      ])
-      // Карта ставок
+      const ref = await apiFetch(`${API}/workforce/reference`)
       const rateMap = {}
       ;(ref || []).forEach(r => { rateMap[`${r.position}|${r.status}`] = r.hourly_rate })
 
-      // Дни периода
-      const days = []
-      for (let d = fromDay; d <= toDay; d++) days.push(d)
+      // Уникальные (year, month) в диапазоне
+      const monthSet = new Map()
+      dates.forEach(({ year, month }) => {
+        const k = `${year}-${month}`
+        if (!monthSet.has(k)) monthSet.set(k, { year, month })
+      })
+      const months = [...monthSet.values()]
 
-      // Фильтруем сотрудников
-      let employees = sched.employees || []
-      if (status !== 'all') employees = employees.filter(e => e.status === status)
+      const prodKeys = expProd === 'all' ? Object.keys(PRODUCTIONS) : [expProd]
 
-      const records = ts.records || {}
+      // Загружаем schedule+timesheet для каждой (prod, year, month)
+      const data = {}
+      await Promise.all(prodKeys.map(async prod => {
+        data[prod] = {}
+        await Promise.all(months.map(async ({ year, month }) => {
+          const mk = `${year}-${month}`
+          const [sched, ts] = await Promise.all([
+            apiFetch(`${API}/workforce/schedule/${prod}/${year}/${month}`),
+            apiFetch(`${API}/workforce/timesheet/${prod}/${year}/${month}`),
+          ])
+          data[prod][mk] = { sched, ts }
+        }))
+      }))
 
-      // Строим строки
-      const rows = employees.map(emp => {
-        const rate = rateMap[`${emp.position}|${emp.status}`] || 0
-        const tsEmp = records[emp.id] || {}
-        const hoursPerDay = {}
-        const costPerDay = {}
-        let totalH = 0, totalC = 0
-        days.forEach(d => {
-          const h = tsEmp[String(d)]
-          if (h !== undefined && h !== null) {
-            hoursPerDay[d] = h
-            costPerDay[d] = h * rate
-            totalH += h
-            totalC += h * rate
-          }
+      // Строим строки: агрегируем по ФИО внутри каждого производства
+      const rows = []
+      const prodOrder = Object.keys(PRODUCTIONS)
+      prodKeys.forEach(prod => {
+        const empMap = new Map()
+        months.forEach(({ year, month }) => {
+          const mk = `${year}-${month}`
+          ;(data[prod][mk].sched.employees || []).forEach(emp => {
+            if (!empMap.has(emp.full_name))
+              empMap.set(emp.full_name, { position: emp.position, status: emp.status, idByMonth: {} })
+            empMap.get(emp.full_name).idByMonth[mk] = emp.id
+          })
         })
-        return { id: emp.id, full_name: emp.full_name, position: emp.position, status: emp.status, rate, hoursPerDay, costPerDay, totalH, totalC }
+        empMap.forEach((emp, name) => {
+          if (status !== 'all' && emp.status !== status) return
+          const rate = rateMap[`${emp.position}|${emp.status}`] || 0
+          const hoursPerDate = {}, costPerDate = {}
+          let totalH = 0, totalC = 0
+          dates.forEach(({ year, month, day, key: dk }) => {
+            const mk = `${year}-${month}`
+            const empId = emp.idByMonth[mk]
+            if (!empId) return
+            const h = data[prod][mk].ts.records?.[empId]?.[String(day)]
+            if (h != null && h > 0) {
+              hoursPerDate[dk] = h; costPerDate[dk] = h * rate
+              totalH += h; totalC += h * rate
+            }
+          })
+          rows.push({ key: `${prod}__${name}`, full_name: name, position: emp.position,
+            status: emp.status, rate, hoursPerDate, costPerDate, totalH, totalC,
+            production: prod, productionName: PRODUCTIONS[prod] })
+        })
       })
 
-      // Итоги по дням
+      rows.sort((a, b) => {
+        if (expProd === 'all') {
+          const pd = prodOrder.indexOf(a.production) - prodOrder.indexOf(b.production)
+          if (pd !== 0) return pd
+        }
+        return (a.full_name || '').localeCompare(b.full_name || '', 'ru')
+      })
+
       const dayTotalsH = {}, dayTotalsC = {}
-      days.forEach(d => {
-        dayTotalsH[d] = rows.reduce((s, r) => s + (r.hoursPerDay[d] || 0), 0)
-        dayTotalsC[d] = rows.reduce((s, r) => s + (r.costPerDay[d] || 0), 0)
+      dates.forEach(({ key: dk }) => {
+        dayTotalsH[dk] = rows.reduce((s, r) => s + (r.hoursPerDate[dk] || 0), 0)
+        dayTotalsC[dk] = rows.reduce((s, r) => s + (r.costPerDate[dk] || 0), 0)
       })
       const grandH = rows.reduce((s, r) => s + r.totalH, 0)
       const grandC = rows.reduce((s, r) => s + r.totalC, 0)
 
+      const periodStr = (fromYear === toYear && fromMonth === toMonth)
+        ? `${fromDay}–${toDay} ${MONTH_SHORT[fromMonth - 1]} ${fromYear}`
+        : `${fromDay} ${MONTH_SHORT[fromMonth - 1]} – ${toDay} ${MONTH_SHORT[toMonth - 1]} ${toYear}`
+
       setPreview({
-        production: expProd, productionName: PRODUCTIONS[expProd],
-        status, period: { year: expYear, month: expMonth, fromDay, toDay },
-        days, rows, dayTotalsH, dayTotalsC, grandH, grandC,
+        production: expProd,
+        productionName: expProd === 'all' ? 'Все производства' : PRODUCTIONS[expProd],
+        isAll: expProd === 'all',
+        status,
+        period: { fromYear, fromMonth, fromDay, toYear, toMonth, toDay, periodStr },
+        dates, rows, dayTotalsH, dayTotalsC, grandH, grandC,
       })
     } catch (e) {
       setError(e.message || 'Ошибка загрузки данных')
@@ -2120,29 +2170,14 @@ function TimesheetExportTab({ userInfo }) {
     if (!preview || !previewRef.current) return
     setPdfLoading(true)
     try {
-      const { productionName, status: st, period } = preview
-      const monthName = MONTH_NAMES[period.month - 1]
-      const filename = `Табель_${productionName}_${period.fromDay}-${period.toDay}_${monthName}_${period.year}.pdf`
-
-      const element = previewRef.current
-
+      const filename = `Табель_${preview.productionName}_${preview.period.periodStr.replace(/\s/g,'_')}.pdf`
       await html2pdf().set({
-        margin: [8, 6, 8, 6],
-        filename,
+        margin: [8, 6, 8, 6], filename,
         image: { type: 'jpeg', quality: 0.97 },
-        html2canvas: {
-          scale: 2,
-          useCORS: true,
-          logging: false,
-          letterRendering: true,
-        },
-        jsPDF: {
-          unit: 'mm',
-          format: 'a4',
-          orientation: 'landscape',
-        },
+        html2canvas: { scale: 2, useCORS: true, logging: false, letterRendering: true },
+        jsPDF: { unit: 'mm', format: 'a4', orientation: 'landscape' },
         pagebreak: { mode: 'avoid-all' },
-      }).from(element).save()
+      }).from(previewRef.current).save()
     } catch (e) {
       console.error('PDF error:', e)
       alert('Ошибка генерации PDF. Попробуйте ещё раз.')
@@ -2151,48 +2186,58 @@ function TimesheetExportTab({ userInfo }) {
     }
   }
 
-  const numDays = preview ? preview.days.length : 0
-  const maxDay = getDaysInMonth(expYear, expMonth)
-
   return (
     <div className="wf-export">
-      {/* Панель фильтров */}
       <div className="wf-export-filters">
         <h3>Выгрузка табеля</h3>
         <div className="wf-export-form">
+
           {/* Производство */}
           <label className="wf-export-label">
             Производство
             <select className="wf-select" value={expProd} onChange={e => setExpProd(e.target.value)}>
-              {productions.map(([key, name]) => <option key={key} value={key}>{name}</option>)}
+              {isAdmin && <option value="all">Все производства</option>}
+              {(isAdmin ? Object.entries(PRODUCTIONS) : [[userProd, PRODUCTIONS[userProd] || userProd]])
+                .map(([key, name]) => <option key={key} value={key}>{name}</option>)}
             </select>
           </label>
 
-          {/* Месяц/год */}
+          {/* Дата С */}
           <label className="wf-export-label">
-            Месяц
-            <div style={{display:'flex', gap:'0.35rem'}}>
-              <select className="wf-select" value={expMonth} onChange={e => setExpMonth(Number(e.target.value))}>
+            С
+            <div style={{display:'flex', gap:'0.25rem'}}>
+              <select className="wf-select" value={fromDay}
+                onChange={e => setFromDay(Number(e.target.value))}>
+                {Array.from({length: fromMaxDay}, (_, i) => i+1).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <select className="wf-select" value={fromMonth}
+                onChange={e => { setFromMonth(Number(e.target.value)); setFromDay(1) }}>
                 {MONTH_NAMES.map((n, i) => <option key={i+1} value={i+1}>{n}</option>)}
               </select>
-              <select className="wf-select" value={expYear} onChange={e => setExpYear(Number(e.target.value))}>
-                {[expYear - 1, expYear, expYear + 1].map(y => <option key={y} value={y}>{y}</option>)}
+              <select className="wf-select" value={fromYear}
+                onChange={e => { setFromYear(Number(e.target.value)); setFromDay(1) }}>
+                {years.map(y => <option key={y} value={y}>{y}</option>)}
               </select>
             </div>
           </label>
 
-          {/* Период */}
+          {/* Дата По */}
           <label className="wf-export-label">
-            С дня
-            <select className="wf-select" value={fromDay} onChange={e => setFromDay(Number(e.target.value))}>
-              {Array.from({length: maxDay}, (_, i) => i+1).map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
-          </label>
-          <label className="wf-export-label">
-            По день
-            <select className="wf-select" value={toDay} onChange={e => setToDay(Number(e.target.value))}>
-              {Array.from({length: maxDay}, (_, i) => i+1).filter(d => d >= fromDay).map(d => <option key={d} value={d}>{d}</option>)}
-            </select>
+            По
+            <div style={{display:'flex', gap:'0.25rem'}}>
+              <select className="wf-select" value={toDay}
+                onChange={e => setToDay(Number(e.target.value))}>
+                {Array.from({length: toMaxDay}, (_, i) => i+1).map(d => <option key={d} value={d}>{d}</option>)}
+              </select>
+              <select className="wf-select" value={toMonth}
+                onChange={e => { setToMonth(Number(e.target.value)); setToDay(getDaysInMonth(toYear, Number(e.target.value))) }}>
+                {MONTH_NAMES.map((n, i) => <option key={i+1} value={i+1}>{n}</option>)}
+              </select>
+              <select className="wf-select" value={toYear}
+                onChange={e => setToYear(Number(e.target.value))}>
+                {years.map(y => <option key={y} value={y}>{y}</option>)}
+              </select>
+            </div>
           </label>
 
           {/* Статус */}
@@ -2204,19 +2249,15 @@ function TimesheetExportTab({ userInfo }) {
             </select>
           </label>
 
-          <button
-            className="wf-btn wf-btn-primary"
-            onClick={buildPreview}
-            disabled={loading}
-            style={{alignSelf:'flex-end'}}
-          >
+          <button className="wf-btn wf-btn-primary" onClick={buildPreview}
+            disabled={loading || !isValidRange} style={{alignSelf:'flex-end'}}>
             {loading ? 'Загрузка...' : 'Показать'}
           </button>
         </div>
+        {!isValidRange && <div className="wf-error" style={{marginTop:'0.5rem'}}>Дата начала позже даты конца</div>}
         {error && <div className="wf-error" style={{marginTop:'0.5rem'}}>{error}</div>}
       </div>
 
-      {/* Предпросмотр */}
       {preview && (
         <>
           <div className="wf-export-header-row">
@@ -2225,16 +2266,13 @@ function TimesheetExportTab({ userInfo }) {
               {' · '}
               {preview.status === 'all' ? 'Все статусы' : preview.status}
               {' · '}
-              {preview.period.fromDay}–{preview.period.toDay} {MONTH_NAMES[preview.period.month - 1]} {preview.period.year}
+              {preview.period.periodStr}
               {' · '}
               {preview.rows.length} чел.
             </div>
-            <button
-              className="wf-btn wf-btn-primary"
-              onClick={handlePrint}
+            <button className="wf-btn wf-btn-primary" onClick={handlePrint}
               disabled={pdfLoading || preview.rows.length === 0}
-              style={{whiteSpace:'nowrap', minWidth:'140px'}}
-            >
+              style={{whiteSpace:'nowrap', minWidth:'140px'}}>
               {pdfLoading ? '⏳ Генерация...' : '↓ Скачать PDF'}
             </button>
           </div>
@@ -2245,40 +2283,41 @@ function TimesheetExportTab({ userInfo }) {
             </div>
           ) : (
             <div className="wf-export-preview" ref={previewRef}>
-              {/* Заголовок для PDF */}
               <div className="wf-pdf-title">
                 <strong>Табель: {preview.productionName}</strong>
                 {' · '}
                 {preview.status === 'all' ? 'Все статусы' : preview.status}
                 {' · '}
-                {preview.period.fromDay}–{preview.period.toDay} {MONTH_NAMES[preview.period.month - 1]} {preview.period.year}
+                {preview.period.periodStr}
                 <span style={{float:'right', fontWeight:400, fontSize:'0.78rem', color:'var(--text-muted)'}}>
                   {new Date().toLocaleDateString('ru-RU')}
                 </span>
               </div>
 
-              {/* Блок 1: Часы */}
+              {/* ЧАСЫ */}
               <div className="wf-export-block-title">ЧАСЫ</div>
               <div className="wf-table-scroll">
                 <table className="wf-export-table">
                   <thead>
                     <tr>
+                      {preview.isAll && <th className="wf-exp-col-status">Произв.</th>}
                       <th className="wf-exp-col-name">ФИО</th>
                       <th className="wf-exp-col-status">Статус</th>
-                      {preview.days.map(d => (
-                        <th key={d} className="wf-exp-col-day">{d}</th>
+                      {preview.dates.map(({ key, label }) => (
+                        <th key={key} className="wf-exp-col-day">{label}</th>
                       ))}
                       <th className="wf-exp-col-total">Итого ч</th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.rows.map(row => (
-                      <tr key={row.id}>
+                      <tr key={row.key}>
+                        {preview.isAll && <td className="wf-exp-col-status" style={{fontSize:'0.72rem'}}>{row.productionName}</td>}
                         <td className="wf-exp-col-name">{row.full_name}</td>
                         <td className="wf-exp-col-status"><span className="wf-status-badge">{row.status}</span></td>
-                        {preview.days.map(d => (
-                          <td key={d} className={`wf-exp-col-day ${row.hoursPerDay[d] ? 'wf-exp-filled' : ''}`}>
-                            {row.hoursPerDay[d] || ''}
+                        {preview.dates.map(({ key: dk }) => (
+                          <td key={dk} className={`wf-exp-col-day ${row.hoursPerDate[dk] ? 'wf-exp-filled' : ''}`}>
+                            {row.hoursPerDate[dk] || ''}
                           </td>
                         ))}
                         <td className="wf-exp-col-total">{row.totalH > 0 ? <strong>{row.totalH}</strong> : '—'}</td>
@@ -2287,9 +2326,9 @@ function TimesheetExportTab({ userInfo }) {
                   </tbody>
                   <tfoot>
                     <tr className="wf-exp-footer">
-                      <td colSpan={2} className="wf-exp-footer-label">ИТОГО часов:</td>
-                      {preview.days.map(d => (
-                        <td key={d} className="wf-exp-col-day">{preview.dayTotalsH[d] > 0 ? preview.dayTotalsH[d] : ''}</td>
+                      <td colSpan={preview.isAll ? 3 : 2} className="wf-exp-footer-label">ИТОГО часов:</td>
+                      {preview.dates.map(({ key: dk }) => (
+                        <td key={dk} className="wf-exp-col-day">{preview.dayTotalsH[dk] > 0 ? preview.dayTotalsH[dk] : ''}</td>
                       ))}
                       <td className="wf-exp-col-total"><strong>{preview.grandH}</strong></td>
                     </tr>
@@ -2297,30 +2336,32 @@ function TimesheetExportTab({ userInfo }) {
                 </table>
               </div>
 
-              {/* Блок 2: Рубли */}
+              {/* РУБЛИ */}
               <div className="wf-export-block-title" style={{marginTop:'1.25rem'}}>РУБЛИ</div>
               <div className="wf-table-scroll">
                 <table className="wf-export-table">
                   <thead>
                     <tr>
+                      {preview.isAll && <th className="wf-exp-col-status">Произв.</th>}
                       <th className="wf-exp-col-name">ФИО</th>
                       <th className="wf-exp-col-status">Статус</th>
                       <th className="wf-exp-col-rate">₽/ч</th>
-                      {preview.days.map(d => (
-                        <th key={d} className="wf-exp-col-day">{d}</th>
+                      {preview.dates.map(({ key, label }) => (
+                        <th key={key} className="wf-exp-col-day">{label}</th>
                       ))}
                       <th className="wf-exp-col-total">Итого ₽</th>
                     </tr>
                   </thead>
                   <tbody>
                     {preview.rows.map(row => (
-                      <tr key={row.id}>
+                      <tr key={row.key}>
+                        {preview.isAll && <td className="wf-exp-col-status" style={{fontSize:'0.72rem'}}>{row.productionName}</td>}
                         <td className="wf-exp-col-name">{row.full_name}</td>
                         <td className="wf-exp-col-status"><span className="wf-status-badge">{row.status}</span></td>
                         <td className="wf-exp-col-rate wf-num">{row.rate > 0 ? row.rate : '—'}</td>
-                        {preview.days.map(d => (
-                          <td key={d} className={`wf-exp-col-day ${row.costPerDay[d] ? 'wf-exp-filled' : ''}`}>
-                            {row.costPerDay[d] ? row.costPerDay[d].toLocaleString('ru-RU', {maximumFractionDigits:0}) : ''}
+                        {preview.dates.map(({ key: dk }) => (
+                          <td key={dk} className={`wf-exp-col-day ${row.costPerDate[dk] ? 'wf-exp-filled' : ''}`}>
+                            {row.costPerDate[dk] ? row.costPerDate[dk].toLocaleString('ru-RU', {maximumFractionDigits:0}) : ''}
                           </td>
                         ))}
                         <td className="wf-exp-col-total">
@@ -2331,10 +2372,10 @@ function TimesheetExportTab({ userInfo }) {
                   </tbody>
                   <tfoot>
                     <tr className="wf-exp-footer">
-                      <td colSpan={3} className="wf-exp-footer-label">ИТОГО рублей:</td>
-                      {preview.days.map(d => (
-                        <td key={d} className="wf-exp-col-day">
-                          {preview.dayTotalsC[d] > 0 ? preview.dayTotalsC[d].toLocaleString('ru-RU', {maximumFractionDigits:0}) : ''}
+                      <td colSpan={preview.isAll ? 4 : 3} className="wf-exp-footer-label">ИТОГО рублей:</td>
+                      {preview.dates.map(({ key: dk }) => (
+                        <td key={dk} className="wf-exp-col-day">
+                          {preview.dayTotalsC[dk] > 0 ? preview.dayTotalsC[dk].toLocaleString('ru-RU', {maximumFractionDigits:0}) : ''}
                         </td>
                       ))}
                       <td className="wf-exp-col-total">
