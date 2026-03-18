@@ -2852,6 +2852,235 @@ function MatrixAnalyticsTab({ year, month }) {
   )
 }
 
+// ─── Сверка табелей ───────────────────────────────────────────────────────────
+function TimesheetReconcileTab({ userInfo }) {
+  const isAdmin = userInfo?.schedule_role === 'admin'
+  const userProd = userInfo?.schedule_production
+
+  const [pasteText, setPasteText] = useState('')
+  const [production, setProduction] = useState(isAdmin ? 'tea' : (userProd || 'tea'))
+  const [loading, setLoading] = useState(false)
+  const [result, setResult] = useState(null)
+  const [error, setError] = useState(null)
+  const [showOnlyDiff, setShowOnlyDiff] = useState(true)
+
+  // Разбираем TSV из буфера обмена (Google Sheets)
+  // Формат: строка 0 = [пусто] [пусто] [21.02.26] [22.02.26] ...
+  //         строки 1+ = [ФИО] [Статус] [часы?] ...
+  const parsePaste = (text) => {
+    const lines = text.trim().split('\n').map(l => l.split('\t'))
+    if (lines.length < 2) return null
+
+    const headerRow = lines[0]
+    const dates = []
+    for (let i = 2; i < headerRow.length; i++) {
+      const cell = headerRow[i].trim()
+      if (!cell) continue
+      const m = cell.match(/^(\d{1,2})\.(\d{2})\.(\d{2,4})$/)
+      if (!m) continue
+      const day = parseInt(m[1]), month = parseInt(m[2])
+      const yr = parseInt(m[3])
+      dates.push({ day, month, year: yr < 100 ? 2000 + yr : yr, label: cell, colIdx: i })
+    }
+    if (dates.length === 0) return null
+
+    const employees = []
+    for (let r = 1; r < lines.length; r++) {
+      const row = lines[r]
+      const name = row[0]?.trim()
+      if (!name) continue
+      const status = row[1]?.trim() || ''
+      const hours = {}
+      dates.forEach(d => {
+        const val = row[d.colIdx]?.trim()
+        const h = val !== undefined && val !== '' ? parseFloat(val) : undefined
+        if (h !== undefined && !isNaN(h)) hours[`${d.year}-${d.month}-${d.day}`] = h
+      })
+      employees.push({ name, status, hours })
+    }
+    return { dates, employees }
+  }
+
+  const handleReconcile = async () => {
+    setLoading(true); setError(null); setResult(null)
+    try {
+      const parsed = parsePaste(pasteText)
+      if (!parsed) { setError('Не удалось разобрать данные. Убедитесь, что скопировали таблицу из Google Sheets с заголовком дат (21.02.26).'); setLoading(false); return }
+
+      const { dates, employees } = parsed
+
+      // Уникальные (year, month)
+      const monthSet = new Map()
+      dates.forEach(({ year, month }) => {
+        const k = `${year}-${month}`
+        if (!monthSet.has(k)) monthSet.set(k, { year, month })
+      })
+      const months = [...monthSet.values()]
+
+      // Загружаем данные из системы
+      const sysData = {}
+      await Promise.all(months.map(async ({ year, month }) => {
+        const mk = `${year}-${month}`
+        const [sched, ts] = await Promise.all([
+          apiFetch(`${API}/workforce/schedule/${production}/${year}/${month}`),
+          apiFetch(`${API}/workforce/timesheet/${production}/${year}/${month}`),
+        ])
+        sysData[mk] = { sched, ts }
+      }))
+
+      // Карта сотрудников системы: нижний регистр → {name, idByMonth}
+      const sysEmpMap = new Map()
+      months.forEach(({ year, month }) => {
+        const mk = `${year}-${month}`
+        ;(sysData[mk].sched.employees || []).forEach(emp => {
+          const key = emp.full_name.trim().toLowerCase()
+          if (!sysEmpMap.has(key)) sysEmpMap.set(key, { name: emp.full_name, idByMonth: {} })
+          sysEmpMap.get(key).idByMonth[mk] = emp.id
+        })
+      })
+
+      // Сверка
+      const rows = []       // все строки для полной таблицы
+      const unmatchedNames = []
+
+      employees.forEach(ext => {
+        const sysEmp = sysEmpMap.get(ext.name.trim().toLowerCase())
+        if (!sysEmp) { unmatchedNames.push(ext.name); return }
+
+        // Строки по каждой дате
+        dates.forEach(({ year, month, day, label }) => {
+          const dk = `${year}-${month}-${day}`
+          const extH = ext.hours[dk] ?? null
+          const mk = `${year}-${month}`
+          const empId = sysEmp.idByMonth[mk]
+          const sysH = (empId != null) ? (sysData[mk]?.ts?.records?.[empId]?.[String(day)] ?? null) : null
+
+          const extVal = extH ?? 0
+          const sysVal = sysH ?? 0
+          const isDiff = extVal !== sysVal && (extH !== null || sysH !== null)
+
+          rows.push({ name: ext.name, status: ext.status, date: label, year, month, day, extH, sysH, diff: extVal - sysVal, isDiff })
+        })
+      })
+
+      const discrepancies = rows.filter(r => r.isDiff)
+
+      setResult({ dates, employees, months, unmatchedNames, rows, discrepancies, production })
+    } catch (e) {
+      setError(e.message || 'Ошибка загрузки данных')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const displayRows = result ? (showOnlyDiff ? result.discrepancies : result.rows.filter(r => r.extH !== null || r.sysH !== null)) : []
+
+  const fmtH = (v) => v === null ? <span style={{color:'var(--text-muted)'}}>—</span> : <span>{v}</span>
+
+  return (
+    <div className="wf-export">
+      <div className="wf-export-filters">
+        <h3>Сверка табелей</h3>
+        <p style={{fontSize:'0.83rem', color:'var(--text-muted)', margin:'0 0 0.75rem'}}>
+          Скопируйте таблицу из Google Sheets (с заголовком дат вида <code>21.02.26</code>) и вставьте ниже.
+          Первый столбец — ФИО, второй — Статус, далее — даты.
+        </p>
+        <div style={{display:'flex', gap:'0.75rem', alignItems:'flex-start', flexWrap:'wrap'}}>
+          <textarea
+            style={{flex:'1 1 400px', minHeight:'180px', fontFamily:'monospace', fontSize:'0.78rem',
+              background:'var(--bg-card)', color:'var(--text)', border:'1px solid var(--border)',
+              borderRadius:'6px', padding:'0.6rem', resize:'vertical'}}
+            placeholder={"ГПХ\tГПХ\t21.02.26\t22.02.26\t...\nИванов И.И.\tШтат\t11\t\t9\t..."}
+            value={pasteText}
+            onChange={e => { setPasteText(e.target.value); setResult(null); setError(null) }}
+          />
+          <div style={{display:'flex', flexDirection:'column', gap:'0.5rem', minWidth:'170px'}}>
+            <label className="wf-export-label">
+              Производство
+              <select className="wf-select" value={production} onChange={e => setProduction(e.target.value)}>
+                {(isAdmin ? Object.entries(PRODUCTIONS) : [[userProd, PRODUCTIONS[userProd] || userProd]])
+                  .map(([k, n]) => <option key={k} value={k}>{n}</option>)}
+              </select>
+            </label>
+            <button className="wf-btn wf-btn-primary" onClick={handleReconcile}
+              disabled={loading || !pasteText.trim()} style={{marginTop:'auto'}}>
+              {loading ? 'Загрузка...' : '🔍 Сверить'}
+            </button>
+          </div>
+        </div>
+        {error && <div className="wf-error" style={{marginTop:'0.5rem'}}>{error}</div>}
+      </div>
+
+      {result && (
+        <div style={{marginTop:'1rem'}}>
+          {/* Итоговая строка */}
+          <div style={{display:'flex', gap:'1rem', flexWrap:'wrap', alignItems:'center', marginBottom:'0.75rem'}}>
+            <span style={{fontSize:'0.85rem'}}>
+              Сотрудников в таблице: <strong>{result.employees.length}</strong>
+            </span>
+            <span style={{fontSize:'0.85rem'}}>
+              Найдено в системе: <strong>{result.employees.length - result.unmatchedNames.length}</strong>
+            </span>
+            <span style={{fontSize:'0.85rem', color: result.discrepancies.length > 0 ? 'var(--negative)' : 'var(--positive)'}}>
+              Расхождений: <strong>{result.discrepancies.length}</strong>
+            </span>
+            <label style={{display:'flex', alignItems:'center', gap:'5px', fontSize:'0.83rem', cursor:'pointer', marginLeft:'auto'}}>
+              <input type="checkbox" checked={showOnlyDiff} onChange={e => setShowOnlyDiff(e.target.checked)} />
+              Только расхождения
+            </label>
+          </div>
+
+          {/* Не найденные сотрудники */}
+          {result.unmatchedNames.length > 0 && (
+            <div style={{background:'rgba(184,107,107,0.12)', border:'1px solid var(--negative)', borderRadius:'6px', padding:'0.6rem 0.9rem', marginBottom:'0.75rem', fontSize:'0.83rem'}}>
+              <strong>Не найдены в системе ({result.unmatchedNames.length}):</strong>{' '}
+              {result.unmatchedNames.join(', ')}
+            </div>
+          )}
+
+          {result.discrepancies.length === 0 && showOnlyDiff ? (
+            <div style={{padding:'1.5rem', textAlign:'center', color:'var(--positive)', fontSize:'0.95rem', fontWeight:500}}>
+              ✓ Расхождений не найдено — данные совпадают
+            </div>
+          ) : displayRows.length === 0 ? (
+            <div style={{padding:'1.5rem', textAlign:'center', color:'var(--text-muted)'}}>Нет данных для отображения</div>
+          ) : (
+            <div className="wf-table-scroll">
+              <table className="wf-export-table" style={{fontSize:'0.82rem'}}>
+                <thead>
+                  <tr>
+                    <th style={{textAlign:'left', minWidth:'160px'}}>ФИО</th>
+                    <th style={{textAlign:'left'}}>Статус</th>
+                    <th>Дата</th>
+                    <th title="Часы из вашей таблицы">Таблица</th>
+                    <th title="Часы в системе">Система</th>
+                    <th>Разница</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {displayRows.map((r, i) => (
+                    <tr key={i} style={r.isDiff ? {background:'rgba(184,107,107,0.10)'} : {}}>
+                      <td style={{fontWeight: r.isDiff ? 600 : 400}}>{r.name}</td>
+                      <td style={{fontSize:'0.78rem'}}>{r.status}</td>
+                      <td style={{textAlign:'center', whiteSpace:'nowrap'}}>{r.date}</td>
+                      <td style={{textAlign:'center'}}>{fmtH(r.extH)}</td>
+                      <td style={{textAlign:'center'}}>{fmtH(r.sysH)}</td>
+                      <td style={{textAlign:'center', fontWeight:600,
+                        color: r.isDiff ? (r.diff > 0 ? 'var(--positive)' : 'var(--negative)') : 'var(--text-muted)'}}>
+                        {r.isDiff ? (r.diff > 0 ? `+${r.diff}` : r.diff) : '='}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Главная страница ─────────────────────────────────────────────────────────
 export default function WorkforcePage({ userInfo }) {
   const now = new Date()
@@ -2893,6 +3122,9 @@ export default function WorkforcePage({ userInfo }) {
   // Выгрузка табелей — только admin и viewer (у менеджера скрыта)
   if (isAdmin || isViewer) availableTabs.push('export')
 
+  // Сверка — только admin
+  if (isAdmin) availableTabs.push('reconcile')
+
   // Устанавливаем вкладку по умолчанию
   useEffect(() => {
     if (availableTabs.length > 0 && !activeTab) {
@@ -2930,6 +3162,7 @@ export default function WorkforcePage({ userInfo }) {
     if (tab === 'analytics')        return '📊 Аналитика'
     if (tab === 'matrix_analytics') return '📈 Матричная аналитика'
     if (tab === 'export')           return '📄 Выгрузка табелей'
+    if (tab === 'reconcile')        return '🔍 Сверка'
     return PRODUCTIONS[tab] || tab
   }
 
@@ -2967,7 +3200,7 @@ export default function WorkforcePage({ userInfo }) {
       </div>
 
       {/* Суб-вкладки для производств */}
-      {activeTab && !['reference', 'analytics'].includes(activeTab) && (
+      {activeTab && !['reference', 'analytics', 'matrix_analytics', 'export', 'reconcile'].includes(activeTab) && (
         <div className="wf-subtabs">
           {(isAdmin || isManager) && (
             <button
@@ -3048,6 +3281,10 @@ export default function WorkforcePage({ userInfo }) {
 
         {activeTab === 'export' && (
           <TimesheetExportTab userInfo={userInfo} />
+        )}
+
+        {activeTab === 'reconcile' && (
+          <TimesheetReconcileTab userInfo={userInfo} />
         )}
       </div>
 
