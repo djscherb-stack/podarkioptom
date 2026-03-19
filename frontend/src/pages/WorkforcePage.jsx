@@ -540,6 +540,7 @@ export const LUMINARC_SECTIONS = [
   'Склад',
   'Упаковка',
   'Комплекты',
+  'Разбор возвратов',
   'Вспомогательный персонал',
 ]
 
@@ -548,6 +549,34 @@ export function getSectionsForProduction(production) {
   if (production === 'tea') return TEA_SECTIONS
   if (production === 'luminarc') return LUMINARC_SECTIONS
   return []
+}
+
+// Цвета участков — стабильный хэш по названию
+const SECTION_COLORS = [
+  ['#3b6ea5','#dbeafe'], ['#6b7a1e','#ecfccb'], ['#7c3d99','#f3e8ff'],
+  ['#b45309','#fef3c7'], ['#0e7490','#cffafe'], ['#9d174d','#fce7f3'],
+  ['#1e5738','#dcfce7'], ['#7f1d1d','#fee2e2'],
+]
+function sectionColorIdx(name) {
+  let h = 0
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xfffffff
+  return h % SECTION_COLORS.length
+}
+export function SectionBadge({ section, production }) {
+  if (!section) return null
+  // Для тёмной темы всегда используем accentцвет с небольшой прозрачностью
+  const allSections = getSectionsForProduction(production)
+  const idx = allSections.indexOf(section) >= 0 ? allSections.indexOf(section) : sectionColorIdx(section)
+  const [border, bg] = SECTION_COLORS[idx % SECTION_COLORS.length]
+  return (
+    <span style={{
+      display:'inline-block', padding:'1px 7px', borderRadius:'4px', fontSize:'0.78rem',
+      background: bg + '30', border: `1px solid ${border}60`, color: border,
+      whiteSpace:'nowrap', fontWeight:500,
+    }}>
+      {section}
+    </span>
+  )
 }
 
 export function EmployeesTab({ production, canEdit }) {
@@ -759,8 +788,10 @@ export function EmployeesTab({ production, canEdit }) {
           }
         </td>
         {showSection && (
-          <td style={{opacity: isFired ? 0.5 : 1, fontSize:'0.82rem', color: emp.section ? 'var(--text)' : 'var(--text-muted)'}}>
-            {emp.section || <span style={{opacity:0.4}}>—</span>}
+          <td style={{opacity: isFired ? 0.5 : 1}}>
+            {emp.section
+              ? <SectionBadge section={emp.section} production={production} />
+              : <span style={{opacity:0.4, fontSize:'0.82rem'}}>—</span>}
           </td>
         )}
         {canEdit && (
@@ -1030,7 +1061,7 @@ function FilterDropdown({ label, options, selected, onChange }) {
 }
 
 // ─── Таблица графика ──────────────────────────────────────────────────────────
-export function ScheduleTable({ production, year, month, canEdit, reference }) {
+export function ScheduleTable({ production, year, month, canEdit, canEditSection, reference }) {
   const [schedule, setSchedule] = useState(null)
   const [empList, setEmpList] = useState([])   // список сотрудников для проверки увольнений
   const [loading, setLoading] = useState(true)
@@ -1051,6 +1082,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
   const [dayFilter, setDayFilter] = useState(null)           // число дня или null
   const numDays = getDaysInMonth(year, month)
   const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
+  const secEdit = canEditSection ?? canEdit   // право редактировать участок
 
   // Карта участков по ФИО (из списка сотрудников)
   const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
@@ -1490,9 +1522,9 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
                   {/* Участок */}
                   {hasSections && (
                     <td
-                      className={`wf-col-section wf-last-sticky${canEdit ? ' wf-section-editable' : ''}`}
-                      title={canEdit ? 'Нажмите для изменения участка' : (sectionMap[emp.full_name?.trim()] || '')}
-                      onClick={() => canEdit && !isEditingRow && setEditingSection(emp.full_name?.trim())}
+                      className={`wf-col-section wf-last-sticky${secEdit ? ' wf-section-editable' : ''}`}
+                      title={secEdit ? 'Нажмите для изменения участка' : (sectionMap[emp.full_name?.trim()] || '')}
+                      onClick={() => secEdit && !isEditingRow && setEditingSection(emp.full_name?.trim())}
                     >
                       {editingSection === emp.full_name?.trim() ? (
                         <select
@@ -1621,7 +1653,7 @@ export function ScheduleTable({ production, year, month, canEdit, reference }) {
 }
 
 // ─── Таблица табеля ───────────────────────────────────────────────────────────
-export function TimesheetTable({ production, year, month, canEdit, onlyToday = false, reference }) {
+export function TimesheetTable({ production, year, month, canEdit, canEditSection, onlyToday = false, reference }) {
   const [schedule, setSchedule] = useState(null)
   const [timesheet, setTimesheet] = useState(null)
   const [empList, setEmpList] = useState([])
@@ -1639,6 +1671,7 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
   const [dayFilter, setDayFilter] = useState(null)           // число дня или null
   const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
   const numDays = getDaysInMonth(year, month)
+  const secEdit = canEditSection ?? canEdit   // право редактировать участок
 
   // Участки из списка сотрудников
   const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
@@ -1876,9 +1909,9 @@ export function TimesheetTable({ production, year, month, canEdit, onlyToday = f
                   <td className={`wf-col-status${!hasSections ? ' wf-last-sticky' : ''}`}><span className="wf-status-badge">{emp.status}</span></td>
                   {hasSections && (
                     <td
-                      className={`wf-col-section wf-last-sticky${canEdit ? ' wf-section-editable' : ''}`}
-                      title={canEdit ? 'Нажмите для изменения участка' : (sectionMap[emp.full_name?.trim()] || '')}
-                      onClick={() => canEdit && setEditingSection(emp.full_name?.trim())}
+                      className={`wf-col-section wf-last-sticky${secEdit ? ' wf-section-editable' : ''}`}
+                      title={secEdit ? 'Нажмите для изменения участка' : (sectionMap[emp.full_name?.trim()] || '')}
+                      onClick={() => secEdit && setEditingSection(emp.full_name?.trim())}
                     >
                       {editingSection === emp.full_name?.trim() ? (
                         <select
@@ -3202,7 +3235,7 @@ export default function WorkforcePage({ userInfo }) {
       {/* Суб-вкладки для производств */}
       {activeTab && !['reference', 'analytics', 'matrix_analytics', 'export', 'reconcile'].includes(activeTab) && (
         <div className="wf-subtabs">
-          {(isAdmin || isManager) && (
+          {(isAdmin || isManager || isBrigadier) && (
             <button
               className={`wf-subtab ${subTab === 'employees' ? 'wf-subtab-active' : ''}`}
               onClick={() => setSubTab('employees')}
@@ -3240,11 +3273,11 @@ export default function WorkforcePage({ userInfo }) {
       <div className="wf-content">
         {activeTab === 'reference' && <ReferenceTab />}
 
-        {activeTab && PRODUCTIONS[activeTab] && subTab === 'employees' && (isAdmin || isManager) && (
+        {activeTab && PRODUCTIONS[activeTab] && subTab === 'employees' && (isAdmin || isManager || isBrigadier) && (
           <EmployeesTab
             key={`employees-${activeTab}`}
             production={activeTab}
-            canEdit={isAdmin || isManager}
+            canEdit={isAdmin || isManager || isBrigadier}
           />
         )}
 
@@ -3255,6 +3288,7 @@ export default function WorkforcePage({ userInfo }) {
             year={year}
             month={month}
             canEdit={isAdmin || isManager}
+            canEditSection={isAdmin || isManager || isBrigadier}
             reference={reference}
           />
         )}
@@ -3266,6 +3300,7 @@ export default function WorkforcePage({ userInfo }) {
             year={year}
             month={month}
             canEdit={isAdmin || isManager || isBrigadier}
+            canEditSection={isAdmin || isManager || isBrigadier}
             onlyToday={isBrigadier}
             reference={reference}
           />
