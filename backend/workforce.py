@@ -163,8 +163,34 @@ def _schedule_path(production: str, year: int, month: int) -> Path:
 
 def get_schedule(production: str, year: int, month: int) -> dict:
     _ensure_dir()
+    path = _schedule_path(production, year, month)
     default = {"production": production, "year": year, "month": month, "employees": []}
-    return _read_json(_schedule_path(production, year, month), default)
+
+    # Если файл уже существует — возвращаем его как есть
+    if path.exists():
+        return _read_json(path, default)
+
+    # Файл не существует → пробуем перенести сотрудников из предыдущего месяца
+    prev_year, prev_month = (year, month - 1) if month > 1 else (year - 1, 12)
+    prev = _read_json(_schedule_path(production, prev_year, prev_month), {})
+    prev_employees = prev.get("employees", [])
+
+    # Берём всех, кроме уволенных; рабочие дни сбрасываем в {}
+    carried = [
+        {
+            "id": emp["id"],
+            "full_name": emp["full_name"],
+            "position": emp.get("position", ""),
+            "status": emp.get("status", ""),
+            "working_days": {},
+            **({"phone": emp["phone"]} if emp.get("phone") else {}),
+            **({"section": emp["section"]} if emp.get("section") else {}),
+        }
+        for emp in prev_employees
+        if not emp.get("fired_at")
+    ]
+
+    return {"production": production, "year": year, "month": month, "employees": carried}
 
 
 def save_schedule(production: str, year: int, month: int, data: dict) -> None:
