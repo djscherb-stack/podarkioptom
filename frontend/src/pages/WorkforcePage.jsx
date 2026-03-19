@@ -1679,8 +1679,7 @@ export function TimesheetTable({ production, year, month, canEdit, canEditSectio
 
   const availableSections = [...new Set([
     ...empList.map(e => e.section).filter(Boolean),
-    'Гравировочный цех', 'Сборочный цех', 'Резка МДФ',
-    'Шелкография', 'Сборка МДФ', 'Вспомогательный персонал',
+    ...getSectionsForProduction(production),
   ])].sort((a, b) => a.localeCompare(b, 'ru'))
 
   const handleSectionEdit = async (fullName, newSection) => {
