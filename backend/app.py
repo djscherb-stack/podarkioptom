@@ -1420,7 +1420,7 @@ async def wf_update_employee_section(production: str, employee_id: str, request:
     if production not in wf.PRODUCTIONS:
         raise HTTPException(status_code=404, detail="Производство не найдено")
     access = _require_schedule_access(request, production)
-    if access["role"] not in ("admin", "manager"):
+    if access["role"] not in ("admin", "manager", "brigadier"):
         raise HTTPException(status_code=403, detail="Только менеджер или администратор")
     body = await request.json()
     new_section = body.get("section", "")
