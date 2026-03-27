@@ -13,7 +13,7 @@ try:
 except ImportError:
     pass
 
-from fastapi import FastAPI, UploadFile, File, Depends, HTTPException, Request, Header
+from fastapi import FastAPI, UploadFile, File, Form, Depends, HTTPException, Request, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
@@ -1165,8 +1165,8 @@ async def wf_save_schedule(production: str, year: int, month: int, request: Requ
     if production not in wf.PRODUCTIONS:
         raise HTTPException(status_code=404, detail="Производство не найдено")
     access = _require_schedule_access(request, production)
-    if access["role"] not in ("admin", "manager"):
-        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    if access["role"] not in ("admin", "manager", "brigadier"):
+        raise HTTPException(status_code=403, detail="Только менеджер, бригадир или администратор")
     data = await request.json()
     emp_count = len(data.get("employees", []))
     wf.save_schedule(production, year, month, data)
@@ -1477,6 +1477,222 @@ def wf_day_analytics(year: int, month: int, day: int, request: Request):
     if not auth.is_admin(username):
         raise HTTPException(status_code=403, detail="Только для администратора")
     return wf.get_day_analytics(year, month, day)
+
+
+# ---------------------------------------------------------------------------
+# Модуль рентабельности
+# ---------------------------------------------------------------------------
+
+import profitability_parser as prof_parser
+import profitability_store as prof_store
+
+
+def _parse_period_id(period_id: str) -> str:
+    """Нормализует period_id — убирает опасные символы для имён файлов."""
+    import re
+    return re.sub(r"[^\w\-]", "_", period_id.strip())[:64]
+
+
+@app.post("/api/profitability/upload/weekly", dependencies=[Depends(require_admin)])
+async def profitability_upload_weekly(
+    file: UploadFile = File(...),
+    period_id: str = Form(default=""),
+    period_label: str = Form(default=""),
+):
+    """Загрузка еженедельного отчёта WB."""
+    data = await file.read()
+    try:
+        # Проверяем что файл парсится
+        prof_parser.parse_weekly_report(data)
+    except Exception as e:
+        return JSONResponse({"error": f"Ошибка чтения файла: {e}"}, status_code=400)
+
+    if not period_id:
+        # Автодетект недели из дат отчёта
+        period_id = prof_parser.detect_week_from_report(data) or ""
+    if not period_id:
+        import time as _time
+        period_id = str(int(_time.time()))
+    period_id = _parse_period_id(period_id)
+    if not period_label:
+        period_label = period_id
+
+    prof_store.save_upload("weekly", data, period_id)
+    count = prof_store.count_weekly_reports(period_id)
+    period = prof_store.save_period(period_id, period_label, file.filename or "report.xlsx")
+    return {"ok": True, "period": period, "files_count": count}
+
+
+@app.post("/api/profitability/upload/nomenclature", dependencies=[Depends(require_admin)])
+async def profitability_upload_nomenclature(file: UploadFile = File(...)):
+    """Загрузка файла видов номенклатуры."""
+    data = await file.read()
+    try:
+        parsed = prof_parser.parse_nomenclature_file(data)
+    except Exception as e:
+        return JSONResponse({"error": f"Ошибка чтения файла: {e}"}, status_code=400)
+
+    prof_store.save_upload("nomenclature", data)
+    prof_store.save_parsed_nomenclature(parsed)
+    return {"ok": True, "count": len(parsed)}
+
+
+@app.post("/api/profitability/upload/costs", dependencies=[Depends(require_admin)])
+async def profitability_upload_costs(file: UploadFile = File(...)):
+    """Загрузка файла себестоимостей."""
+    data = await file.read()
+    # Передаём номенклатурный маппинг, чтобы определить артикульные строки
+    nomenclature_map = prof_store.load_parsed_nomenclature() or {}
+    try:
+        parsed = prof_parser.parse_costs_file(data, nomenclature_map=nomenclature_map)
+    except Exception as e:
+        return JSONResponse({"error": f"Ошибка чтения файла: {e}"}, status_code=400)
+
+    prof_store.save_upload("costs", data)
+    prof_store.save_parsed_costs(parsed)
+    article_count = sum(1 for v in parsed.values() if v.get("level") == "article")
+    vid_count = sum(1 for v in parsed.values() if v.get("level") == "vid")
+    return {"ok": True, "count": len(parsed), "article_count": article_count, "vid_count": vid_count}
+
+
+@app.get("/api/profitability/periods", dependencies=[Depends(require_auth)])
+def profitability_periods():
+    """Список доступных периодов."""
+    periods = prof_store.list_periods()
+    nomenclature_ok = prof_store.has_upload("nomenclature")
+    costs_ok = prof_store.has_upload("costs")
+    return {
+        "periods": periods,
+        "has_nomenclature": nomenclature_ok,
+        "has_costs": costs_ok,
+    }
+
+
+@app.get("/api/profitability/data", dependencies=[Depends(require_auth)])
+def profitability_data(period_id: str, compare_id: str = ""):
+    """Расчёт рентабельности для периода. Опционально — сравнение с другим."""
+    report_files = prof_store.load_weekly_reports(period_id)
+    if not report_files:
+        raise HTTPException(status_code=404, detail="Период не найден")
+
+    nomenclature_map = prof_store.load_parsed_nomenclature() or {}
+    costs_map = prof_store.load_parsed_costs() or {}
+    custom_mappings = prof_store.get_custom_mappings()
+    work_rates = prof_store.get_work_rates_for_period(period_id)
+
+    try:
+        import pandas as pd
+        dfs = [prof_parser.parse_weekly_report(f) for f in report_files]
+        report_df = pd.concat(dfs, ignore_index=True) if len(dfs) > 1 else dfs[0]
+        rows, unmatched = prof_parser.calculate_profitability(
+            report_df, nomenclature_map, costs_map, custom_mappings, work_rates
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Ошибка расчёта: {e}")
+
+    result = {
+        "period_id": period_id,
+        "files_count": len(report_files),
+        "work_rates": work_rates,
+        "rows": rows,
+        "unmatched": unmatched,
+        "compare": None,
+    }
+
+    if compare_id:
+        compare_files = prof_store.load_weekly_reports(compare_id)
+        if compare_files:
+            compare_rates = prof_store.get_work_rates_for_period(compare_id)
+            try:
+                import pandas as pd
+                cdfs = [prof_parser.parse_weekly_report(f) for f in compare_files]
+                compare_df = pd.concat(cdfs, ignore_index=True) if len(cdfs) > 1 else cdfs[0]
+                compare_rows, _ = prof_parser.calculate_profitability(
+                    compare_df, nomenclature_map, costs_map, custom_mappings, compare_rates
+                )
+                result["compare"] = {"period_id": compare_id, "rows": compare_rows}
+            except Exception:
+                pass
+
+    return result
+
+
+@app.get("/api/profitability/work-rates", dependencies=[Depends(require_auth)])
+def profitability_get_work_rates():
+    """Все ставки работы."""
+    return prof_store.get_work_rates()
+
+
+@app.post("/api/profitability/work-rates", dependencies=[Depends(require_admin)])
+async def profitability_set_work_rates(request: Request):
+    """Установить ставки работы для периода."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Ожидается JSON"}, status_code=400)
+    period_id = body.get("period_id", "default")
+    rates = body.get("rates", {})
+    prof_store.set_work_rates(period_id, rates)
+    return {"ok": True}
+
+
+@app.get("/api/profitability/mappings", dependencies=[Depends(require_auth)])
+def profitability_get_mappings():
+    """Кастомные маппинги артикул → вид номенклатуры."""
+    return {
+        "mappings": prof_store.get_custom_mappings(),
+        "history": prof_store.get_mappings_history()[-50:],
+    }
+
+
+@app.post("/api/profitability/mappings", dependencies=[Depends(require_admin)])
+async def profitability_set_mappings(request: Request, username: str = Depends(require_auth)):
+    """Сохранить маппинги артикулов."""
+    try:
+        body = await request.json()
+    except Exception:
+        return JSONResponse({"error": "Ожидается JSON"}, status_code=400)
+    mappings = body.get("mappings", {})
+    if not isinstance(mappings, dict):
+        return JSONResponse({"error": "mappings должен быть объектом"}, status_code=400)
+    prof_store.set_custom_mappings_bulk(mappings, username=username)
+    return {"ok": True, "count": len(mappings)}
+
+
+@app.get("/api/profitability/unmatched", dependencies=[Depends(require_auth)])
+def profitability_unmatched(period_id: str):
+    """Список несопоставленных артикулов для периода."""
+    data = prof_store.load_upload("weekly", period_id)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Период не найден")
+
+    nomenclature_map = prof_store.load_parsed_nomenclature() or {}
+    custom_mappings = prof_store.get_custom_mappings()
+    # case-insensitive lookup
+    combined_lower = {k.lower(): v for k, v in nomenclature_map.items()}
+    combined_lower.update({k.lower(): v for k, v in custom_mappings.items()})
+
+    try:
+        report_df = prof_parser.parse_weekly_report(data)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+    all_articles = report_df["артикул"].unique().tolist()
+    unmatched = [a for a in all_articles if a and combined_lower.get(a.lower()) is None]
+
+    # Список всех известных видов для UI
+    all_vids = sorted(set(nomenclature_map.values()) | set(custom_mappings.values()))
+
+    return {"unmatched": sorted(unmatched), "all_vids": all_vids}
+
+
+@app.delete("/api/profitability/periods/{period_id}", dependencies=[Depends(require_admin)])
+def profitability_delete_period(period_id: str):
+    """Удалить период."""
+    ok = prof_store.delete_period(period_id)
+    if not ok:
+        raise HTTPException(status_code=404, detail="Период не найден")
+    return {"ok": True}
 
 
 # Раздача статики React (после сборки)

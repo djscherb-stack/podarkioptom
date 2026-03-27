@@ -1074,6 +1074,10 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
   const [editCell, setEditCell] = useState(null)       // {empId, day} — ячейка дня
   const [editingEmpId, setEditingEmpId] = useState(null) // id строки сотрудника
   const [editEmpBuf, setEditEmpBuf] = useState({})
+  const [dragHighlight, setDragHighlight] = useState(null) // {empId, fromDay, toDay}
+  const dragRef = useRef(null)       // { empId, fillValue, fromDay, toDay }
+  const scheduleRef = useRef(null)   // актуальный schedule без stale closure
+  const dragMovedRef = useRef(false) // был ли реальный drag (не просто click)
   const [sortBy, setSortBy] = useState('fio')          // 'fio' | 'position' | 'status' | 'section'
   const [positionFilter, setPositionFilter] = useState([])
   const [statusFilter, setStatusFilter] = useState([])
@@ -1136,6 +1140,45 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
 
   useEffect(() => { load() }, [load])
 
+  // Держим ref в синхронизации со state (нужен для стабильного mouseup-обработчика)
+  useEffect(() => { scheduleRef.current = schedule }, [schedule])
+
+  // Глобальный mouseup — применяем drag-fill
+  useEffect(() => {
+    const onMouseUp = () => {
+      if (!dragRef.current) return
+      const { empId, fillValue, fromDay, toDay } = dragRef.current
+      dragRef.current = null
+      setDragHighlight(null)
+
+      if (!dragMovedRef.current) return   // это был просто click, не drag
+      dragMovedRef.current = false
+
+      const minDay = Math.min(fromDay, toDay)
+      const maxDay = Math.max(fromDay, toDay)
+      const cur = scheduleRef.current
+      if (!cur) return
+      const updated = {
+        ...cur,
+        employees: cur.employees.map(e => {
+          if (e.id !== empId) return e
+          const wd = { ...e.working_days }
+          for (let d = minDay; d <= maxDay; d++) {
+            if (fillValue === null) {
+              delete wd[String(d)]
+            } else {
+              wd[String(d)] = fillValue
+            }
+          }
+          return { ...e, working_days: wd }
+        }),
+      }
+      saveSchedule(updated)
+    }
+    window.addEventListener('mouseup', onMouseUp)
+    return () => window.removeEventListener('mouseup', onMouseUp)
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const saveSchedule = async (data) => {
     setSaving(true)
     try {
@@ -1155,6 +1198,7 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
 
   const handleCellClick = (empId, day) => {
     if (!canEdit) return
+    if (dragMovedRef.current) return   // drag — не открываем редактирование
     const employeesArr = schedule?.employees || []
     const emp = employeesArr.find(e => e.id === empId)
     if (!emp) return
@@ -1174,6 +1218,25 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
       }
       saveSchedule(updated)
     }
+  }
+
+  const handleDayMouseDown = (emp, d, e) => {
+    if (!canEdit || editingEmpId === emp.id || editCell !== null) return
+    e.preventDefault()
+    const dayStr = String(d)
+    const hours = emp.working_days[dayStr]
+    // null = очистить, число = копировать, default = заполнить дефолтными часами
+    const fillValue = hours !== undefined ? hours : getDefaultHours(emp.position)
+    dragRef.current = { empId: emp.id, fillValue, fromDay: d, toDay: d }
+    dragMovedRef.current = false
+    setDragHighlight({ empId: emp.id, fromDay: d, toDay: d })
+  }
+
+  const handleDayMouseEnter = (empId, d) => {
+    if (!dragRef.current || dragRef.current.empId !== empId) return
+    dragRef.current.toDay = d
+    dragMovedRef.current = d !== dragRef.current.fromDay
+    setDragHighlight({ empId, fromDay: dragRef.current.fromDay, toDay: d })
   }
 
   const handleCellEdit = (empId, day, val) => {
@@ -1550,11 +1613,17 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
                     const dayStr = String(d)
                     const hours = emp.working_days[dayStr]
                     const isEditing = editCell?.empId === emp.id && editCell?.day === d
+                    const inDragRange = dragHighlight &&
+                      dragHighlight.empId === emp.id &&
+                      d >= Math.min(dragHighlight.fromDay, dragHighlight.toDay) &&
+                      d <= Math.max(dragHighlight.fromDay, dragHighlight.toDay)
                     return (
                       <td
                         key={d}
-                        className={`wf-day-cell ${hours !== undefined ? 'wf-day-on' : ''} ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${canEdit && !isEditingRow ? 'wf-editable' : ''}`}
+                        className={`wf-day-cell ${hours !== undefined ? 'wf-day-on' : ''} ${isWeekend(year, month, d) ? 'wf-weekend' : ''} ${canEdit && !isEditingRow ? 'wf-editable' : ''} ${inDragRange ? 'wf-drag-fill' : ''}`}
                         onClick={() => !isEditing && !isEditingRow && handleCellClick(emp.id, d)}
+                        onMouseDown={e => !isEditing && !isEditingRow && handleDayMouseDown(emp, d, e)}
+                        onMouseEnter={() => handleDayMouseEnter(emp.id, d)}
                       >
                         {isEditing ? (
                           <input
@@ -1637,6 +1706,7 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
 
       <div className="wf-hint-box">
         <strong>Подсказка:</strong> Клик по пустой ячейке — ставит часы по умолчанию (8 ч для руководящих должностей, 11 ч для остальных). Клик по заполненной — редактировать. Enter — подтвердить, Delete/пустое — удалить.
+        {canEdit && <> | <strong>Протяжка:</strong> зажмите мышку на ячейке и ведите по строке — значение скопируется во все ячейки диапазона.</>}
         {canEdit && <> | Формат импорта: ФИО {'\t'} Должность {'\t'} Статус {'\t'} 1 {'\t'} 2 {'\t'} ... {'\t'} 31</>}
       </div>
 
@@ -3286,7 +3356,7 @@ export default function WorkforcePage({ userInfo }) {
             production={activeTab}
             year={year}
             month={month}
-            canEdit={isAdmin || isManager}
+            canEdit={isAdmin || isManager || isBrigadier}
             canEditSection={isAdmin || isManager || isBrigadier}
             reference={reference}
           />

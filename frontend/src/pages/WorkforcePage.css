@@ -635,6 +635,32 @@
 .wf-day-cell.wf-editable { cursor: pointer; }
 .wf-day-cell.wf-editable:hover { background: var(--bg-card-hover) !important; }
 
+/* Drag-to-fill */
+.wf-day-cell.wf-drag-fill {
+  background: rgba(59, 130, 246, 0.22) !important;
+  outline: 1px solid rgba(59, 130, 246, 0.6);
+  outline-offset: -1px;
+}
+.wf-day-cell.wf-editable:active {
+  cursor: crosshair;
+}
+/* Иконка-ручка в правом нижнем углу заполненной редактируемой ячейки */
+.wf-has-actions .wf-day-on.wf-editable::after {
+  content: '';
+  position: absolute;
+  right: 2px;
+  bottom: 2px;
+  width: 5px;
+  height: 5px;
+  background: var(--accent, #3b82f6);
+  border-radius: 1px;
+  opacity: 0.6;
+  pointer-events: none;
+}
+.wf-has-actions .wf-day-on.wf-editable:hover::after {
+  opacity: 1;
+}
+
 /* Фильтры и сортировка для графика/табеля */
 /* ── Filter bar ── */
 .wf-filter-bar {
