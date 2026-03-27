@@ -1061,7 +1061,7 @@ function FilterDropdown({ label, options, selected, onChange }) {
 }
 
 // ─── Таблица графика ──────────────────────────────────────────────────────────
-export function ScheduleTable({ production, year, month, canEdit, canEditSection, reference }) {
+export function ScheduleTable({ production, year, month, canEdit, canImport, canEditSection, reference }) {
   const [schedule, setSchedule] = useState(null)
   const [empList, setEmpList] = useState([])   // список сотрудников для проверки увольнений
   const [loading, setLoading] = useState(true)
@@ -1199,33 +1199,13 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
   const handleCellClick = (empId, day) => {
     if (!canEdit) return
     if (dragMovedRef.current) return   // drag — не открываем редактирование
-    const employeesArr = schedule?.employees || []
-    const emp = employeesArr.find(e => e.id === empId)
-    if (!emp) return
-    const dayStr = String(day)
-    const current = emp.working_days[dayStr]
-    if (current !== undefined) {
-      // Открываем редактирование
-      setEditCell({ empId, day })
-    } else {
-      // Ставим часы по умолчанию согласно должности
-      const defaultH = getDefaultHours(emp.position)
-      const updated = {
-        ...schedule,
-        employees: schedule.employees.map(e =>
-          e.id === empId ? { ...e, working_days: { ...e.working_days, [dayStr]: defaultH } } : e
-        ),
-      }
-      saveSchedule(updated)
-    }
+    setEditCell({ empId, day })
   }
 
-  const handleDayMouseDown = (emp, d, e) => {
+  const handleDayMouseDown = (emp, d, _e) => {
     if (!canEdit || editingEmpId === emp.id || editCell !== null) return
-    e.preventDefault()
     const dayStr = String(d)
     const hours = emp.working_days[dayStr]
-    // null = очистить, число = копировать, default = заполнить дефолтными часами
     const fillValue = hours !== undefined ? hours : getDefaultHours(emp.position)
     dragRef.current = { empId: emp.id, fillValue, fromDay: d, toDay: d }
     dragMovedRef.current = false
@@ -1404,9 +1384,11 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
         <div className="wf-toolbar-actions">
           {msg && <span className={`wf-msg ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</span>}
           {saving && <span className="wf-msg">Сохранение...</span>}
+          {canImport && (
+            <button className="wf-btn wf-btn-secondary" onClick={() => setShowImport(true)}>↓ Импорт из Google Таблиц</button>
+          )}
           {canEdit && (
             <>
-              <button className="wf-btn wf-btn-secondary" onClick={() => setShowImport(true)}>↓ Импорт из Google Таблиц</button>
               <button
                 className="wf-btn wf-btn-secondary"
                 onClick={handleCopyFromPrev}
@@ -1463,7 +1445,7 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
 
       <div className="wf-table-scroll">
         <table
-          className={`wf-schedule-table ${canEdit ? 'wf-has-actions' : ''}`}
+          className={`wf-schedule-table ${canEdit ? 'wf-has-actions' : ''} ${dragHighlight ? 'wf-dragging' : ''}`}
           style={{
             '--wf-fio-width': `${colWidths.fio}px`,
             '--wf-pos-width': `${colWidths.pos}px`,
@@ -1705,9 +1687,9 @@ export function ScheduleTable({ production, year, month, canEdit, canEditSection
       </div>
 
       <div className="wf-hint-box">
-        <strong>Подсказка:</strong> Клик по пустой ячейке — ставит часы по умолчанию (8 ч для руководящих должностей, 11 ч для остальных). Клик по заполненной — редактировать. Enter — подтвердить, Delete/пустое — удалить.
+        <strong>Подсказка:</strong> Клик по ячейке — открыть редактирование. Enter — подтвердить, Delete/пустое — удалить.
         {canEdit && <> | <strong>Протяжка:</strong> зажмите мышку на ячейке и ведите по строке — значение скопируется во все ячейки диапазона.</>}
-        {canEdit && <> | Формат импорта: ФИО {'\t'} Должность {'\t'} Статус {'\t'} 1 {'\t'} 2 {'\t'} ... {'\t'} 31</>}
+        {canImport && <> | Формат импорта: ФИО {'\t'} Должность {'\t'} Статус {'\t'} 1 {'\t'} 2 {'\t'} ... {'\t'} 31</>}
       </div>
 
       {showImport && (
@@ -3357,6 +3339,7 @@ export default function WorkforcePage({ userInfo }) {
             year={year}
             month={month}
             canEdit={isAdmin || isManager || isBrigadier}
+            canImport={isAdmin}
             canEditSection={isAdmin || isManager || isBrigadier}
             reference={reference}
           />
