@@ -1,143 +1,164 @@
-/* ─── Панель управления: стили по макету (шрифты, кнопки, линии, цвета) ───────── */
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+
+/* ─── Layout ─────────────────────────────────────────────────────────────────── */
 .pd-page {
-  padding: 1.25rem 1.5rem;
-  max-width: 1400px;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background: #fff;
-  color: #000;
+  padding: 1.5rem 2rem;
+  max-width: 1440px;
+  font-family: 'Space Grotesk', system-ui, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  animation: pd-fade-in 0.25s ease;
+}
+
+@keyframes pd-fade-in {
+  from { opacity: 0; transform: translateY(6px); }
+  to   { opacity: 1; transform: translateY(0); }
 }
 
 .pd-page-header {
   display: flex;
   align-items: baseline;
   gap: 1rem;
-  margin-bottom: 1.25rem;
+  margin-bottom: 1.5rem;
 }
 
 .pd-page-title {
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
-  color: #000;
+  color: var(--text);
   margin: 0;
+  letter-spacing: -0.02em;
 }
 
 .pd-page-subtitle {
-  font-size: 0.9rem;
-  color: #555;
+  font-size: 0.85rem;
+  color: var(--text-muted);
   font-weight: 500;
 }
 
-/* ─── Main Tabs: тонкая чёрная линия, активная вкладка — подчёркивание ─────────── */
+/* ─── Main Tabs ──────────────────────────────────────────────────────────────── */
 .pd-main-tabs {
   display: flex;
   gap: 0;
-  border-bottom: 1px solid #000;
+  border-bottom: 1px solid var(--border);
   margin-bottom: 1.5rem;
 }
 
 .pd-main-tab {
-  padding: 0.6rem 1.4rem;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #555;
+  padding: 0.65rem 1.5rem;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-muted);
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
   margin-bottom: -1px;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.07em;
+  font-family: 'Space Grotesk', sans-serif;
   transition: color 0.15s, border-color 0.15s;
 }
 
 .pd-main-tab:hover {
-  color: #000;
+  color: var(--text);
 }
 
 .pd-main-tab-active {
-  color: #000;
-  border-bottom-color: #000;
-  font-weight: 600;
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+  font-weight: 700;
 }
 
-/* ─── Кнопки периода: прямоугольные, скругление 3px, активная — чёрная заливка ── */
+/* ─── Period bar ─────────────────────────────────────────────────────────────── */
 .pd-period-bar {
   display: flex;
   align-items: center;
   gap: 1rem;
   flex-wrap: wrap;
-  margin-bottom: 1rem;
+  margin-bottom: 1.25rem;
 }
 
 .pd-period-presets {
   display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
+  gap: 0.3rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.25rem;
 }
 
 .pd-period-btn {
-  padding: 0.5rem 1rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
+  padding: 0.4rem 0.9rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
+  font-family: 'Space Grotesk', sans-serif;
   transition: all 0.15s;
 }
 
 .pd-period-btn:hover {
-  background: #f5f5f5;
+  color: var(--text);
+  background: var(--bg-card-hover);
 }
 
 .pd-period-active {
-  background: #000 !important;
+  background: var(--accent) !important;
   color: #fff !important;
-  border-color: #000 !important;
+  box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 40%, transparent);
 }
 
-/* Навигация по дням ‹ дата › */
+/* ─── Day nav ‹ date › ───────────────────────────────────────────────────────── */
 .pd-day-nav {
   display: flex;
   align-items: center;
   gap: 0;
-  border: 1px solid #000;
-  border-radius: 3px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
   overflow: hidden;
+  background: var(--bg-card);
 }
 
 .pd-day-nav-btn {
-  width: 28px;
+  width: 30px;
   height: 32px;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: #fff;
+  background: transparent;
   border: none;
-  font-size: 1.1rem;
+  font-size: 1rem;
   line-height: 1;
   cursor: pointer;
-  color: #000;
-  transition: background 0.12s;
+  color: var(--text-muted);
+  transition: background 0.12s, color 0.12s;
   flex-shrink: 0;
 }
-.pd-day-nav-btn:hover:not(:disabled) { background: #f0f0f0; }
-.pd-day-nav-btn:disabled { color: #ccc; cursor: default; }
+.pd-day-nav-btn:hover:not(:disabled) {
+  background: var(--bg-card-hover);
+  color: var(--accent);
+}
+.pd-day-nav-btn:disabled { color: var(--border); cursor: default; }
 
 .pd-day-nav-label {
-  padding: 0 0.5rem;
+  padding: 0 0.75rem;
   font-size: 0.78rem;
   font-weight: 600;
   white-space: nowrap;
-  border-left: 1px solid #ddd;
-  border-right: 1px solid #ddd;
+  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   height: 32px;
   display: flex;
   align-items: center;
-  letter-spacing: 0.02em;
+  letter-spacing: 0.03em;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--text);
 }
 
 .pd-period-custom {
@@ -148,123 +169,210 @@
 }
 
 .pd-date-input {
-  padding: 0.4rem 0.6rem;
-  font-size: 0.85rem;
-  border: 1px solid #bbb;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
-  font-family: inherit;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.82rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.pd-date-input:focus {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
 }
 
 .pd-period-dash {
-  color: #555;
+  color: var(--text-muted);
   font-size: 0.9rem;
 }
 
 .pd-btn-primary {
-  padding: 0.5rem 1rem;
-  font-size: 0.8rem;
-  font-weight: 500;
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #000;
+  padding: 0.45rem 1.1rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  border: none;
+  border-radius: 6px;
+  background: var(--accent);
   color: #fff;
   cursor: pointer;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  transition: opacity 0.15s;
-  font-family: inherit;
+  letter-spacing: 0.05em;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: opacity 0.15s, box-shadow 0.15s;
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
 }
-
-.pd-btn-primary:hover { opacity: 0.9; }
-
-/* ─── Период и сравнение: серый текст ────────────────────────────────────────── */
-.pd-period-label {
-  font-size: 0.85rem;
-  color: #555;
-  margin-bottom: 1rem;
-}
-
-.pd-period-label strong { color: #000; }
-
-.pd-period-compare {
-  color: #555;
+.pd-btn-primary:hover {
   opacity: 0.9;
+  box-shadow: 0 0 14px color-mix(in srgb, var(--accent) 35%, transparent);
 }
 
-/* ─── Таблица участков: тонкие линии, заголовки uppercase серые ───────────────── */
+/* ─── Period label ───────────────────────────────────────────────────────────── */
+.pd-period-label {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 1.25rem;
+}
+.pd-period-label strong { color: var(--text); }
+.pd-period-compare { color: var(--text-muted); opacity: 0.9; }
+
+/* ─── KPI Summary Card ───────────────────────────────────────────────────────── */
+.pd-summary-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0;
+  margin-top: 0;
+  overflow: hidden;
+  box-shadow: 0 1px 12px rgba(0,0,0,0.18);
+}
+
+.pd-summary-title {
+  font-size: 0.65rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  margin-bottom: 0;
+  padding: 0.65rem 1.25rem 0.45rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  border-bottom: 1px solid var(--border);
+}
+
+.pd-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 0;
+  min-height: 4.5rem;
+}
+
+.pd-summary-item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 0.15rem;
+  padding: 0.85rem 1.25rem;
+  border-right: 1px solid var(--border);
+  background: transparent;
+  transition: background 0.15s;
+}
+.pd-summary-item:hover { background: var(--bg-card-hover); }
+.pd-summary-item:last-of-type { border-right: none; }
+
+.pd-summary-label {
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  line-height: 1.3;
+}
+
+.pd-summary-value {
+  font-size: 1.35rem;
+  font-weight: 700;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+}
+
+.pd-summary-desc {
+  font-size: 0.62rem;
+  color: var(--text-muted);
+  text-transform: none;
+  letter-spacing: 0;
+  margin-top: 0.1rem;
+}
+
+.pd-summary-item.pd-summary-highlight {
+  background: var(--accent);
+  border-right: none;
+  position: relative;
+}
+.pd-summary-item.pd-summary-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(255,255,255,0.08) 0%, transparent 60%);
+  pointer-events: none;
+}
+
+.pd-summary-highlight .pd-summary-label,
+.pd-summary-highlight .pd-summary-desc { color: rgba(255,255,255,0.75); }
+.pd-summary-highlight .pd-summary-value {
+  color: #fff;
+  font-size: 1.45rem;
+  text-shadow: 0 0 20px rgba(255,255,255,0.4);
+}
+
+/* ─── Sections Table ─────────────────────────────────────────────────────────── */
 .pd-sections-block {
-  margin-top: 1.5rem;
+  margin-top: 1.75rem;
 }
 
 .pd-sections-section-title {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
-  letter-spacing: 0.12em;
-  color: #555;
+  letter-spacing: 0.14em;
+  color: var(--text-muted);
   margin-bottom: 0.6rem;
-  font-weight: 500;
+  font-weight: 600;
 }
 
 .pd-sections-title-row {
   display: grid;
   grid-template-columns: 3fr 1.2fr 1.3fr 1.5fr 1.1fr 1.6fr 1.5fr;
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.1em;
-  color: #555;
-  font-weight: 500;
-  border-bottom: 1px solid #000;
-  padding: 0.5rem 0.35rem;
+  color: var(--text-muted);
+  font-weight: 600;
+  border-bottom: 1px solid var(--border);
+  padding: 0.5rem 0.5rem;
 }
 
-.pd-sec-col {
-  padding: 0 0.35rem;
-}
-
-.pd-sec-col-name {
-  padding-left: 0;
-}
-
-.pd-sec-col-trend {
-  text-align: right;
-}
+.pd-sec-col { padding: 0 0.5rem; }
+.pd-sec-col-name { padding-left: 0; }
+.pd-sec-col-trend { text-align: right; }
 
 .pd-sections-table {
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   border-top: none;
+  border-radius: 0 0 8px 8px;
+  overflow: hidden;
 }
 
 .pd-section-row {
   display: grid;
   grid-template-columns: 3fr 1.2fr 1.3fr 1.5fr 1.1fr 1.6fr 1.5fr;
   align-items: center;
-  padding: 0.65rem 0.35rem;
-  border-bottom: 1px solid #ddd;
-  background: #fff;
+  padding: 0.7rem 0.5rem;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
   font-size: 0.85rem;
+  transition: background 0.12s;
 }
-
-.pd-section-row:nth-child(2n+1) {
-  background: #fafafa;
-}
+.pd-section-row:last-child { border-bottom: none; }
+.pd-section-row:nth-child(2n+1) { background: color-mix(in srgb, var(--bg-card) 85%, var(--bg)); }
+.pd-section-row:hover { background: var(--bg-card-hover); }
 
 .pd-section-main {
-  background: #f0f0f0;
-  border-left: 3px solid #000;
+  background: color-mix(in srgb, var(--accent) 8%, var(--bg-card)) !important;
+  border-left: 3px solid var(--accent);
   font-weight: 600;
+}
+.pd-section-main:hover {
+  background: color-mix(in srgb, var(--accent) 14%, var(--bg-card)) !important;
 }
 
 .pd-sec-cell {
-  padding: 0 0.35rem;
+  padding: 0 0.5rem;
   font-size: 0.85rem;
-  color: #000;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
-
-.pd-sec-name-cell {
-  padding-left: 0;
-}
+.pd-sec-name-cell { padding-left: 0; }
 
 .pd-sec-name-line {
   display: flex;
@@ -276,20 +384,21 @@
   width: 6px;
   height: 6px;
   border-radius: 999px;
-  background: #333;
+  background: var(--accent);
   flex-shrink: 0;
+  box-shadow: 0 0 6px var(--accent);
 }
 
 .pd-sec-name {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
 }
 
 .pd-sec-subline {
-  margin-top: 0.15rem;
-  font-size: 0.72rem;
-  color: #555;
+  margin-top: 0.2rem;
+  font-size: 0.7rem;
+  color: var(--text-muted);
   display: flex;
   flex-wrap: wrap;
   gap: 0.25rem;
@@ -298,11 +407,11 @@
 .pd-sec-subline-cost {
   white-space: nowrap;
   font-weight: 600;
-  color: #000;
+  color: var(--text-muted);
 }
 
 .pd-sec-unit-cost {
-  color: #2d8a3e;
+  color: var(--positive);
   font-weight: 700;
 }
 
@@ -312,35 +421,34 @@
   align-items: flex-start;
   gap: 0.05rem;
 }
-
 .pd-sec-out-main {
   font-weight: 600;
-  color: #000;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
-
 .pd-sec-out-unit {
-  font-size: 0.72rem;
-  color: #555;
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .pd-sec-prev {
-  font-size: 0.82rem;
-  color: #555;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-.pd-sec-change {
-  font-size: 0.8rem;
-}
+.pd-sec-change { font-size: 0.78rem; }
 
 .pd-sec-emps,
 .pd-sec-per-emp {
   font-size: 0.85rem;
-  color: #000;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
 }
 
-.pd-sec-trend {
-  text-align: right;
-}
+.pd-sec-trend { text-align: right; }
 
 .pd-sec-detail-row {
   grid-column: 1 / -1;
@@ -362,25 +470,34 @@
   font-weight: 700;
   line-height: 1;
 }
+.pd-trend-up   { color: var(--positive); }
+.pd-trend-down { color: var(--negative); }
+.pd-trend-flat { color: var(--text-muted); }
 
-.pd-trend-up   { color: #6DC24B; }
-.pd-trend-down { color: #D9534F; }
-.pd-trend-flat { color: #888; }
-
-/* ─── Delta (изменение): зелёный/красный как в макете ─────────────────────────── */
+/* ─── Delta badge ─────────────────────────────────────────────────────────────── */
 .pd-delta {
-  font-size: 0.78rem;
+  font-size: 0.72rem;
   font-weight: 600;
-  padding: 0.2rem 0.5rem;
-  border-radius: 2px;
+  padding: 0.2rem 0.55rem;
+  border-radius: 20px;
   white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
+}
+.pd-delta-pos  {
+  background: color-mix(in srgb, var(--positive) 15%, transparent);
+  color: var(--positive);
+}
+.pd-delta-neg  {
+  background: color-mix(in srgb, var(--negative) 15%, transparent);
+  color: var(--negative);
+}
+.pd-delta-flat {
+  background: color-mix(in srgb, var(--text-muted) 12%, transparent);
+  color: var(--text-muted);
 }
 
-.pd-delta-pos  { background: #E0F2E0;  color: #6DC24B; }
-.pd-delta-neg  { background: #FAE0E0;  color: #D9534F; }
-.pd-delta-flat { background: #f0f0f0;   color: #666; }
-
-/* ─── Sub-sections (Картон/Дерево) ──────────────────────────────────────────── */
+/* ─── Sub-sections ───────────────────────────────────────────────────────────── */
 .pd-subs {
   border-top: 1px solid var(--border);
   padding-top: 0.55rem;
@@ -389,11 +506,7 @@
   gap: 0.45rem;
 }
 
-.pd-sub {
-  display: flex;
-  flex-direction: column;
-  gap: 0.2rem;
-}
+.pd-sub { display: flex; flex-direction: column; gap: 0.2rem; }
 
 .pd-sub-header {
   display: flex;
@@ -403,11 +516,11 @@
 }
 
 .pd-sub-name {
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 600;
   color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .pd-sub-row {
@@ -421,6 +534,7 @@
   font-size: 1rem;
   font-weight: 600;
   color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 /* ─── Metrics ────────────────────────────────────────────────────────────────── */
@@ -439,7 +553,7 @@
 }
 
 .pd-metric-label {
-  font-size: 0.72rem;
+  font-size: 0.68rem;
   color: var(--text-muted);
   line-height: 1.3;
 }
@@ -448,38 +562,41 @@
   font-size: 0.9rem;
   font-weight: 600;
   color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
-.pd-metric-cost {
-  color: var(--accent);
-}
+.pd-metric-cost { color: var(--accent); }
 
-/* ─── Detalization ───────────────────────────────────────────────────────────── */
+/* ─── Detail expand ──────────────────────────────────────────────────────────── */
 .pd-detail {
   border-top: 1px solid var(--border);
   padding-top: 0.5rem;
 }
 
 .pd-btn-detail {
-  font-size: 0.78rem;
-  padding: 0.35rem 0.75rem;
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
+  font-size: 0.75rem;
+  padding: 0.3rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-card);
+  color: var(--text-muted);
   cursor: pointer;
-  font-family: inherit;
+  font-family: 'Space Grotesk', sans-serif;
   transition: all 0.15s;
 }
-
 .pd-btn-detail:hover {
-  background: #f5f5f5;
+  border-color: var(--accent);
+  color: var(--text);
+  background: var(--bg-card-hover);
 }
 
 .pd-detail-panel {
   margin-top: 0.5rem;
   max-height: 220px;
   overflow-y: auto;
+  border-radius: 6px;
+  border: 1px solid var(--border);
 }
 
 .pd-detail-table {
@@ -490,141 +607,69 @@
 
 .pd-detail-table th {
   text-align: left;
-  padding: 0.3rem 0.5rem;
+  padding: 0.35rem 0.6rem;
   font-weight: 600;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #555;
-  border-bottom: 1px solid #ddd;
-  position: sticky;
-  top: 0;
-  background: #fff;
-}
-
-.pd-detail-table td {
-  padding: 0.25rem 0.5rem;
-  border-bottom: 1px solid #eee;
-  color: #000;
-  font-size: 0.82rem;
-}
-
-.pd-detail-table tr:last-child td { border-bottom: none; }
-
-.pd-num-h { text-align: right; }
-.pd-num   { text-align: right; }
-
-/* ─── KPI-блок: одна рамка, тонкие вертикальные разделители, последняя ячейка чёрная ─ */
-.pd-summary-card {
-  background: #fff;
-  border: 1px solid #000;
-  border-radius: 0;
-  padding: 0;
-  margin-top: 0;
-  overflow: hidden;
-}
-
-.pd-summary-title {
-  font-size: 0.7rem;
-  font-weight: 600;
-  color: #555;
-  margin-bottom: 0;
-  padding: 0.6rem 1rem 0.4rem;
-  text-transform: uppercase;
-  letter-spacing: 0.1em;
-  border-bottom: 1px solid #ddd;
-}
-
-.pd-summary-grid {
-  display: grid;
-  grid-template-columns: repeat(6, 1fr);
-  gap: 0;
-  min-height: 4rem;
-}
-
-.pd-summary-item {
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  gap: 0.1rem;
-  padding: 0.75rem 1rem;
-  border-right: 1px solid #ddd;
-  background: #fff;
-}
-
-.pd-summary-item:last-of-type {
-  border-right: none;
-}
-
-.pd-summary-label {
   font-size: 0.65rem;
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  color: #555;
-  line-height: 1.3;
+  color: var(--text-muted);
+  border-bottom: 1px solid var(--border);
+  position: sticky;
+  top: 0;
+  background: var(--bg-card);
 }
 
-.pd-summary-value {
-  font-size: 1.25rem;
-  font-weight: 700;
-  color: #000;
+.pd-detail-table td {
+  padding: 0.28rem 0.6rem;
+  border-bottom: 1px solid var(--border);
+  color: var(--text);
+  font-size: 0.8rem;
+  font-variant-numeric: tabular-nums;
 }
+.pd-detail-table tr:last-child td { border-bottom: none; }
 
-.pd-summary-desc {
-  font-size: 0.65rem;
-  color: #555;
-  text-transform: none;
-  letter-spacing: 0;
-  margin-top: 0.1rem;
-}
+.pd-num-h { text-align: right; }
+.pd-num   { text-align: right; font-family: 'JetBrains Mono', monospace; }
 
-.pd-summary-item.pd-summary-highlight {
-  background: #000;
-  border-right: none;
-}
-
-.pd-summary-highlight .pd-summary-label,
-.pd-summary-highlight .pd-summary-desc { color: rgba(255,255,255,0.9); }
-.pd-summary-highlight .pd-summary-value { color: #fff; font-size: 1.35rem; }
-
-/* ─── Динамика за 15 дней ──────────────────────────────────────────────────── */
+/* ─── Dynamics block ─────────────────────────────────────────────────────────── */
 .pd-dynamics-block {
-  margin-top: 1.5rem;
-  background: #fff;
-  border: 1px solid #000;
-  padding: 0.75rem 1rem 1rem;
+  margin-top: 1.75rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 1rem 1.25rem 1.25rem;
+  box-shadow: 0 1px 12px rgba(0,0,0,0.15);
 }
 
 .pd-dynamics-title {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #000;
+  letter-spacing: 0.1em;
+  color: var(--text);
   margin-bottom: 0.2rem;
 }
 
 .pd-dynamics-desc {
-  font-size: 0.7rem;
-  color: #555;
-  margin-bottom: 0.6rem;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-bottom: 0.75rem;
 }
 
-.pd-dynamics-table-wrap {
-  overflow-x: auto;
-}
+.pd-dynamics-table-wrap { overflow-x: auto; }
 
 .pd-dynamics-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
 }
 
 .pd-dynamics-table th,
 .pd-dynamics-table td {
-  padding: 0.35rem 0.5rem;
-  border: 1px solid #ddd;
+  padding: 0.32rem 0.5rem;
+  border: 1px solid var(--border);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .pd-dynamics-table .pd-dyn-col-name {
@@ -632,126 +677,112 @@
   min-width: 10rem;
   font-weight: 600;
 }
-
-.pd-dynamics-table .pd-dyn-col-day {
-  min-width: 4rem;
-}
+.pd-dynamics-table .pd-dyn-col-day { min-width: 4rem; }
 
 .pd-dynamics-table thead th {
-  background: #f5f5f5;
+  background: var(--bg-card-hover);
   font-weight: 600;
-  color: #333;
+  color: var(--text-muted);
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
 }
 
-.pd-dyn-row-total {
-  background: #f9f9f9;
-}
+.pd-dyn-row-total { background: color-mix(in srgb, var(--bg-card-hover) 60%, var(--bg-card)); }
 .pd-dyn-row-total .pd-dyn-col-name { font-weight: 700; }
 
 .pd-dyn-row-grand {
-  background: #000;
-  color: #fff;
+  background: color-mix(in srgb, var(--accent) 12%, var(--bg-card));
+  color: var(--text);
 }
-.pd-dyn-row-grand td { border-color: #333; }
-.pd-dyn-row-grand .pd-dyn-col-name { color: #fff; }
+.pd-dyn-row-grand td { border-color: color-mix(in srgb, var(--accent) 30%, var(--border)); }
+.pd-dyn-row-grand .pd-dyn-col-name { color: var(--text); font-weight: 700; }
 
-.pd-dyn-col-cpu {
-  text-align: right;
-}
+.pd-dyn-col-cpu { text-align: right; }
 .pd-dyn-cpu-val {
-  color: #2d8a3e;
+  color: var(--positive);
   font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
 }
-.pd-dyn-row-grand .pd-dyn-cpu-val {
-  color: #6DC24B;
-}
+.pd-dyn-row-grand .pd-dyn-cpu-val { color: var(--positive); }
 
 .pd-dynamics-plan-badge {
   font-weight: 400;
-  color: #888;
-  font-size: 0.7rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
   text-transform: none;
   letter-spacing: 0;
 }
 
-/* ─── CPU Line Chart ─────────────────────────────────────────────────────────── */
-/* ─── 15-day matrix table ────────────────────────────────────────────────────── */
-.pd-cpu-matrix-wrap {
-  margin-top: 0.5rem;
-}
+/* ─── CPU Matrix ─────────────────────────────────────────────────────────────── */
+.pd-cpu-matrix-wrap { margin-top: 0.5rem; }
+.pd-cpu-matrix { font-size: 0.74rem; }
 
-.pd-cpu-matrix {
-  font-size: 0.76rem;
-}
-
-/* Sticky section-name column */
 .pd-cpu-sticky-col {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: #fff;
+  background: var(--bg-card);
   min-width: 130px;
   max-width: 160px;
 }
 .pd-dynamics-table thead .pd-cpu-sticky-col {
-  background: #f5f5f5;
+  background: var(--bg-card-hover);
   z-index: 3;
 }
 
-/* Date columns */
 .pd-cpu-date-col {
   width: 46px;
   min-width: 46px;
   max-width: 50px;
   text-align: center !important;
-  font-size: 0.7rem;
-  padding: 0.25rem 0.2rem !important;
+  font-size: 0.68rem;
+  padding: 0.22rem 0.2rem !important;
   white-space: nowrap;
+  font-family: 'JetBrains Mono', monospace;
 }
 
-/* Value cells */
 .pd-cpu-cell {
   text-align: center !important;
-  padding: 0.25rem 0.2rem !important;
-  color: #bbb;
-  font-size: 0.72rem;
+  padding: 0.22rem 0.2rem !important;
+  color: var(--text-muted);
+  font-size: 0.7rem;
+  font-family: 'JetBrains Mono', monospace;
 }
-
 .pd-cpu-cell-val {
-  color: #000;
+  color: var(--text);
   font-weight: 500;
 }
 
-/* FOT row subtle styling */
 .pd-cpu-row-fot td {
-  background: #fafafa;
-  font-size: 0.7rem;
+  background: color-mix(in srgb, var(--bg-card-hover) 50%, var(--bg-card));
+  font-size: 0.68rem;
 }
 .pd-cpu-cell-fot {
-  color: #888 !important;
+  color: var(--text-muted) !important;
   font-style: italic;
 }
 
-/* Average / period total column */
 .pd-cpu-avg-col {
   text-align: right !important;
   min-width: 58px;
-  padding: 0.25rem 0.5rem !important;
-  border-left: 2px solid #ccc !important;
-  background: #fafafa;
-  font-size: 0.76rem;
+  padding: 0.22rem 0.5rem !important;
+  border-left: 2px solid var(--border) !important;
+  background: var(--bg-card-hover);
+  font-size: 0.74rem;
 }
 .pd-dynamics-table thead .pd-cpu-avg-col {
-  background: #f0f0f0;
+  background: color-mix(in srgb, var(--bg-card-hover) 150%, var(--bg-card));
 }
 
 .pd-cpu-no-data {
   margin: 0.5rem 0 0.75rem;
-  padding: 1rem;
-  background: #f9f9f9;
-  border: 1px dashed #ccc;
+  padding: 1.25rem;
+  background: var(--bg-card);
+  border: 1px dashed var(--border);
+  border-radius: 8px;
   font-size: 0.75rem;
-  color: #888;
+  color: var(--text-muted);
   text-align: center;
 }
 
@@ -763,8 +794,8 @@
 .pd-cpu-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
-  margin-top: 0.4rem;
+  gap: 0.5rem 1.25rem;
+  margin-top: 0.5rem;
   padding: 0 0.25rem;
 }
 
@@ -772,19 +803,18 @@
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.72rem;
-  color: #333;
+  font-size: 0.7rem;
+  color: var(--text-muted);
 }
 
 .pd-cpu-legend-dot {
   display: inline-block;
   width: 10px;
   height: 10px;
-  border-radius: 2px;
+  border-radius: 3px;
   flex-shrink: 0;
 }
 
-/* Colored dot in table rows */
 .pd-dyn-section-dot {
   display: inline-block;
   width: 8px;
@@ -795,13 +825,14 @@
   vertical-align: middle;
 }
 
-/* ─── Вспомогательный персонал ──────────────────────────────────────────────── */
-/* ── Блок явки сотрудников ─────────────────────────────────────────────────── */
+/* ─── Attendance block ───────────────────────────────────────────────────────── */
 .pd-att-block {
-  margin-top: 0.75rem;
-  border: 1px solid #000;
-  background: #fff;
-  padding: 0.75rem 1rem;
+  margin-top: 1rem;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  padding: 0.85rem 1.25rem;
+  box-shadow: 0 1px 8px rgba(0,0,0,0.12);
 }
 
 .pd-att-header {
@@ -813,11 +844,11 @@
 }
 
 .pd-att-title {
-  font-size: 0.7rem;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
-  color: #000;
+  letter-spacing: 0.1em;
+  color: var(--text-muted);
 }
 
 .pd-att-totals {
@@ -833,33 +864,46 @@
   min-width: 48px;
 }
 .pd-att-kpi-val {
-  font-size: 1.4rem;
+  font-size: 1.5rem;
   font-weight: 700;
   line-height: 1.1;
-  color: #000;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
-.pd-att-kpi-actual .pd-att-kpi-val { color: #1a7a1a; }
+.pd-att-kpi-actual .pd-att-kpi-val { color: var(--positive); }
 .pd-att-kpi-label {
-  font-size: 0.65rem;
-  color: #888;
+  font-size: 0.6rem;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
 .pd-att-pct {
-  font-size: 1rem;
+  font-size: 0.95rem;
   font-weight: 700;
-  padding: 0.15rem 0.5rem;
-  border-radius: 3px;
-  min-width: 44px;
+  padding: 0.18rem 0.55rem;
+  border-radius: 20px;
+  min-width: 48px;
   text-align: center;
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
-.pd-att-pct-ok   { background: #e6f7e6; color: #1a7a1a; }
-.pd-att-pct-warn { background: #fff3cd; color: #856404; }
-.pd-att-pct-bad  { background: #fde8e8; color: #c0392b; }
+.pd-att-pct-ok   {
+  background: color-mix(in srgb, var(--positive) 15%, transparent);
+  color: var(--positive);
+}
+.pd-att-pct-warn {
+  background: rgba(251,191,36,0.15);
+  color: #fbbf24;
+}
+.pd-att-pct-bad  {
+  background: color-mix(in srgb, var(--negative) 15%, transparent);
+  color: var(--negative);
+}
 
-/* Карточки участков */
+/* Section cards */
 .pd-att-sections {
   display: flex;
   flex-wrap: wrap;
@@ -867,22 +911,24 @@
 }
 
 .pd-att-sec-card {
-  border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  padding: 0.4rem 0.6rem;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 0.5rem 0.75rem;
   min-width: 120px;
   flex: 1 1 120px;
   max-width: 180px;
-  background: #fafafa;
+  background: var(--bg-card-hover);
+  transition: border-color 0.15s;
 }
+.pd-att-sec-card:hover { border-color: var(--accent); }
 
 .pd-att-sec-name {
-  font-size: 0.68rem;
+  font-size: 0.65rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #555;
-  margin-bottom: 0.3rem;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  margin-bottom: 0.35rem;
   line-height: 1.3;
 }
 
@@ -893,38 +939,42 @@
   gap: 0.25rem;
 }
 .pd-att-sec-label {
-  font-size: 0.7rem;
-  color: #888;
+  font-size: 0.68rem;
+  color: var(--text-muted);
 }
 .pd-att-sec-val {
   font-size: 0.85rem;
   font-weight: 700;
-  color: #000;
+  color: var(--text);
+  font-variant-numeric: tabular-nums;
+  font-family: 'JetBrains Mono', monospace;
 }
-.pd-att-sec-ok    { color: #1a7a1a; }
-.pd-att-sec-short { color: #c0392b; }
+.pd-att-sec-ok    { color: var(--positive); }
+.pd-att-sec-short { color: var(--negative); }
 
 .pd-att-sec-bar {
   height: 3px;
-  background: #e0e0e0;
+  background: var(--border);
   border-radius: 2px;
-  margin-top: 0.35rem;
+  margin-top: 0.4rem;
   overflow: hidden;
 }
 .pd-att-sec-bar-fill {
   height: 100%;
   border-radius: 2px;
-  transition: width 0.3s;
+  transition: width 0.4s ease;
 }
-.pd-att-sec-bar-fill.ok   { background: #1a7a1a; }
-.pd-att-sec-bar-fill.warn { background: #f0ad00; }
-.pd-att-sec-bar-fill.bad  { background: #c0392b; }
+.pd-att-sec-bar-fill.ok   { background: var(--positive); box-shadow: 0 0 6px var(--positive); }
+.pd-att-sec-bar-fill.warn { background: #fbbf24; }
+.pd-att-sec-bar-fill.bad  { background: var(--negative); }
 
-/* ── Aux block ──────────────────────────────────────────────────────────────── */
+/* ─── Aux block ──────────────────────────────────────────────────────────────── */
 .pd-aux-block {
   margin-top: 0.75rem;
-  border: 1px solid #000;
-  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-card);
+  overflow: hidden;
 }
 
 .pd-aux-header {
@@ -933,14 +983,15 @@
   align-items: center;
   justify-content: space-between;
   gap: 1rem;
-  padding: 0.6rem 1rem;
-  background: #f5f5f5;
+  padding: 0.65rem 1.25rem;
+  background: var(--bg-card-hover);
   border: none;
   cursor: pointer;
   text-align: left;
-  font-family: inherit;
+  font-family: 'Space Grotesk', sans-serif;
+  transition: background 0.12s;
 }
-.pd-aux-header:hover { background: #ebebeb; }
+.pd-aux-header:hover { background: color-mix(in srgb, var(--bg-card-hover) 130%, var(--bg)); }
 
 .pd-aux-header-left {
   display: flex;
@@ -950,11 +1001,11 @@
 }
 
 .pd-aux-title {
-  font-size: 0.75rem;
+  font-size: 0.7rem;
   font-weight: 700;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: #000;
+  letter-spacing: 0.08em;
+  color: var(--text);
 }
 
 .pd-aux-header-kpi {
@@ -972,80 +1023,85 @@
 }
 
 .pd-aux-kpi-label {
-  font-size: 0.65rem;
-  color: #666;
+  font-size: 0.6rem;
+  color: var(--text-muted);
   text-transform: uppercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.05em;
 }
 
 .pd-aux-kpi-value {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 600;
-  color: #000;
+  color: var(--text);
+  font-family: 'JetBrains Mono', monospace;
+  font-variant-numeric: tabular-nums;
 }
 
 .pd-aux-kpi-cpu {
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   font-weight: 700;
-  color: #2d8a3e;
+  color: var(--positive);
+  font-family: 'JetBrains Mono', monospace;
 }
 
 .pd-aux-chevron {
   font-size: 0.7rem;
-  color: #555;
+  color: var(--text-muted);
   flex-shrink: 0;
 }
 
 .pd-aux-detail {
-  padding: 0.5rem 1rem 0.75rem;
+  padding: 0.5rem 1.25rem 0.85rem;
   overflow-x: auto;
 }
 
 .pd-aux-empty {
-  font-size: 0.78rem;
-  color: #888;
+  font-size: 0.75rem;
+  color: var(--text-muted);
   padding: 0.5rem 0;
 }
 
 .pd-aux-table {
   width: 100%;
   border-collapse: collapse;
-  font-size: 0.78rem;
+  font-size: 0.76rem;
 }
 
 .pd-aux-table th,
 .pd-aux-table td {
   padding: 0.3rem 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--border);
   text-align: right;
+  font-variant-numeric: tabular-nums;
 }
 
 .pd-aux-col-name {
   text-align: left !important;
   min-width: 12rem;
 }
-
 .pd-aux-col-cpu {
   text-align: right;
   min-width: 5rem;
 }
 
 .pd-aux-table thead th {
-  background: #f5f5f5;
+  background: var(--bg-card-hover);
   font-weight: 600;
-  color: #333;
-  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-size: 0.68rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
 }
 
 .pd-aux-total-row {
-  background: #111;
-  color: #fff;
+  background: color-mix(in srgb, var(--accent) 10%, var(--bg-card));
+  color: var(--text);
 }
-.pd-aux-total-row td { border-color: #333; }
-.pd-aux-total-row .pd-aux-col-name { color: #fff; }
-.pd-aux-total-row .pd-dyn-cpu-val { color: #6DC24B; }
+.pd-aux-total-row td { border-color: color-mix(in srgb, var(--accent) 25%, var(--border)); }
+.pd-aux-total-row .pd-aux-col-name { color: var(--text); font-weight: 700; }
+.pd-aux-total-row .pd-dyn-cpu-val { color: var(--positive); }
 
-/* ─── Workforce Tab (График Табель) — тот же дизайн, что и панель ─────────────── */
+/* ─── Workforce tab ──────────────────────────────────────────────────────────── */
 .pd-workforce {
   display: flex;
   flex-direction: column;
@@ -1053,256 +1109,42 @@
 }
 
 .pd-wf-panel {
-  background: #fff;
-  border: 1px solid #000;
-  padding: 0 1rem 1rem;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 1.25rem 1.25rem;
   margin: 0;
 }
 
 .pd-wf-panel-title {
   margin-bottom: 0.75rem;
-  padding: 0.6rem 0 0.4rem;
+  padding: 0.75rem 0 0.5rem;
 }
 
-/* Тема «панель» для контента вкладки: чёрные рамки, белый фон, как на панели эффективности */
 .pd-wf-panel {
-  --border: #000;
-  --bg: #f5f5f5;
-  --bg-card: #fff;
-  --bg-card-hover: #f0f0f0;
-  --text: #000;
-  --text-muted: #555;
-  --accent: #000;
-  --positive: #2d8a3e;
-  --negative: #c53030;
+  --border: var(--border);
+  --bg: var(--bg);
+  --bg-card: var(--bg-card);
+  --bg-card-hover: var(--bg-card-hover);
+  --text: var(--text);
+  --text-muted: var(--text-muted);
+  --accent: var(--accent);
+  --positive: var(--positive);
+  --negative: var(--negative);
 }
 
 .pd-wf-panel .wf-content,
 .pd-wf-panel .wf-schedule,
 .pd-wf-panel .wf-reference {
-  border: 1px solid #000;
-  background: #fff;
-  border-radius: 0;
+  border: 1px solid var(--border);
+  background: var(--bg-card);
+  border-radius: 8px;
 }
 
-.pd-wf-panel .wf-schedule {
-  padding: 0;
-}
-
-.pd-wf-panel .wf-toolbar {
-  border-bottom: 1px solid #000;
-  background: #fff;
-}
+.pd-wf-panel .wf-schedule { padding: 0; }
+.pd-wf-panel .wf-toolbar  { border-bottom: 1px solid var(--border); background: var(--bg-card); }
 
 .pd-wf-panel .wf-table th,
 .pd-wf-panel .wf-table td {
-  border-color: #ddd;
-}
-
-.pd-wf-panel .wf-table th {
-  background: #f5f5f5;
-  color: #333;
-}
-
-.pd-wf-panel .wf-schedule-table th,
-.pd-wf-panel .wf-schedule-table td {
-  border-color: #000;
-}
-
-.pd-wf-panel .wf-schedule-table th {
-  background: #f5f5f5;
-  color: #333;
-}
-
-.pd-wf-panel .wf-btn {
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
-}
-
-.pd-wf-panel .wf-btn:hover {
-  background: #f5f5f5;
-}
-
-.pd-wf-panel .wf-btn-primary {
-  background: #000;
-  color: #fff;
-  border-color: #000;
-}
-
-.pd-wf-panel .wf-btn-secondary {
-  background: #fff;
-  color: #000;
-  border: 1px solid #000;
-}
-
-.pd-wf-panel .wf-subtab-active {
-  color: #000 !important;
-  border-bottom-color: #000 !important;
-  background: transparent !important;
-}
-
-.pd-wf-panel .wf-table-wrap {
-  padding: 0.75rem 0;
-}
-
-.pd-wf-panel .wf-select,
-.pd-wf-panel .wf-cell-input {
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
-}
-
-.pd-wf-panel .wf-loading {
-  color: #555;
-}
-
-.pd-wf-panel .wf-error {
-  color: #c53030;
-}
-
-.pd-month-nav {
-  display: flex;
-  align-items: center;
-  gap: 0.4rem;
-  margin-bottom: 0.75rem;
-}
-
-.pd-month-btn {
-  width: 28px;
-  height: 28px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
-  cursor: pointer;
-  font-size: 1rem;
-  transition: all 0.15s;
-}
-
-.pd-month-btn:hover { background: #f5f5f5; }
-
-.pd-select {
-  padding: 0.4rem 0.6rem;
-  font-size: 0.85rem;
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
-  font-family: inherit;
-}
-
-.pd-subtabs {
-  display: flex;
-  gap: 0;
-  border-bottom: 1px solid #000;
-  margin-bottom: 1rem;
-}
-
-.pd-subtab {
-  padding: 0.5rem 1.1rem;
-  font-size: 0.85rem;
-  font-weight: 500;
-  color: #555;
-  background: none;
-  border: none;
-  border-bottom: 2px solid transparent;
-  margin-bottom: -1px;
-  cursor: pointer;
-  transition: color 0.15s, border-color 0.15s;
-  font-family: inherit;
-}
-
-.pd-subtab:hover { color: #000; }
-
-.pd-subtab-active {
-  color: #000;
-  border-bottom-color: #000;
-  font-weight: 600;
-}
-
-.pd-wf-content {
-  flex: 1;
-}
-
-/* ─── States ─────────────────────────────────────────────────────────────────── */
-.pd-loading {
-  padding: 2rem;
-  text-align: center;
-  color: #555;
-  font-size: 0.9rem;
-}
-
-.pd-error {
-  padding: 1rem 1.25rem;
-  background: rgba(239, 68, 68, 0.08);
-  border: 1px solid rgba(239, 68, 68, 0.3);
-  border-radius: 8px;
-  color: #dc2626;
-  font-size: 0.88rem;
-  margin-bottom: 1rem;
-}
-
-.pd-empty {
-  padding: 2.5rem 1.5rem;
-  text-align: center;
-  color: #555;
-  font-size: 0.9rem;
-  background: #fff;
-  border: 1px dashed #bbb;
-  border-radius: 0;
-  margin-top: 0.5rem;
-}
-
-.pd-no-access {
-  padding: 3rem 2rem;
-  text-align: center;
-  color: #555;
-}
-
-.pd-no-access h2 { color: #000; margin-bottom: 0.5rem; }
-
-/* ─── Production selector tabs ──────────────────────────────────────────────── */
-.pd-prod-tabs {
-  display: flex;
-  gap: 0.35rem;
-  flex-wrap: wrap;
-  margin-bottom: 1rem;
-}
-
-.pd-prod-tab {
-  padding: 0.4rem 1.1rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  border: 1px solid #000;
-  border-radius: 3px;
-  background: #fff;
-  color: #000;
-  cursor: pointer;
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-  transition: all 0.15s;
-  font-family: inherit;
-}
-
-.pd-prod-tab:hover { background: #f5f5f5; }
-
-.pd-prod-tab-active {
-  background: #000 !important;
-  color: #fff !important;
-  border-color: #000 !important;
-}
-
-/* ─── Responsive ─────────────────────────────────────────────────────────────── */
-@media (max-width: 768px) {
-  .pd-page { padding: 0.75rem 0.85rem; }
-  .pd-summary-grid { grid-template-columns: 1fr 1fr; }
-  .pd-main-tab     { padding: 0.5rem 0.75rem; font-size: 0.8rem; }
-  .pd-sections-title-row,
-  .pd-section-row  { grid-template-columns: 2fr 1fr 1fr 1.2fr 0.8fr 1.2fr 1fr; font-size: 0.78rem; }
+  border-color: var(--border);
 }

@@ -15,6 +15,7 @@ import LoginPage from './pages/LoginPage'
 import AdminPage from './pages/AdminPage'
 import WorkforcePage from './pages/WorkforcePage'
 import ProductionDashboardPage from './pages/ProductionDashboardPage'
+import ProfitabilityPage from './pages/ProfitabilityPage'
 import { API } from './api'
 import './App.css'
 
@@ -164,6 +165,11 @@ function AppContent({ userInfo, onRefreshUser }) {
             </NavLink>
           )}
           {isAdmin && (
+            <NavLink to="/profitability" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
+              Рентабельность
+            </NavLink>
+          )}
+          {isAdmin && (
             <NavLink to="/admin" className={({ isActive }) => isActive ? 'nav-link active' : 'nav-link'}>
               Админ
             </NavLink>
@@ -202,6 +208,7 @@ function AppContent({ userInfo, onRefreshUser }) {
           <Route path="/disassembly" element={<DisassemblyReturnsPage />} />
           <Route path="/disassembly-nomenclature" element={<DisassemblyNomenclaturePage />} />
           <Route path="/cost-check" element={<CostCheckPage />} />
+          <Route path="/profitability" element={<ProfitabilityPage />} />
           <Route path="/admin" element={<AdminPage />} />
           <Route path="/department" element={<DepartmentDetailPage />} />
           <Route path="/workforce" element={<WorkforcePage userInfo={userInfo} />} />

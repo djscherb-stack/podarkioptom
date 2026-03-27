@@ -1,17 +1,17 @@
-/* Базовые переменные — тема dark: сдержанные серые с лёгким синим */
+/* Базовые переменные — тема dark: глубокий navy, cyan-акцент */
 :root,
 [data-theme="dark"] {
-  --bg: #1a1d21;
-  --bg-card: #24282e;
-  --bg-card-hover: #2d3239;
-  --border: #3a4049;
-  --text: #d8dce2;
-  --text-muted: #8b92a0;
-  --accent: #5b8fc9;
-  --accent-purple: #6b9ed4;
-  --accent-orange: #7a9bb8;
-  --positive: #6b9e7a;
-  --negative: #b86b6b;
+  --bg: #090e1a;
+  --bg-card: #0f1623;
+  --bg-card-hover: #162032;
+  --border: #1e2e48;
+  --text: #dde8f5;
+  --text-muted: #4e6d93;
+  --accent: #22d3ee;
+  --accent-purple: #818cf8;
+  --accent-orange: #f59e0b;
+  --positive: #34d399;
+  --negative: #f87171;
 }
 
 /* Чёрно-белая, контрастная */
