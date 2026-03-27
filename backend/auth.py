@@ -57,10 +57,12 @@ WORKFORCE_USERS: dict[str, dict] = {
     "korneichukstanislaw@gmail.com": {
         "password": "Kn!2026Lm", "role": "brigadier", "production": "luminarc",
         "full_name": "Корнейчук Станислав Сергеевич",
+        "allowed_months": [[2026, 3], [2026, 4]],
     },
     "nooooyes1@gmail.com": {
         "password": "St!2026Lm", "role": "brigadier", "production": "luminarc",
         "full_name": "Старовойтова Рамира-Франческа Юрьевна",
+        "allowed_months": [[2026, 3], [2026, 4]],
     },
 
     # ── Бригадиры Чай (только Табель) ────────────────────────────────────────
@@ -244,6 +246,7 @@ def get_schedule_access(username: str) -> dict:
             "production": u["production"],
             "full_name": u.get("full_name", username),
             "nav_items": nav_items,
+            "allowed_months": u.get("allowed_months"),  # None = без ограничений
         }
     return {"role": None, "production": None, "full_name": None, "nav_items": None}
 

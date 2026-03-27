@@ -239,7 +239,7 @@ function App() {
       .then(async (r) => {
         if (r.ok) {
           const d = await r.json()
-          setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items })
+          setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items, schedule_allowed_months: d.schedule_allowed_months ?? null })
           setAuthStatus('ok')
         } else if (isLocalhost) {
           // На localhost — автовход под админом
@@ -248,7 +248,7 @@ function App() {
             .then(async (r2) => {
               if (r2.ok) {
                 const d = await r2.json()
-                setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items })
+                setUserInfo({ username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items, schedule_allowed_months: d.schedule_allowed_months ?? null })
                 setAuthStatus('ok')
               } else {
                 setAuthStatus('fail')
@@ -280,7 +280,7 @@ function App() {
           if (r.ok) {
             const d = await r.json()
             setUserInfo(prev => {
-              const next = { username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items }
+              const next = { username: d.username, is_admin: d.is_admin, schedule_role: d.schedule_role, schedule_production: d.schedule_production, schedule_full_name: d.schedule_full_name, nav_items: d.nav_items, schedule_allowed_months: d.schedule_allowed_months ?? null }
               if (JSON.stringify(prev) !== JSON.stringify(next)) return next
               return prev
             })

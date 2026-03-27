@@ -3180,10 +3180,15 @@ export default function WorkforcePage({ userInfo }) {
   const role = userInfo?.schedule_role
   const production = userInfo?.schedule_production
   const fullName = userInfo?.schedule_full_name
+  const allowedMonths = userInfo?.schedule_allowed_months ?? null  // [[year,month], ...] или null
   const isAdmin     = role === 'admin'
   const isManager   = role === 'manager'
   const isBrigadier = role === 'brigadier'
   const isViewer    = role === 'viewer'
+
+  // Проверка: разрешён ли текущий месяц для редактирования
+  const isMonthAllowed = allowedMonths === null ||
+    allowedMonths.some(([y, m]) => y === year && m === month)
 
   // Определяем доступные вкладки
   const availableTabs = []
@@ -3338,7 +3343,7 @@ export default function WorkforcePage({ userInfo }) {
             production={activeTab}
             year={year}
             month={month}
-            canEdit={isAdmin || isManager || isBrigadier}
+            canEdit={(isAdmin || isManager || isBrigadier) && isMonthAllowed}
             canImport={isAdmin}
             canEditSection={isAdmin || isManager || isBrigadier}
             reference={reference}

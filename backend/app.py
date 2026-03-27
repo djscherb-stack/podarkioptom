@@ -166,7 +166,8 @@ def get_me(username: str = Depends(require_auth)):
         "schedule_role": access["role"],
         "schedule_production": access["production"],
         "schedule_full_name": access.get("full_name"),
-        "nav_items": access.get("nav_items"),  # None = все пункты, список = только указанные
+        "nav_items": access.get("nav_items"),
+        "schedule_allowed_months": access.get("allowed_months"),  # None = без ограничений
     }
 
 
@@ -1167,6 +1168,9 @@ async def wf_save_schedule(production: str, year: int, month: int, request: Requ
     access = _require_schedule_access(request, production)
     if access["role"] not in ("admin", "manager", "brigadier"):
         raise HTTPException(status_code=403, detail="Только менеджер, бригадир или администратор")
+    allowed = access.get("allowed_months")
+    if allowed is not None and [year, month] not in allowed:
+        raise HTTPException(status_code=403, detail=f"Редактирование графика разрешено только за: {', '.join(f'{m[1]:02d}.{m[0]}' for m in allowed)}")
     data = await request.json()
     emp_count = len(data.get("employees", []))
     wf.save_schedule(production, year, month, data)
