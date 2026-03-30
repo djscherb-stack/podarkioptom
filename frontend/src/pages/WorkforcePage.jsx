@@ -1100,12 +1100,24 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
 
   const handleSectionEdit = async (fullName, newSection) => {
     const empEntry = empList.find(e => e.full_name?.trim() === fullName?.trim())
-    if (!empEntry) { setEditingSection(null); return }
     try {
-      await apiFetch(`${API}/workforce/employees/${production}/${empEntry.id}/section`, {
-        method: 'PATCH', body: JSON.stringify({ section: newSection }),
-      })
-      setEmpList(list => list.map(e => e.id === empEntry.id ? { ...e, section: newSection } : e))
+      if (empEntry) {
+        await apiFetch(`${API}/workforce/employees/${production}/${empEntry.id}/section`, {
+          method: 'PATCH', body: JSON.stringify({ section: newSection }),
+        })
+        setEmpList(list => list.map(e => e.id === empEntry.id ? { ...e, section: newSection } : e))
+      } else {
+        const schedEmp = (schedule?.employees || []).find(e => e.full_name?.trim() === fullName?.trim())
+        const res = await apiFetch(`${API}/workforce/employees/${production}/section-by-name`, {
+          method: 'PATCH',
+          body: JSON.stringify({ full_name: fullName, section: newSection, position: schedEmp?.position || '', status: schedEmp?.status || '' }),
+        })
+        setEmpList(list => {
+          const exists = list.some(e => e.full_name?.trim() === fullName?.trim())
+          if (exists) return list.map(e => e.full_name?.trim() === fullName?.trim() ? { ...e, section: newSection } : e)
+          return [...list, res.employee]
+        })
+      }
     } catch (err) {
       alert('Ошибка сохранения участка: ' + err.message)
     }
@@ -1264,7 +1276,7 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
     setEditingEmpId(null)
   }
 
-  const handleAddEmployee = () => {
+  const handleAddEmployee = async () => {
     if (!newEmp.full_name.trim()) return
     const emp = {
       id: crypto.randomUUID ? crypto.randomUUID() : Math.random().toString(36).slice(2),
@@ -1274,7 +1286,13 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
       working_days: {},
     }
     const updated = { ...schedule, employees: [...(schedule.employees || []), emp] }
-    saveSchedule(updated)
+    await saveSchedule(updated)
+    // После сохранения графика бэкенд автоматически добавляет сотрудника в список —
+    // перезагружаем empList, чтобы сразу можно было выставить участок
+    try {
+      const freshEmps = await apiFetch(`${API}/workforce/employees/${production}`)
+      setEmpList(Array.isArray(freshEmps) ? freshEmps : [])
+    } catch (_) { /* не критично */ }
     setNewEmp({ full_name: '', position: '', status: '' })
     setAddingEmployee(false)
   }
@@ -1736,12 +1754,24 @@ export function TimesheetTable({ production, year, month, canEdit, canEditSectio
 
   const handleSectionEdit = async (fullName, newSection) => {
     const empEntry = empList.find(e => e.full_name?.trim() === fullName?.trim())
-    if (!empEntry) { setEditingSection(null); return }
     try {
-      await apiFetch(`${API}/workforce/employees/${production}/${empEntry.id}/section`, {
-        method: 'PATCH', body: JSON.stringify({ section: newSection }),
-      })
-      setEmpList(list => list.map(e => e.id === empEntry.id ? { ...e, section: newSection } : e))
+      if (empEntry) {
+        await apiFetch(`${API}/workforce/employees/${production}/${empEntry.id}/section`, {
+          method: 'PATCH', body: JSON.stringify({ section: newSection }),
+        })
+        setEmpList(list => list.map(e => e.id === empEntry.id ? { ...e, section: newSection } : e))
+      } else {
+        const schedEmp = (schedule?.employees || []).find(e => e.full_name?.trim() === fullName?.trim())
+        const res = await apiFetch(`${API}/workforce/employees/${production}/section-by-name`, {
+          method: 'PATCH',
+          body: JSON.stringify({ full_name: fullName, section: newSection, position: schedEmp?.position || '', status: schedEmp?.status || '' }),
+        })
+        setEmpList(list => {
+          const exists = list.some(e => e.full_name?.trim() === fullName?.trim())
+          if (exists) return list.map(e => e.full_name?.trim() === fullName?.trim() ? { ...e, section: newSection } : e)
+          return [...list, res.employee]
+        })
+      }
     } catch (err) {
       alert('Ошибка сохранения участка: ' + err.message)
     }

@@ -1174,6 +1174,7 @@ async def wf_save_schedule(production: str, year: int, month: int, request: Requ
     data = await request.json()
     emp_count = len(data.get("employees", []))
     wf.save_schedule(production, year, month, data)
+    wf.merge_employees_from_schedule(production, data)
     wf.log_change(_get_request_username(request), "график: сохранение", production, year, month, f"{emp_count} сотрудников")
     return {"ok": True}
 
@@ -1441,6 +1442,43 @@ async def wf_update_employee_section(production: str, employee_id: str, request:
         raise HTTPException(status_code=404, detail="Сотрудник не найден")
     wf.save_employees(production, updated)
     return {"ok": True, "section": new_section}
+
+
+@app.patch("/api/workforce/employees/{production}/section-by-name")
+async def wf_update_section_by_name(production: str, request: Request):
+    """Обновить участок по ФИО. Если сотрудник не найден в списке — создаёт запись."""
+    import uuid as _uuid
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager", "brigadier"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    body = await request.json()
+    full_name = (body.get("full_name") or "").strip()
+    new_section = body.get("section", "")
+    if not full_name:
+        raise HTTPException(status_code=400, detail="full_name обязателен")
+    employees = wf.get_employees(production)
+    updated = []
+    found_emp = None
+    for e in employees:
+        if e.get("full_name", "").strip() == full_name:
+            entry = {**e, "section": new_section}
+            updated.append(entry)
+            found_emp = entry
+        else:
+            updated.append(e)
+    if found_emp is None:
+        found_emp = {
+            "id": str(_uuid.uuid4()),
+            "full_name": full_name,
+            "position": body.get("position", ""),
+            "status": body.get("status", ""),
+            "section": new_section,
+        }
+        updated.append(found_emp)
+    wf.save_employees(production, updated)
+    return {"ok": True, "section": new_section, "employee": found_emp}
 
 
 # ── Журнал изменений ─────────────────────────────────────────────────────────
