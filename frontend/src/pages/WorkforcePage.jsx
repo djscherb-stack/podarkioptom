@@ -1087,6 +1087,10 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
   const numDays = getDaysInMonth(year, month)
   const [colWidths, , startResize] = useColResize({ fio: 185, pos: 110, status: 80, section: 100 })
   const secEdit = canEditSection ?? canEdit   // право редактировать участок
+  const [snapshotInfo, setSnapshotInfo] = useState(null)     // мета-данные снимка
+  const [showDiff, setShowDiff] = useState(false)            // показать панель сравнения
+  const [diffData, setDiffData] = useState(null)             // данные сравнения
+  const [snapshotSaving, setSnapshotSaving] = useState(false)
 
   // Карта участков по ФИО (из списка сотрудников)
   const sectionMap = Object.fromEntries(empList.map(e => [e.full_name?.trim() || '', e.section || '']))
@@ -1143,9 +1147,11 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
     Promise.all([
       apiFetch(`${API}/workforce/schedule/${production}/${year}/${month}`),
       apiFetch(`${API}/workforce/employees/${production}`),
-    ]).then(([sched, emps]) => {
+      apiFetch(`${API}/workforce/schedule/${production}/${year}/${month}/snapshot`).catch(() => null),
+    ]).then(([sched, emps, snap]) => {
       setSchedule(sched)
       setEmpList(Array.isArray(emps) ? emps : [])
+      setSnapshotInfo(snap)
       setLoading(false)
     }).catch(() => setLoading(false))
   }, [production, year, month])
@@ -1204,6 +1210,32 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
       setMsg({ text: e.message || 'Ошибка сохранения', ok: false })
     } finally {
       setSaving(false)
+      setTimeout(() => setMsg(null), 3000)
+    }
+  }
+
+  const handleSaveSnapshot = async () => {
+    setSnapshotSaving(true)
+    try {
+      const meta = await apiFetch(`${API}/workforce/schedule/${production}/${year}/${month}/snapshot`, { method: 'POST' })
+      setSnapshotInfo({ has_snapshot: true, saved_at: meta.saved_at, employee_count: meta.employee_count })
+      setMsg({ text: `Снимок зафиксирован (${meta.employee_count} сотр.)`, ok: true })
+    } catch (e) {
+      setMsg({ text: e.message || 'Ошибка фиксации снимка', ok: false })
+    } finally {
+      setSnapshotSaving(false)
+      setTimeout(() => setMsg(null), 3000)
+    }
+  }
+
+  const handleLoadDiff = async () => {
+    if (showDiff) { setShowDiff(false); return }
+    try {
+      const d = await apiFetch(`${API}/workforce/schedule/${production}/${year}/${month}/diff`)
+      setDiffData(d)
+      setShowDiff(true)
+    } catch (e) {
+      setMsg({ text: e.message || 'Ошибка загрузки изменений', ok: false })
       setTimeout(() => setMsg(null), 3000)
     }
   }
@@ -1402,8 +1434,27 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
         <div className="wf-toolbar-actions">
           {msg && <span className={`wf-msg ${msg.ok ? 'ok' : 'err'}`}>{msg.text}</span>}
           {saving && <span className="wf-msg">Сохранение...</span>}
+          {snapshotInfo?.has_snapshot && (
+            <button
+              className="wf-btn wf-btn-secondary"
+              onClick={handleLoadDiff}
+              title={`Снимок от ${snapshotInfo.saved_at ? new Date(snapshotInfo.saved_at).toLocaleString('ru-RU') : '?'}`}
+            >
+              {showDiff ? '✕ Скрыть изменения' : '↔ Изменения'}
+            </button>
+          )}
           {canImport && (
-            <button className="wf-btn wf-btn-secondary" onClick={() => setShowImport(true)}>↓ Импорт из Google Таблиц</button>
+            <>
+              <button
+                className="wf-btn wf-btn-secondary"
+                onClick={handleSaveSnapshot}
+                disabled={snapshotSaving}
+                title="Зафиксировать текущее состояние графика для последующего сравнения"
+              >
+                {snapshotSaving ? '...' : '🔒 Зафиксировать'}
+              </button>
+              <button className="wf-btn wf-btn-secondary" onClick={() => setShowImport(true)}>↓ Импорт из Google Таблиц</button>
+            </>
           )}
           {canEdit && (
             <>
@@ -1420,6 +1471,62 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
           )}
         </div>
       </div>
+
+      {/* Панель сравнения со снимком */}
+      {showDiff && diffData && (
+        <div className="wf-diff-panel">
+          <div className="wf-diff-header">
+            <strong>Изменения с момента фиксации</strong>
+            {diffData.snapshot_saved_at && (
+              <span className="wf-diff-date">Снимок: {new Date(diffData.snapshot_saved_at).toLocaleString('ru-RU')}</span>
+            )}
+            <span className="wf-diff-total">{diffData.total_changes} изменений</span>
+          </div>
+          {diffData.total_changes === 0 && (
+            <div className="wf-diff-empty">Изменений нет — график совпадает со снимком</div>
+          )}
+          {diffData.added?.length > 0 && (
+            <div className="wf-diff-section">
+              <div className="wf-diff-section-title wf-diff-added">+ Добавлены ({diffData.added.length})</div>
+              {diffData.added.map((e, i) => (
+                <div key={i} className="wf-diff-row wf-diff-row-added">
+                  <span className="wf-diff-name">{e.full_name}</span>
+                  <span className="wf-diff-meta">{e.position} / {e.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {diffData.removed?.length > 0 && (
+            <div className="wf-diff-section">
+              <div className="wf-diff-section-title wf-diff-removed">− Удалены ({diffData.removed.length})</div>
+              {diffData.removed.map((e, i) => (
+                <div key={i} className="wf-diff-row wf-diff-row-removed">
+                  <span className="wf-diff-name">{e.full_name}</span>
+                  <span className="wf-diff-meta">{e.position} / {e.status}</span>
+                </div>
+              ))}
+            </div>
+          )}
+          {diffData.changed?.length > 0 && (
+            <div className="wf-diff-section">
+              <div className="wf-diff-section-title wf-diff-changed">~ Изменены дни ({diffData.changed.length})</div>
+              {diffData.changed.map((e, i) => (
+                <div key={i} className="wf-diff-row wf-diff-row-changed">
+                  <span className="wf-diff-name">{e.full_name}</span>
+                  <span className="wf-diff-meta">{e.position} / {e.status}</span>
+                  <div className="wf-diff-days">
+                    {e.changes.map((c, j) => (
+                      <span key={j} className="wf-diff-day-change">
+                        День {c.day}: {c.snapshot ?? '—'} → {c.current ?? '—'}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Фильтры и сортировка */}
       <div className="wf-filter-bar">
@@ -2682,9 +2789,91 @@ function AnalyticsTab({ year, month }) {
   const totalPlannedCost = Object.values(prods).reduce((s, p) => s + p.total_planned_cost, 0)
   const totalActualCost  = Object.values(prods).reduce((s, p) => s + p.total_actual_cost, 0)
 
+  // Сбор всех статусов по всем производствам
+  const allStatuses = [...new Set(
+    Object.values(prods).flatMap(p => Object.keys(p.status_employee_count || {}))
+  )].sort()
+
+  const exportFotCsv = () => {
+    const rows = [['Производство', 'Статус', 'Кол-во сотр.', 'Часов план', 'ФОТ план, ₽']]
+    Object.entries(prods).forEach(([, p]) => {
+      const statuses = Object.keys(p.status_employee_count || {})
+      statuses.forEach(st => {
+        rows.push([
+          p.name,
+          st,
+          p.status_employee_count?.[st] ?? 0,
+          p.status_total_plan_hours?.[st] ?? 0,
+          Math.round(p.status_total_plan_cost?.[st] ?? 0),
+        ])
+      })
+      rows.push([p.name, 'ИТОГО', p.total_employees, p.total_planned_hours, Math.round(p.total_planned_cost)])
+    })
+    const grandHours = Object.values(prods).reduce((s, p) => s + (p.total_planned_hours || 0), 0)
+    rows.push(['ВСЕГО', '', totalEmployees, grandHours, Math.round(totalPlannedCost)])
+    const csv = rows.map(r => r.join(';')).join('\n')
+    const blob = new Blob(['\ufeff' + csv], { type: 'text/csv;charset=utf-8' })
+    const url = URL.createObjectURL(blob)
+    const a = document.createElement('a')
+    a.href = url; a.download = `ФОТ_${year}_${String(month).padStart(2,'0')}.csv`
+    a.click(); URL.revokeObjectURL(url)
+  }
+
   return (
     <div className="wf-analytics">
       <h3>Аналитика: {MONTH_NAMES[month - 1]} {year}</h3>
+
+      {/* ФОТ сводная таблица */}
+      <div className="wf-fot-summary">
+        <div className="wf-fot-summary-header">
+          <h4>ФОТ по производствам и статусам</h4>
+          <button className="wf-btn wf-btn-sm" onClick={exportFotCsv}>Экспорт CSV</button>
+        </div>
+        <div className="wf-fot-table-wrap">
+          <table className="wf-fot-table">
+            <thead>
+              <tr>
+                <th>Производство</th>
+                <th>Статус</th>
+                <th>Кол-во сотр.</th>
+                <th>Часов план</th>
+                <th>ФОТ план</th>
+              </tr>
+            </thead>
+            <tbody>
+              {Object.entries(prods).map(([prod, p]) => {
+                const statuses = Object.keys(p.status_employee_count || {})
+                return (
+                  <>
+                    {statuses.map((st, i) => (
+                      <tr key={`${prod}-${st}`}>
+                        {i === 0 && <td rowSpan={statuses.length + 1} className="wf-fot-prod-cell">{p.name}</td>}
+                        <td><span className="wf-status-badge wf-status-badge-sm">{st}</span></td>
+                        <td className="wf-fot-num">{p.status_employee_count?.[st] ?? 0}</td>
+                        <td className="wf-fot-num">{p.status_total_plan_hours?.[st] ?? 0}</td>
+                        <td className="wf-fot-num">{fmtCost(p.status_total_plan_cost?.[st] ?? 0)}</td>
+                      </tr>
+                    ))}
+                    <tr className="wf-fot-subtotal" key={`${prod}-total`}>
+                      {statuses.length === 0 && <td className="wf-fot-prod-cell">{p.name}</td>}
+                      <td><strong>Итого</strong></td>
+                      <td className="wf-fot-num"><strong>{p.total_employees}</strong></td>
+                      <td className="wf-fot-num"><strong>{p.total_planned_hours}</strong></td>
+                      <td className="wf-fot-num"><strong>{fmtCost(p.total_planned_cost)}</strong></td>
+                    </tr>
+                  </>
+                )
+              })}
+              <tr className="wf-fot-grand-total">
+                <td colSpan={2}><strong>ВСЕГО</strong></td>
+                <td className="wf-fot-num"><strong>{totalEmployees}</strong></td>
+                <td className="wf-fot-num"><strong>{Object.values(prods).reduce((s, p) => s + (p.total_planned_hours || 0), 0)}</strong></td>
+                <td className="wf-fot-num"><strong>{fmtCost(totalPlannedCost)}</strong></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
       <div className="wf-analytics-cards">
         <div className="wf-card"><div className="wf-card-label">Всего сотрудников</div><div className="wf-card-value">{totalEmployees}</div></div>
         <div className="wf-card wf-card-plan"><div className="wf-card-label">ФОТ план (месяц)</div><div className="wf-card-value">{fmtCost(totalPlannedCost)}</div></div>

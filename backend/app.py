@@ -1179,6 +1179,41 @@ async def wf_save_schedule(production: str, year: int, month: int, request: Requ
     return {"ok": True}
 
 
+@app.post("/api/workforce/schedule/{production}/{year}/{month}/snapshot")
+def wf_save_snapshot(production: str, year: int, month: int, request: Request):
+    """Зафиксировать (заморозить) текущий график."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    access = _require_schedule_access(request, production)
+    if access["role"] not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="Только менеджер или администратор")
+    meta = wf.save_schedule_snapshot(production, year, month)
+    wf.log_change(_get_request_username(request), "график: зафиксирован снимок", production, year, month,
+                  f"{meta['employee_count']} сотрудников")
+    return {"ok": True, **meta}
+
+
+@app.get("/api/workforce/schedule/{production}/{year}/{month}/snapshot")
+def wf_get_snapshot(production: str, year: int, month: int, request: Request):
+    """Получить мета-данные существующего снимка."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    _require_schedule_access(request, production)
+    snap = wf.get_schedule_snapshot(production, year, month)
+    if snap is None:
+        return {"has_snapshot": False}
+    return {"has_snapshot": True, "saved_at": snap.get("snapshot_saved_at"), "employee_count": len(snap.get("employees", []))}
+
+
+@app.get("/api/workforce/schedule/{production}/{year}/{month}/diff")
+def wf_snapshot_diff(production: str, year: int, month: int, request: Request):
+    """Сравнить текущий график со снимком."""
+    if production not in wf.PRODUCTIONS:
+        raise HTTPException(status_code=404, detail="Производство не найдено")
+    _require_schedule_access(request, production)
+    return wf.diff_schedule_with_snapshot(production, year, month)
+
+
 @app.post("/api/workforce/schedule/{production}/{year}/{month}/import")
 async def wf_import_schedule(production: str, year: int, month: int, request: Request):
     """Импорт графика из TSV (Google Таблицы)."""

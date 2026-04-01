@@ -178,7 +178,7 @@ def get_schedule(production: str, year: int, month: int) -> dict:
     # Берём всех, кроме уволенных; рабочие дни сбрасываем в {}
     carried = [
         {
-            "id": emp["id"],
+            "id": emp.get("id") or str(uuid.uuid4()),
             "full_name": emp["full_name"],
             "position": emp.get("position", ""),
             "status": emp.get("status", ""),
@@ -338,9 +338,11 @@ def get_monthly_analytics(year: int, month: int) -> dict:
         st_daily_fact_cost:  dict[str, dict]  = {}
         st_total_plan_cost:  dict[str, float] = {}
         st_total_fact_cost:  dict[str, float] = {}
+        st_total_plan_hours: dict[str, float] = {}
+        st_total_fact_hours: dict[str, float] = {}
 
         for emp in employees:
-            emp_id   = emp["id"]
+            emp_id   = emp.get("id") or ""
             position = emp.get("position", "")
             status   = emp.get("status", "")
             rate     = rate_lookup.get((position, status), 0.0)
@@ -358,6 +360,8 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                 st_daily_fact_cost[status] = _empty_cost_dict(num_days)
                 st_total_plan_cost[status] = 0.0
                 st_total_fact_cost[status] = 0.0
+                st_total_plan_hours[status] = 0.0
+                st_total_fact_hours[status] = 0.0
 
             # 1) Запланированные дни (план + факт по табелю)
             for day_str, planned_h in working_days.items():
@@ -371,6 +375,7 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                 st_daily_planned[status][day_str]   += 1
                 st_daily_plan_cost[status][day_str] += cost
                 st_total_plan_cost[status]          += cost
+                st_total_plan_hours[status]         = st_total_plan_hours.get(status, 0.0) + planned_h
 
                 actual_h = ts_emp.get(day_str)
                 if actual_h is not None:
@@ -383,6 +388,7 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                     total_actual_cost                        += actual_cost
                     total_actual_hours                       += actual_h
                     st_total_fact_cost[status]               += actual_cost
+                    st_total_fact_hours[status]              = st_total_fact_hours.get(status, 0.0) + actual_h
 
             # 2) Внеплановые дни: в табеле есть часы, но дня нет в графике — учитываем в факте
             for day_str, actual_h in ts_emp.items():
@@ -425,6 +431,8 @@ def get_monthly_analytics(year: int, month: int) -> dict:
             "status_daily_fact_cost":   st_daily_fact_cost,
             "status_total_plan_cost":   st_total_plan_cost,
             "status_total_fact_cost":   st_total_fact_cost,
+            "status_total_plan_hours":  st_total_plan_hours,
+            "status_total_fact_hours":  st_total_fact_hours,
         }
 
     return {"year": year, "month": month, "productions": result}
@@ -1123,6 +1131,72 @@ def get_workforce_period_data(production: str, date_from, date_to) -> dict:
         "daily_by_section": daily_by_section,
         "by_section":     {s: len(ns) for s, ns in section_employees.items()},
         "sections":       sections_summary,
+    }
+
+
+# ─── Снимки графика (Snapshot) ────────────────────────────────────────────────
+
+def _snapshot_path(production: str, year: int, month: int) -> Path:
+    return WORKFORCE_DIR / f"schedule_snapshot_{production}_{year}_{month:02d}.json"
+
+
+def save_schedule_snapshot(production: str, year: int, month: int) -> dict:
+    """Сохранить снимок текущего графика. Возвращает мета-данные снимка."""
+    from datetime import datetime as _dt
+    schedule = get_schedule(production, year, month)
+    saved_at = _dt.utcnow().strftime("%Y-%m-%dT%H:%M:%SZ")
+    snapshot = {**schedule, "snapshot_saved_at": saved_at}
+    _write_json(_snapshot_path(production, year, month), snapshot)
+    return {"saved_at": saved_at, "employee_count": len(schedule.get("employees", []))}
+
+
+def get_schedule_snapshot(production: str, year: int, month: int) -> dict | None:
+    """Вернуть сохранённый снимок или None."""
+    path = _snapshot_path(production, year, month)
+    if not path.exists():
+        return None
+    return _read_json(path, None)
+
+
+def diff_schedule_with_snapshot(production: str, year: int, month: int) -> dict:
+    """Сравнить текущий график со снимком."""
+    snapshot = get_schedule_snapshot(production, year, month)
+    if snapshot is None:
+        return {"has_snapshot": False}
+
+    current = get_schedule(production, year, month)
+    snap_by_name = {e.get("full_name", "").strip(): e for e in snapshot.get("employees", []) if e.get("full_name")}
+    curr_by_name = {e.get("full_name", "").strip(): e for e in current.get("employees", []) if e.get("full_name")}
+
+    added, removed, changed = [], [], []
+
+    for name, emp in curr_by_name.items():
+        if name not in snap_by_name:
+            added.append({"full_name": name, "position": emp.get("position", ""), "status": emp.get("status", "")})
+        else:
+            snap_days = snap_by_name[name].get("working_days") or {}
+            curr_days = emp.get("working_days") or {}
+            if snap_days != curr_days:
+                all_days = sorted(set(snap_days) | set(curr_days), key=lambda x: int(x) if x.isdigit() else 0)
+                day_changes = [
+                    {"day": int(d), "snapshot": snap_days.get(d), "current": curr_days.get(d)}
+                    for d in all_days if snap_days.get(d) != curr_days.get(d)
+                ]
+                if day_changes:
+                    changed.append({"full_name": name, "position": emp.get("position", ""), "status": emp.get("status", ""), "changes": day_changes})
+
+    for name in snap_by_name:
+        if name not in curr_by_name:
+            removed.append({"full_name": name, "position": snap_by_name[name].get("position", ""), "status": snap_by_name[name].get("status", "")})
+
+    return {
+        "has_snapshot": True,
+        "snapshot_saved_at": snapshot.get("snapshot_saved_at"),
+        "production": production,
+        "added": added,
+        "removed": removed,
+        "changed": changed,
+        "total_changes": len(added) + len(removed) + len(changed),
     }
 
 

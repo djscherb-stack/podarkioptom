@@ -1741,6 +1741,116 @@ kbd {
   color: var(--text);
 }
 
+/* ─── Снимок графика — панель diff ────────────────────────────────────────── */
+.wf-diff-panel {
+  margin: 0.75rem 1rem;
+  padding: 0.75rem 1rem;
+  background: var(--surface2, rgba(0,0,0,0.04));
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  font-size: 0.85rem;
+}
+.wf-diff-header {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+  flex-wrap: wrap;
+}
+.wf-diff-date { color: var(--text-muted); font-size: 0.8rem; }
+.wf-diff-total {
+  margin-left: auto;
+  background: var(--accent, #4a90e2);
+  color: #fff;
+  border-radius: 12px;
+  padding: 0.1rem 0.6rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+.wf-diff-empty { color: var(--text-muted); padding: 0.25rem 0; }
+.wf-diff-section { margin-top: 0.5rem; }
+.wf-diff-section-title {
+  font-weight: 600;
+  font-size: 0.82rem;
+  margin-bottom: 0.25rem;
+  padding: 0.15rem 0.4rem;
+  border-radius: 4px;
+}
+.wf-diff-added  { background: rgba(34, 160, 80, 0.12); color: #1a7a40; }
+.wf-diff-removed { background: rgba(200, 50, 50, 0.1); color: #a02020; }
+.wf-diff-changed { background: rgba(180, 130, 20, 0.1); color: #7a5c00; }
+.wf-diff-row {
+  display: flex;
+  align-items: baseline;
+  gap: 0.75rem;
+  padding: 0.2rem 0.4rem;
+  border-radius: 4px;
+  flex-wrap: wrap;
+}
+.wf-diff-row-added  { background: rgba(34, 160, 80, 0.06); }
+.wf-diff-row-removed { background: rgba(200, 50, 50, 0.06); }
+.wf-diff-row-changed { background: rgba(180, 130, 20, 0.06); }
+.wf-diff-name { font-weight: 500; }
+.wf-diff-meta { color: var(--text-muted); font-size: 0.78rem; }
+.wf-diff-days { display: flex; flex-wrap: wrap; gap: 0.4rem; width: 100%; margin-top: 0.15rem; }
+.wf-diff-day-change {
+  background: rgba(180, 130, 20, 0.15);
+  border-radius: 4px;
+  padding: 0.05rem 0.35rem;
+  font-size: 0.75rem;
+  white-space: nowrap;
+}
+
+/* ─── ФОТ сводная таблица ──────────────────────────────────────────────────── */
+.wf-fot-summary {
+  margin: 1rem 0;
+  border: 1px solid var(--border, #ddd);
+  border-radius: 8px;
+  overflow: hidden;
+}
+.wf-fot-summary-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0.6rem 1rem;
+  background: var(--surface2, rgba(0,0,0,0.03));
+  border-bottom: 1px solid var(--border, #ddd);
+}
+.wf-fot-summary-header h4 { margin: 0; font-size: 0.95rem; }
+.wf-fot-table-wrap { overflow-x: auto; }
+.wf-fot-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+}
+.wf-fot-table th {
+  background: var(--surface2, rgba(0,0,0,0.04));
+  padding: 0.4rem 0.75rem;
+  text-align: left;
+  border-bottom: 1px solid var(--border, #ddd);
+  font-size: 0.8rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.wf-fot-table td {
+  padding: 0.3rem 0.75rem;
+  border-bottom: 1px solid var(--border, rgba(0,0,0,0.06));
+  vertical-align: middle;
+}
+.wf-fot-prod-cell {
+  font-weight: 600;
+  vertical-align: top !important;
+  padding-top: 0.5rem !important;
+  white-space: nowrap;
+}
+.wf-fot-num { text-align: right; white-space: nowrap; }
+.wf-fot-subtotal td { background: var(--surface2, rgba(0,0,0,0.03)); font-size: 0.83rem; }
+.wf-fot-grand-total td {
+  background: var(--surface3, rgba(0,0,0,0.07));
+  border-top: 2px solid var(--border, #ccc);
+  font-size: 0.88rem;
+}
+
 /* ─── Адаптив ──────────────────────────────────────────────────────────────── */
 @media (max-width: 768px) {
   .wf-page { padding: 1rem 0.75rem; }
