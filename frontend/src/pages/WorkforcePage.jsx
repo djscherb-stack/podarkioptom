@@ -1830,7 +1830,7 @@ export function ScheduleTable({ production, year, month, canEdit, canImport, can
 }
 
 // ─── Таблица табеля ───────────────────────────────────────────────────────────
-export function TimesheetTable({ production, year, month, canEdit, canEditSection, onlyToday = false, reference }) {
+export function TimesheetTable({ production, year, month, canEdit, canEditSection, onlyToday = false, reference, isAdmin = false }) {
   const [schedule, setSchedule] = useState(null)
   const [timesheet, setTimesheet] = useState(null)
   const [empList, setEmpList] = useState([])
@@ -2077,8 +2077,8 @@ export function TimesheetTable({ production, year, month, canEdit, canEditSectio
               ))}
               <th className="wf-col-total">Ч план</th>
               <th className="wf-col-total">Ч факт</th>
-              <th className="wf-col-total">₽ план</th>
-              <th className="wf-col-total">₽ факт</th>
+              {isAdmin && <th className="wf-col-total">₽ план</th>}
+              {isAdmin && <th className="wf-col-total">₽ факт</th>}
             </tr>
           </thead>
           <tbody>
@@ -2191,8 +2191,8 @@ export function TimesheetTable({ production, year, month, canEdit, canEditSectio
                   })}
                   <td className="wf-col-total wf-num">{plannedHours}</td>
                   <td className="wf-col-total wf-num">{actualHours || '—'}</td>
-                  <td className="wf-col-total wf-num">{fmtCost(plannedCost)}</td>
-                  <td className="wf-col-total wf-num">{actualHours ? fmtCost(actualCost) : '—'}</td>
+                  {isAdmin && <td className="wf-col-total wf-num">{fmtCost(plannedCost)}</td>}
+                  {isAdmin && <td className="wf-col-total wf-num">{actualHours ? fmtCost(actualCost) : '—'}</td>}
                 </tr>
               )
             })}
@@ -2205,7 +2205,7 @@ export function TimesheetTable({ production, year, month, canEdit, canEditSectio
                   {dayPlanned[d] > 0 ? dayPlanned[d] : ''}
                 </td>
               ))}
-              <td colSpan={4}></td>
+              <td colSpan={isAdmin ? 4 : 2}></td>
             </tr>
             <tr className="wf-totals-row wf-totals-actual">
               <td colSpan={hasSections ? 4 : 3} className="wf-totals-label">Факт (чел.):</td>
@@ -2219,7 +2219,7 @@ export function TimesheetTable({ production, year, month, canEdit, canEditSectio
                   </td>
                 )
               })}
-              <td colSpan={4}></td>
+              <td colSpan={isAdmin ? 4 : 2}></td>
             </tr>
           </tbody>
         </table>
@@ -2759,7 +2759,7 @@ const n0  = (v) => v > 0 ? new Intl.NumberFormat('ru-RU', { maximumFractionDigit
 const n0z = (v) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).format(v || 0)
 
 // ─── Старая аналитика (карточки + день-сетка) ─────────────────────────────────
-function AnalyticsTab({ year, month }) {
+function AnalyticsTab({ year, month, isAdmin = false }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [selectedDay, setSelectedDay] = useState(null)
@@ -2823,8 +2823,8 @@ function AnalyticsTab({ year, month }) {
     <div className="wf-analytics">
       <h3>Аналитика: {MONTH_NAMES[month - 1]} {year}</h3>
 
-      {/* ФОТ сводная таблица */}
-      <div className="wf-fot-summary">
+      {/* ФОТ сводная таблица — только для администратора */}
+      {isAdmin && <div className="wf-fot-summary">
         <div className="wf-fot-summary-header">
           <h4>ФОТ по производствам и статусам</h4>
           <button className="wf-btn wf-btn-sm" onClick={exportFotCsv}>Экспорт CSV</button>
@@ -2873,12 +2873,12 @@ function AnalyticsTab({ year, month }) {
             </tbody>
           </table>
         </div>
-      </div>
+      </div>}
       <div className="wf-analytics-cards">
         <div className="wf-card"><div className="wf-card-label">Всего сотрудников</div><div className="wf-card-value">{totalEmployees}</div></div>
-        <div className="wf-card wf-card-plan"><div className="wf-card-label">ФОТ план (месяц)</div><div className="wf-card-value">{fmtCost(totalPlannedCost)}</div></div>
-        <div className="wf-card wf-card-fact"><div className="wf-card-label">ФОТ факт (месяц)</div><div className="wf-card-value">{fmtCost(totalActualCost)}</div></div>
-        {totalPlannedCost > 0 && (
+        {isAdmin && <div className="wf-card wf-card-plan"><div className="wf-card-label">ФОТ план (месяц)</div><div className="wf-card-value">{fmtCost(totalPlannedCost)}</div></div>}
+        {isAdmin && <div className="wf-card wf-card-fact"><div className="wf-card-label">ФОТ факт (месяц)</div><div className="wf-card-value">{fmtCost(totalActualCost)}</div></div>}
+        {isAdmin && totalPlannedCost > 0 && (
           <div className={`wf-card ${totalActualCost <= totalPlannedCost ? 'wf-card-pos' : 'wf-card-neg'}`}>
             <div className="wf-card-label">Отклонение</div>
             <div className="wf-card-value">{fmtCost(totalActualCost - totalPlannedCost)}</div>
@@ -2899,8 +2899,8 @@ function AnalyticsTab({ year, month }) {
                 </div>
               ))}
               <div className="wf-stat-divider"></div>
-              <div className="wf-stat-row"><span>ФОТ план:</span><strong>{fmtCost(p.total_planned_cost)}</strong></div>
-              <div className="wf-stat-row"><span>ФОТ факт:</span><strong>{p.total_actual_cost > 0 ? fmtCost(p.total_actual_cost) : '—'}</strong></div>
+              {isAdmin && <div className="wf-stat-row"><span>ФОТ план:</span><strong>{fmtCost(p.total_planned_cost)}</strong></div>}
+              {isAdmin && <div className="wf-stat-row"><span>ФОТ факт:</span><strong>{p.total_actual_cost > 0 ? fmtCost(p.total_actual_cost) : '—'}</strong></div>}
               <div className="wf-stat-row"><span>Часы план:</span><strong>{p.total_planned_hours}</strong></div>
               <div className="wf-stat-row"><span>Часы факт:</span><strong>{p.total_actual_hours > 0 ? p.total_actual_hours : '—'}</strong></div>
             </div>
@@ -3054,7 +3054,7 @@ function MatrixSection({ prods, days, year, month, mode, expanded, onToggle }) {
   )
 }
 
-function MatrixAnalyticsTab({ year, month }) {
+function MatrixAnalyticsTab({ year, month, isAdmin = false }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const numDays = getDaysInMonth(year, month)
@@ -3104,8 +3104,10 @@ function MatrixAnalyticsTab({ year, month }) {
       <div className="wf-an-section-title">Вышло сотрудников (план / факт)</div>
       <MatrixSection prods={prods} days={days} year={year} month={month} mode="people" expanded={expanded} onToggle={toggle} />
 
-      <div className="wf-an-section-title" style={{marginTop:'1.25rem'}}>Потрачено денег, ₽ (план / факт)</div>
-      <MatrixSection prods={prods} days={days} year={year} month={month} mode="money" expanded={expanded} onToggle={toggle} />
+      {isAdmin && <>
+        <div className="wf-an-section-title" style={{marginTop:'1.25rem'}}>Потрачено денег, ₽ (план / факт)</div>
+        <MatrixSection prods={prods} days={days} year={year} month={month} mode="money" expanded={expanded} onToggle={toggle} />
+      </>}
 
       {/* Итоги за месяц */}
       <div className="wf-an-section-title" style={{marginTop:'1.25rem'}}>Итоги за месяц</div>
@@ -3126,7 +3128,7 @@ function MatrixAnalyticsTab({ year, month }) {
             )
           })}
         </div>
-        <div className="wf-am-totals-block">
+        {isAdmin && <div className="wf-am-totals-block">
           <div className="wf-am-totals-title">
             ФОТ: <strong>план {n0z(totalPlan)} ₽</strong> /
             <span className={totalFact < totalPlan ? ' wf-neg' : ' wf-pos'}> факт {n0z(totalFact)} ₽</span>
@@ -3149,7 +3151,7 @@ function MatrixAnalyticsTab({ year, month }) {
               </div>
             )
           })}
-        </div>
+        </div>}
       </div>
     </div>
   )
@@ -3579,15 +3581,16 @@ export default function WorkforcePage({ userInfo }) {
             canEditSection={isAdmin || isManager || isBrigadier}
             onlyToday={isBrigadier}
             reference={reference}
+            isAdmin={isAdmin}
           />
         )}
 
         {activeTab === 'analytics' && (
-          <AnalyticsTab year={year} month={month} />
+          <AnalyticsTab year={year} month={month} isAdmin={isAdmin} />
         )}
 
         {activeTab === 'matrix_analytics' && (
-          <MatrixAnalyticsTab year={year} month={month} />
+          <MatrixAnalyticsTab year={year} month={month} isAdmin={isAdmin} />
         )}
 
         {activeTab === 'export' && (
