@@ -1150,7 +1150,7 @@ def save_schedule_snapshot(production: str, year: int, month: int) -> dict:
     return {"saved_at": saved_at, "employee_count": len(schedule.get("employees", []))}
 
 
-def get_schedule_snapshot(production: str, year: int, month: int) -> dict | None:
+def get_schedule_snapshot(production: str, year: int, month: int) -> Optional[dict]:
     """Вернуть сохранённый снимок или None."""
     path = _snapshot_path(production, year, month)
     if not path.exists():
