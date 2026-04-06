@@ -1534,25 +1534,15 @@ def wf_changelog(request: Request, limit: int = 200):
 
 @app.get("/api/workforce/analytics/{year}/{month}")
 def wf_analytics(year: int, month: int, request: Request):
-    """Сводная аналитика по всем производствам за месяц. Только admin."""
-    token = request.cookies.get("analytics_session")
-    username = auth.get_username(token)
-    if not username:
-        raise HTTPException(status_code=401, detail="Требуется авторизация")
-    if not auth.is_admin(username):
-        raise HTTPException(status_code=403, detail="Только для администратора")
+    """Сводная аналитика по всем производствам за месяц. Для admin, manager, viewer."""
+    _require_schedule_access(request)
     return wf.get_monthly_analytics(year, month)
 
 
 @app.get("/api/workforce/analytics/{year}/{month}/{day}")
 def wf_day_analytics(year: int, month: int, day: int, request: Request):
-    """Аналитика за конкретный день. Только admin."""
-    token = request.cookies.get("analytics_session")
-    username = auth.get_username(token)
-    if not username:
-        raise HTTPException(status_code=401, detail="Требуется авторизация")
-    if not auth.is_admin(username):
-        raise HTTPException(status_code=403, detail="Только для администратора")
+    """Аналитика за конкретный день. Для admin, manager, viewer."""
+    _require_schedule_access(request)
     return wf.get_day_analytics(year, month, day)
 
 
