@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from 'react'
+import React, { useState, useEffect, useCallback, useRef } from 'react'
 import { apiFetch, API } from '../api'
 import html2pdf from 'html2pdf.js'
 import './WorkforcePage.css'
@@ -2842,9 +2842,9 @@ function AnalyticsTab({ year, month, isAdmin = false }) {
             </thead>
             <tbody>
               {Object.entries(prods).map(([prod, p]) => {
-                const statuses = Object.keys(p.status_employee_count || {})
+                const statuses = Object.keys(p.status_employee_count || {}).filter(st => st !== '')
                 return (
-                  <>
+                  <React.Fragment key={prod}>
                     {statuses.map((st, i) => (
                       <tr key={`${prod}-${st}`}>
                         {i === 0 && <td rowSpan={statuses.length + 1} className="wf-fot-prod-cell">{p.name}</td>}
@@ -2854,14 +2854,14 @@ function AnalyticsTab({ year, month, isAdmin = false }) {
                         <td className="wf-fot-num">{fmtCost(p.status_total_plan_cost?.[st] ?? 0)}</td>
                       </tr>
                     ))}
-                    <tr className="wf-fot-subtotal" key={`${prod}-total`}>
+                    <tr key={`${prod}-total`} className="wf-fot-subtotal">
                       {statuses.length === 0 && <td className="wf-fot-prod-cell">{p.name}</td>}
                       <td><strong>Итого</strong></td>
                       <td className="wf-fot-num"><strong>{p.total_employees}</strong></td>
                       <td className="wf-fot-num"><strong>{p.total_planned_hours}</strong></td>
                       <td className="wf-fot-num"><strong>{fmtCost(p.total_planned_cost)}</strong></td>
                     </tr>
-                  </>
+                  </React.Fragment>
                 )
               })}
               <tr className="wf-fot-grand-total">
