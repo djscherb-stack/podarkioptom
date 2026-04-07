@@ -1536,14 +1536,24 @@ def wf_changelog(request: Request, limit: int = 200):
 def wf_analytics(year: int, month: int, request: Request):
     """Сводная аналитика по всем производствам за месяц. Для admin, manager, viewer."""
     _require_schedule_access(request)
-    return wf.get_monthly_analytics(year, month)
+    try:
+        return wf.get_monthly_analytics(year, month)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Ошибка аналитики: {type(e).__name__}: {e}")
 
 
 @app.get("/api/workforce/analytics/{year}/{month}/{day}")
 def wf_day_analytics(year: int, month: int, day: int, request: Request):
     """Аналитика за конкретный день. Для admin, manager, viewer."""
     _require_schedule_access(request)
-    return wf.get_day_analytics(year, month, day)
+    try:
+        return wf.get_day_analytics(year, month, day)
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Ошибка аналитики дня: {type(e).__name__}: {e}")
 
 
 # ---------------------------------------------------------------------------

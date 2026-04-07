@@ -305,18 +305,34 @@ def _empty_cost_dict(num_days: int) -> dict:
     return {str(d): 0.0 for d in range(1, num_days + 1)}
 
 
+def _to_float(v, default: float = 0.0) -> float:
+    """Безопасно конвертирует значение в float."""
+    if v is None:
+        return default
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return default
+
+
 def get_monthly_analytics(year: int, month: int) -> dict:
     """Расширенная аналитика: по дням (план/факт) с разбивкой по производствам и статусам."""
     reference = get_reference()
-    rate_lookup = {(r["position"], r["status"]): r["hourly_rate"] for r in reference}
+    rate_lookup = {}
+    for r in reference:
+        try:
+            key = (r.get("position", ""), r.get("status", ""))
+            rate_lookup[key] = _to_float(r.get("hourly_rate", 0))
+        except Exception:
+            pass
     num_days = calendar.monthrange(year, month)[1]
 
     result = {}
     for prod in PRODUCTIONS:
         schedule = get_schedule(prod, year, month)
         timesheet = get_timesheet(prod, year, month)
-        employees = schedule.get("employees", [])
-        ts_records = timesheet.get("records", {})
+        employees = schedule.get("employees", []) if isinstance(schedule, dict) else []
+        ts_records = timesheet.get("records", {}) if isinstance(timesheet, dict) else {}
 
         # Итого по производству
         daily_planned      = _empty_day_dict(num_days)
@@ -342,12 +358,14 @@ def get_monthly_analytics(year: int, month: int) -> dict:
         st_total_fact_hours: dict[str, float] = {}
 
         for emp in employees:
+            if not isinstance(emp, dict):
+                continue
             emp_id   = emp.get("id") or ""
-            position = emp.get("position", "")
-            status   = emp.get("status", "")
+            position = emp.get("position", "") or ""
+            status   = emp.get("status", "") or ""
             rate     = rate_lookup.get((position, status), 0.0)
-            working_days: dict = emp.get("working_days", {})
-            ts_emp:  dict = ts_records.get(emp_id, {})
+            working_days: dict = emp.get("working_days") or {}
+            ts_emp:  dict = ts_records.get(emp_id) or {}
 
             status_counts[status] = status_counts.get(status, 0) + 1
             st_emp_count[status]  = st_emp_count.get(status, 0) + 1
@@ -364,7 +382,15 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                 st_total_fact_hours[status] = 0.0
 
             # 1) Запланированные дни (план + факт по табелю)
-            for day_str, planned_h in working_days.items():
+            for day_str, planned_h_raw in working_days.items():
+                # Защита от нечисловых значений и выхода за пределы месяца
+                try:
+                    d = int(day_str)
+                    if d < 1 or d > num_days:
+                        continue
+                except (ValueError, TypeError):
+                    continue
+                planned_h = _to_float(planned_h_raw)
                 cost = planned_h * rate
                 # Итого по производству
                 daily_planned[day_str]      += 1
@@ -377,8 +403,9 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                 st_total_plan_cost[status]          += cost
                 st_total_plan_hours[status]         = st_total_plan_hours.get(status, 0.0) + planned_h
 
-                actual_h = ts_emp.get(day_str)
-                if actual_h is not None:
+                actual_h_raw = ts_emp.get(day_str)
+                if actual_h_raw is not None:
+                    actual_h = _to_float(actual_h_raw)
                     actual_cost = actual_h * rate
                     if actual_h > 0:
                         daily_actual[day_str]                += 1
@@ -391,10 +418,11 @@ def get_monthly_analytics(year: int, month: int) -> dict:
                     st_total_fact_hours[status]              = st_total_fact_hours.get(status, 0.0) + actual_h
 
             # 2) Внеплановые дни: в табеле есть часы, но дня нет в графике — учитываем в факте
-            for day_str, actual_h in ts_emp.items():
+            for day_str, actual_h_raw in ts_emp.items():
                 if day_str in working_days:
                     continue  # уже учтено выше
-                if actual_h is None or actual_h <= 0:
+                actual_h = _to_float(actual_h_raw)
+                if actual_h <= 0:
                     continue
                 try:
                     d = int(day_str)
@@ -441,15 +469,21 @@ def get_monthly_analytics(year: int, month: int) -> dict:
 def get_day_analytics(year: int, month: int, day: int) -> dict:
     """Аналитика по конкретному дню: план/факт по всем производствам."""
     reference = get_reference()
-    rate_lookup = {(r["position"], r["status"]): r["hourly_rate"] for r in reference}
+    rate_lookup = {}
+    for r in reference:
+        try:
+            key = (r.get("position", ""), r.get("status", ""))
+            rate_lookup[key] = _to_float(r.get("hourly_rate", 0))
+        except Exception:
+            pass
     day_str = str(day)
     result = {}
 
     for prod in PRODUCTIONS:
         schedule = get_schedule(prod, year, month)
         timesheet = get_timesheet(prod, year, month)
-        employees = schedule.get("employees", [])
-        ts_records = timesheet.get("records", {})
+        employees = schedule.get("employees", []) if isinstance(schedule, dict) else []
+        ts_records = timesheet.get("records", {}) if isinstance(timesheet, dict) else {}
 
         planned_count = 0
         actual_count = 0
@@ -457,19 +491,21 @@ def get_day_analytics(year: int, month: int, day: int) -> dict:
         actual_cost = 0.0
 
         for emp in employees:
-            emp_id = emp["id"]
-            position = emp.get("position", "")
-            status = emp.get("status", "")
+            if not isinstance(emp, dict):
+                continue
+            emp_id = emp.get("id") or ""
+            position = emp.get("position", "") or ""
+            status = emp.get("status", "") or ""
             rate = rate_lookup.get((position, status), 0.0)
-            working_days = emp.get("working_days", {})
-            ts_emp = ts_records.get(emp_id, {})
+            working_days = emp.get("working_days") or {}
+            ts_emp = ts_records.get(emp_id) or {}
 
             if day_str in working_days:
                 planned_count += 1
-                planned_cost += working_days[day_str] * rate
+                planned_cost += _to_float(working_days[day_str]) * rate
 
-            actual_h = ts_emp.get(day_str)
-            if actual_h is not None and actual_h > 0:
+            actual_h = _to_float(ts_emp.get(day_str))
+            if actual_h > 0:
                 actual_count += 1
                 actual_cost += actual_h * rate
 
