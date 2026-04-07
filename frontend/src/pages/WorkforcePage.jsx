@@ -2762,15 +2762,17 @@ const n0z = (v) => new Intl.NumberFormat('ru-RU', { maximumFractionDigits: 0 }).
 function AnalyticsTab({ year, month, isAdmin = false }) {
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
   const [selectedDay, setSelectedDay] = useState(null)
   const [dayData, setDayData] = useState(null)
   const numDays = getDaysInMonth(year, month)
 
   useEffect(() => {
     setLoading(true)
+    setError(null)
     apiFetch(`${API}/workforce/analytics/${year}/${month}`)
       .then(d => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .catch(e => { setError(e.message || 'Неизвестная ошибка'); setLoading(false) })
   }, [year, month])
 
   const handleDayClick = async (day) => {
@@ -2782,7 +2784,7 @@ function AnalyticsTab({ year, month, isAdmin = false }) {
   }
 
   if (loading) return <div className="wf-loading">Загрузка аналитики...</div>
-  if (!data) return <div className="wf-error">Ошибка загрузки аналитики</div>
+  if (!data) return <div className="wf-error">Ошибка загрузки аналитики{error ? `: ${error}` : ''}</div>
 
   const prods = data.productions || {}
   const totalEmployees  = Object.values(prods).reduce((s, p) => s + p.total_employees, 0)
@@ -3062,11 +3064,14 @@ function MatrixAnalyticsTab({ year, month, isAdmin = false }) {
   // Состояние развёрнутости для каждого производства (по умолчанию все свёрнуты)
   const [expanded, setExpanded] = useState({ tea: false, engraving: false, luminarc: false })
 
+  const [error, setError] = useState(null)
+
   const loadData = useCallback(() => {
     setLoading(true)
+    setError(null)
     apiFetch(`${API}/workforce/analytics/${year}/${month}`)
       .then(d => { setData(d); setLoading(false) })
-      .catch(() => setLoading(false))
+      .catch(e => { setError(e.message || 'Неизвестная ошибка'); setLoading(false) })
   }, [year, month])
 
   useEffect(() => { loadData() }, [loadData])
@@ -3076,7 +3081,7 @@ function MatrixAnalyticsTab({ year, month, isAdmin = false }) {
   const toggleAll   = () => setExpanded(Object.fromEntries(Object.keys(expanded).map(k => [k, !allExpanded])))
 
   if (loading) return <div className="wf-loading">Загрузка...</div>
-  if (!data) return <div className="wf-error">Ошибка загрузки</div>
+  if (!data) return <div className="wf-error">Ошибка загрузки{error ? `: ${error}` : ''}</div>
 
   const prods    = data.productions || {}
   const prodKeys = Object.keys(prods)

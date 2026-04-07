@@ -22,6 +22,7 @@ export async function apiFetch(url, options = {}) {
   const data = await r.json()
   if (r.status === 401) throw new AuthError()
   if (!r.ok && data?.error) throw new Error(data.error)
+  if (!r.ok && data?.detail) throw new Error(data.detail)
   if (!r.ok) throw new Error(`Ошибка сервера: ${r.status}`)
   return data
 }
